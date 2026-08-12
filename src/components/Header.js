@@ -1,6 +1,9 @@
 export default function Header() {
   return (
     <header style={{ 
+      position: 'sticky', 
+      top: 0, 
+      zIndex: 1000, 
       display: 'flex', 
       justifyContent: 'space-between', 
       alignItems: 'center', 
