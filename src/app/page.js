@@ -1,6 +1,8 @@
 import ActionButtons from '../components/ActionButtons';
 import Header from '../components/Header';
-import Services from '../components/Services'; // Importando a nova seção
+import Services from '../components/Services';
+import Process from '../components/Process'; // Novo
+import Footer from '../components/Footer';   // Novo
 
 export default function Home() {
   return (
@@ -10,20 +12,21 @@ export default function Home() {
       <main>
         {/* Hero Section */}
         <section style={{ padding: '80px 20px', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
-          <h1 style={{ color: '#2A4365', fontSize: '3rem', marginBottom: '10px' }}>
+          <h1 style={{ color: '#2A4365', fontSize: '3.5rem', marginBottom: '15px', fontWeight: 'bold' }}>
             UNLOCK THE FULL POTENTIAL OF YOUR EXCEL DATA
           </h1>
-          <p style={{ color: '#4A5568', fontSize: '1.2rem', marginBottom: '40px', lineHeight: '1.6' }}>
+          <p style={{ color: '#4A5568', fontSize: '1.3rem', marginBottom: '40px', lineHeight: '1.6' }}>
             Pro-Grade Construction Takeoff & Lean Planning Solutions for North and South American Efficiency.
           </p>
           <ActionButtons />
         </section>
 
-        {/* Seção de Serviços */}
         <Services />
         
-        {/* Próximo passo: Seção de Processo e Formulário */}
+        <Process />
       </main>
+
+      <Footer />
     </div>
   );
 }
