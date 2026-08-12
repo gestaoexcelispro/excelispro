@@ -1,8 +1,9 @@
 import ActionButtons from '../components/ActionButtons';
 import Header from '../components/Header';
 import Services from '../components/Services';
-import Process from '../components/Process'; // Novo
-import Footer from '../components/Footer';   // Novo
+import Process from '../components/Process';
+import Contact from '../components/Contact'; 
+import Footer from '../components/Footer';
 
 export default function Home() {
   return (
@@ -22,8 +23,8 @@ export default function Home() {
         </section>
 
         <Services />
-        
         <Process />
+        <Contact />
       </main>
 
       <Footer />
