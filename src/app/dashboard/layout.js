@@ -54,7 +54,6 @@ export default function DashboardLayout({ children }) {
             <span style={{ backgroundColor: '#e2e8f0', color: '#1a365d', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold' }}>1</span>
           </a>
 
-          {/* Nova etapa do fluxo: Orçamentos */}
           <a href="/dashboard/orcamentos" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', textDecoration: 'none', color: '#4a5568', borderRadius: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
               <span style={{ fontSize: '1.2rem' }}>📊</span> {t.budgets}
@@ -68,7 +67,8 @@ export default function DashboardLayout({ children }) {
             <span style={{ backgroundColor: '#e2e8f0', color: '#1a365d', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold' }}>1</span>
           </a>
 
-          <a href="#modelos" style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 15px', textDecoration: 'none', color: '#4a5568', borderRadius: '8px' }}>
+          {/* Link corrigido para a página real de Modelos */}
+          <a href="/dashboard/modelos" style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 15px', textDecoration: 'none', color: '#4a5568', borderRadius: '8px' }}>
             <span style={{ fontSize: '1.2rem' }}>📚</span> {t.templates}
           </a>
 
