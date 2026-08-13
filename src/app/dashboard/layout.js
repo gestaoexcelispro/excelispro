@@ -47,12 +47,21 @@ export default function DashboardLayout({ children }) {
   const [isCommercialOpen, setIsCommercialOpen] = useState(true);
   const [isFinancialOpen, setIsFinancialOpen] = useState(true);
   const [isLegalOpen, setIsLegalOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Detecta se é tela de celular ao carregar para recolher o menu automaticamente
+  // Verifica o tamanho da tela de forma segura no cliente
   useEffect(() => {
-    if (window.innerWidth < 768) {
-      setIsSidebarOpen(false);
-    }
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+        setIsMobile(true);
+      } else {
+        setIsMobile(false);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   return (
@@ -121,8 +130,8 @@ export default function DashboardLayout({ children }) {
           transition: 'width 0.3s ease, border 0.3s ease',
           whiteSpace: 'nowrap',
           zIndex: 1000,
-          position: window.innerWidth < 768 ? 'absolute' : 'relative',
-          height: 'calc(100vh - 60px)'
+          position: isMobile ? 'absolute' : 'relative',
+          height: isMobile ? 'calc(100vh - 60px)' : 'auto'
         }}>
           
           <div style={{ overflowY: 'auto', flex: 1, width: '260px' }}>
@@ -200,7 +209,7 @@ export default function DashboardLayout({ children }) {
 
         </aside>
 
-        {/* ÁREA PRINCIPAL DE CONTEÚDO COM SUPORTE A SCROLL HORIZONTAIS PARA TABELAS */}
+        {/* ÁREA PRINCIPAL DE CONTEÚDO */}
         <main style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '15px' }}>
           <div style={{ minWidth: '320px' }}>
             {children}
