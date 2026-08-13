@@ -50,6 +50,26 @@ export default function ProjetosListaPage() {
     }
   };
 
+  // Função para excluir projeto do Supabase
+  const handleDelete = async (id, nome) => {
+    const confirmDelete = window.confirm(
+      lang === 'en-US' 
+        ? `Are you sure you want to delete project "${nome}"?` 
+        : `Tem certeza que deseja excluir o projeto "${nome}" do sistema e do Supabase?`
+    );
+
+    if (!confirmDelete) return;
+
+    const { error } = await supabase.from('projetos').delete().eq('id', id);
+
+    if (error) {
+      alert(lang === 'en-US' ? 'Error deleting project: ' + error.message : 'Erro ao excluir projeto: ' + error.message);
+    } else {
+      alert(lang === 'en-US' ? 'Project deleted successfully!' : 'Projeto excluído com sucesso!');
+      fetchProjetos();
+    }
+  };
+
   return (
     <div style={{ padding: '40px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
@@ -151,12 +171,13 @@ export default function ProjetosListaPage() {
               <th style={{ padding: '15px 20px', color: '#4a5568', fontWeight: 'bold' }}>{lang === 'en-US' ? 'Client' : 'Cliente'}</th>
               <th style={{ padding: '15px 20px', color: '#4a5568', fontWeight: 'bold' }}>{lang === 'en-US' ? 'Contract Value' : 'Valor do Contrato'}</th>
               <th style={{ padding: '15px 20px', color: '#4a5568', fontWeight: 'bold' }}>{lang === 'en-US' ? 'City/State' : 'Cidade/Estado'}</th>
+              <th style={{ padding: '15px 20px', color: '#4a5568', fontWeight: 'bold' }}>{lang === 'en-US' ? 'Actions' : 'Ações'}</th>
             </tr>
           </thead>
           <tbody>
             {projetos.length === 0 ? (
               <tr>
-                <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#718096' }}>
+                <td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#718096' }}>
                   {lang === 'en-US' ? 'No projects registered yet.' : 'Nenhum projeto cadastrado até o momento.'}
                 </td>
               </tr>
@@ -170,6 +191,14 @@ export default function ProjetosListaPage() {
                     R$ {Number(p.valor_contrato).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>
                   <td style={{ padding: '15px 20px', color: '#718096' }}>{p.cidade} / {p.estado}</td>
+                  <td style={{ padding: '15px 20px' }}>
+                    <button 
+                      onClick={() => handleDelete(p.id, p.nome_projeto)}
+                      style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
+                    >
+                      {lang === 'en-US' ? 'Delete' : 'Excluir'}
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
