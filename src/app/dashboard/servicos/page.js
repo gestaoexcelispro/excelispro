@@ -10,7 +10,7 @@ const translations = {
     tableHeaders: ['Código', 'Descrição do Serviço', 'Unidade', 'Valor Unitário'],
     btnAdd: '+ Novo Serviço',
     loading: 'Carregando serviços...',
-    empty: 'Nenhum serviço cadastrado ainda.',
+    empty: 'Nenhum serviço cadastrado ainda. Comece inserindo o primeiro serviço acima.',
     modalTitle: 'Cadastrar Novo Serviço',
     formCode: 'Código (Ex: PRJ-ELE)',
     formDescPt: 'Descrição (Português)',
@@ -27,7 +27,7 @@ const translations = {
     tableHeaders: ['Code', 'Service Description', 'Unit', 'Unit Price'],
     btnAdd: '+ New Service',
     loading: 'Loading services...',
-    empty: 'No services registered yet.',
+    empty: 'No services registered yet. Start by adding your first service above.',
     modalTitle: 'Register New Service',
     formCode: 'Code (e.g., PRJ-ELE)',
     formDescPt: 'Description (Portuguese)',
@@ -56,7 +56,7 @@ export default function ServicosPage() {
     codigo: '',
     descricao_pt: '',
     descricao_en: '',
-    unidade: 'm²', // m² já vem selecionado por padrão
+    unidade: 'm²',
     preco: ''
   });
 
@@ -144,9 +144,9 @@ export default function ServicosPage() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan="4" style={{ padding: '20px', textAlign: 'center' }}>{t.loading}</td></tr>
+              <tr><td colSpan="4" style={{ padding: '30px', textAlign: 'center', color: '#718096' }}>{t.loading}</td></tr>
             ) : services.length === 0 ? (
-              <tr><td colSpan="4" style={{ padding: '20px', textAlign: 'center' }}>{t.empty}</td></tr>
+              <tr><td colSpan="4" style={{ padding: '30px', textAlign: 'center', color: '#718096' }}>{t.empty}</td></tr>
             ) : (
               services.map((svc) => (
                 <tr key={svc.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
@@ -165,13 +165,13 @@ export default function ServicosPage() {
         </table>
       </div>
 
-      {/* JANELA MODAL (Formulário) */}
+      {/* JANELA MODAL (Formulário de Cadastro) */}
       {isModalOpen && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
           backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
         }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '100%', maxWidth: '500px' }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '100%', maxWidth: '500px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
             <h2 style={{ marginTop: 0, color: '#2A4365', marginBottom: '20px' }}>{t.modalTitle}</h2>
             
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -194,7 +194,7 @@ export default function ServicosPage() {
               <div style={{ display: 'flex', gap: '15px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.formUnit}</label>
-                  {/* AQUI ESTÁ O DROPBOX / SELECT */}
+                  {/* Dropdown de Unidades */}
                   <select 
                     value={formData.unidade} 
                     onChange={(e) => setFormData({...formData, unidade: e.target.value})} 
