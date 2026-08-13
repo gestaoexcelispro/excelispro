@@ -21,14 +21,13 @@ const translations = {
 };
 
 export default function DashboardLayout({ children }) {
-  // Puxa o idioma atual do nosso cofre global
   const { lang } = useLanguage();
   const t = translations[lang] || translations['pt-BR'];
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f4f7f6', fontFamily: 'sans-serif' }}>
       
-      {/* Menu Lateral (Sidebar) baseado no print */}
+      {/* Menu Lateral (Sidebar) */}
       <aside style={{ width: '280px', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
         
         {/* Cabeçalho do Menu */}
@@ -53,7 +52,7 @@ export default function DashboardLayout({ children }) {
             <span style={{ backgroundColor: '#e2e8f0', color: '#1a365d', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold' }}>1</span>
           </a>
 
-          <a href="#propostas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', textDecoration: 'none', color: '#4a5568', borderRadius: '8px' }}>
+          <a href="/dashboard/propostas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', textDecoration: 'none', color: '#4a5568', borderRadius: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
               <span style={{ fontSize: '1.2rem' }}>📄</span> {t.proposals}
             </div>
@@ -64,14 +63,14 @@ export default function DashboardLayout({ children }) {
             <span style={{ fontSize: '1.2rem' }}>📚</span> {t.templates}
           </a>
 
-          {/* Item Ativo (Azul) */}
-          <a href="#servicos" style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 15px', textDecoration: 'none', color: '#ffffff', backgroundColor: '#1d4ed8', borderRadius: '8px', fontWeight: 'bold' }}>
+          {/* Link corrigido para a página real de Serviços */}
+          <a href="/dashboard/servicos" style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 15px', textDecoration: 'none', color: '#ffffff', backgroundColor: '#1d4ed8', borderRadius: '8px', fontWeight: 'bold' }}>
             <span style={{ fontSize: '1.2rem' }}>🏷️</span> {t.services}
           </a>
         </nav>
       </aside>
 
-      {/* Área Principal de Conteúdo onde as telas vão aparecer */}
+      {/* Área Principal de Conteúdo */}
       <main style={{ flex: 1, overflowY: 'auto' }}>
         {children}
       </main>
