@@ -111,27 +111,27 @@ export default function DashboardLayout({ children }) {
           </div>
         </div>
 
-        {/* SELETOR DE IDIOMA EM FORMATO DE BOTÕES COMPACTOS (PT / EN) */}
-        <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', border: '1px solid #2a4365' }}>
+        {/* SELETOR DE IDIOMA COM BANDEIRAS (PT / EN) */}
+        <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', border: '1px solid #2a4365', gap: '3px' }}>
           <button 
             onClick={() => setLang('pt-BR')} 
             style={{ 
               background: lang === 'pt-BR' ? '#3182ce' : 'transparent', 
               color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
-              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition: 'background 0.2s' 
+              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background 0.2s' 
             }}
           >
-            PT
+            <span>🇧🇷</span> PT
           </button>
           <button 
             onClick={() => setLang('en-US')} 
             style={{ 
               background: lang === 'en-US' ? '#3182ce' : 'transparent', 
               color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
-              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition: 'background 0.2s' 
+              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background 0.2s' 
             }}
           >
-            EN
+            <span>🇺🇸</span> EN
           </button>
         </div>
       </header>
