@@ -50,7 +50,7 @@ export default function ColetaDadosPage() {
 
     if (error) alert('Erro: ' + error.message);
     else {
-      alert('Coleta salva com sucesso!');
+      alert('Coleta inicial salva com sucesso!');
       setShowModalColeta(false);
       setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
       fetchData();
@@ -70,7 +70,21 @@ export default function ColetaDadosPage() {
     }
   };
 
-  // Agrupamento para montar a matriz visual idêntica à imagem
+  const handleDeleteColeta = async (id) => {
+    if (!window.confirm('Deseja excluir esta coleta inicial?')) return;
+    const { error } = await supabase.from('coleta_dados').delete().eq('id', id);
+    if (error) alert('Erro ao excluir: ' + error.message);
+    else fetchData();
+  };
+
+  const handleDeleteSetorizacao = async (id) => {
+    if (!window.confirm('Deseja excluir este registro de setorização?')) return;
+    const { error } = await supabase.from('setorizacao_obras').delete().eq('id', id);
+    if (error) alert('Erro ao excluir: ' + error.message);
+    else fetchData();
+  };
+
+  // Agrupamento para montar a matriz de setorização
   const ambientesUnicos = [...new Set(setorizacoesLista.map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`))];
   const servicosUnicos = [...new Set(setorizacoesLista.map(s => s.servico))];
 
@@ -80,7 +94,7 @@ export default function ColetaDadosPage() {
         {lang === 'en-US' ? 'Project Data Collection & Setorization' : 'Coleta, Quantificação e Setorização de Obras'}
       </h1>
 
-      {/* BOTÕES DE AÇÃO RÁPIDA (COMPACTOS) */}
+      {/* BOTÕES DE AÇÃO RÁPIDA */}
       <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
         <button 
           onClick={() => setShowModalColeta(true)}
@@ -137,7 +151,7 @@ export default function ColetaDadosPage() {
                 {projetosLista.map(p => <option key={p.id} value={p.id}>#{p.id} - {p.nome_projeto}</option>)}
               </select>
               <input type="text" placeholder="Ambiente (Ex: Garagem, Cozinha, Quarto)" required value={formDataSetorizacao.ambiente} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, ambiente: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
-              <input type="text" placeholder="Pavimento (Ex: PV1, PV2)" required value={formDataSetorizacao.pavimento} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, pavimento: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
+              <input type="text" placeholder="Pavimento / Divisão (Ex: PV1, PV2)" required value={formDataSetorizacao.pavimento} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, pavimento: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
               <input type="text" placeholder="Fase / Subdivisão (Ex: Z1, Z2)" required value={formDataSetorizacao.fase} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, fase: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
               <input type="text" placeholder="Serviço (Ex: Piso Porcelanato, Parede, Forro)" required value={formDataSetorizacao.servico} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, servico: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
               <input type="number" step="0.01" placeholder="Quantidade Específica" required value={formDataSetorizacao.quantidade} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, quantidade: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
@@ -151,7 +165,47 @@ export default function ColetaDadosPage() {
         </div>
       )}
 
-      {/* QUADRO 1 - SETORIZAÇÃO (MATRIZ DINÂMICA IGUAL À IMAGEM) */}
+      {/* TABELA 1: INFORMAÇÕES INICIAIS COLETADAS */}
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', overflow: 'hidden', padding: '20px' }}>
+        <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>INFORMAÇÕES GERAIS / COLETA INICIAL</h2>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#2a4365', color: 'white' }}>
+              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Projeto</th>
+              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Pavimentos</th>
+              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Área do Terreno</th>
+              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Área Construída</th>
+              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Tipo de Obra</th>
+              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {coletasLista.length === 0 ? (
+              <tr>
+                <td colSpan="6" style={{ padding: '15px', textAlign: 'center', color: '#718096' }}>Nenhuma coleta inicial cadastrada.</td>
+              </tr>
+            ) : (
+              coletasLista.map((item) => {
+                const proj = projetosLista.find(p => String(p.id) === String(item.projeto_id));
+                return (
+                  <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '12px', fontWeight: 'bold', color: '#1a365d' }}>{proj ? `${proj.nome_projeto} (#${proj.id})` : `#${item.projeto_id}`}</td>
+                    <td style={{ padding: '12px' }}>{item.pavimentos || '-'}</td>
+                    <td style={{ padding: '12px' }}>{item.area_terreno ? `${Number(item.area_terreno).toLocaleString('pt-BR')} m²` : '-'}</td>
+                    <td style={{ padding: '12px' }}>{item.area_construida ? `${Number(item.area_construida).toLocaleString('pt-BR')} m²` : '-'}</td>
+                    <td style={{ padding: '12px' }}>{item.tipo_obra || '-'}</td>
+                    <td style={{ padding: '12px' }}>
+                      <button onClick={() => handleDeleteColeta(item.id)} style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Excluir</button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO */}
       <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', overflowX: 'auto', padding: '20px' }}>
         <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
         
@@ -164,12 +218,13 @@ export default function ColetaDadosPage() {
               {servicosUnicos.map((serv, idx) => (
                 <th key={idx} style={{ padding: '10px', border: '1px solid #c05621' }}>{serv.toUpperCase()}</th>
               ))}
+              <th style={{ padding: '10px', border: '1px solid #c05621' }}>AÇÕES</th>
             </tr>
           </thead>
           <tbody>
             {ambientesUnicos.length === 0 ? (
               <tr>
-                <td colSpan={3 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
+                <td colSpan={4 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
                   Nenhum dado de setorização cadastrado ainda. Clique em "+ Nova Quantificação e Classificação" acima.
                 </td>
               </tr>
@@ -191,6 +246,19 @@ export default function ColetaDadosPage() {
                         </td>
                       );
                     })}
+                    <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>
+                      <button 
+                        onClick={() => {
+                          const itensParaExcluir = setorizacoesLista.filter(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas);
+                          if (window.confirm(`Deseja excluir toda a linha do ambiente "${amb}"?`)) {
+                            itensParaExcluir.forEach(i => handleDeleteSetorizacao(i.id));
+                          }
+                        }}
+                        style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                      >
+                        Excluir Linha
+                      </button>
+                    </td>
                   </tr>
                 );
               })
