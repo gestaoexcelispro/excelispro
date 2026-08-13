@@ -6,6 +6,7 @@ const translations = {
     module: 'MÓDULO COMERCIAL',
     dashboard: 'Painel Geral',
     clients: 'Clientes',
+    budgets: 'Orçamentos',
     proposals: 'Propostas Comerciais',
     templates: 'Modelos (Templates)',
     services: 'Serviços e Tabela M²'
@@ -14,6 +15,7 @@ const translations = {
     module: 'COMMERCIAL MODULE',
     dashboard: 'General Dashboard',
     clients: 'Clients',
+    budgets: 'Budgets',
     proposals: 'Commercial Proposals',
     templates: 'Templates',
     services: 'Services & M² Table'
@@ -52,6 +54,13 @@ export default function DashboardLayout({ children }) {
             <span style={{ backgroundColor: '#e2e8f0', color: '#1a365d', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold' }}>1</span>
           </a>
 
+          {/* Nova etapa do fluxo: Orçamentos */}
+          <a href="/dashboard/orcamentos" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', textDecoration: 'none', color: '#4a5568', borderRadius: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <span style={{ fontSize: '1.2rem' }}>📊</span> {t.budgets}
+            </div>
+          </a>
+
           <a href="/dashboard/propostas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', textDecoration: 'none', color: '#4a5568', borderRadius: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
               <span style={{ fontSize: '1.2rem' }}>📄</span> {t.proposals}
@@ -63,8 +72,7 @@ export default function DashboardLayout({ children }) {
             <span style={{ fontSize: '1.2rem' }}>📚</span> {t.templates}
           </a>
 
-          {/* Link corrigido para a página real de Serviços */}
-          <a href="/dashboard/servicos" style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 15px', textDecoration: 'none', color: '#ffffff', backgroundColor: '#1d4ed8', borderRadius: '8px', fontWeight: 'bold' }}>
+          <a href="/dashboard/servicos" style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 15px', textDecoration: 'none', color: '#4a5568', borderRadius: '8px' }}>
             <span style={{ fontSize: '1.2rem' }}>🏷️</span> {t.services}
           </a>
         </nav>
