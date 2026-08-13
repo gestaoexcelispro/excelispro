@@ -12,8 +12,8 @@ export default function ColetaDadosPage() {
   
   const [showModalColeta, setShowModalColeta] = useState(false);
   const [showModalSetorizacao, setShowModalSetorizacao] = useState(false);
+  const [showModalNovoServico, setShowModalNovoServico] = useState(false); // Modal para adicionar nova coluna/serviço direto na tabela
 
-  // Estados para gerenciar a opção de digitar novo valor nos selects dinâmicos
   const [novoPavimentoInput, setNovoPavimentoInput] = useState('');
   const [novaFaseInput, setNovaFaseInput] = useState('');
 
@@ -29,6 +29,11 @@ export default function ColetaDadosPage() {
   // Formulário de Quantificação e Setorização
   const [formDataSetorizacao, setFormDataSetorizacao] = useState({
     projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: ''
+  });
+
+  // Formulário para adicionar quantidade a um serviço específico em uma linha existente
+  const [formNovoServicoLinha, setFormNovoServicoLinha] = useState({
+    comboKey: '', servico: '', quantidade: ''
   });
 
   const fetchData = async () => {
@@ -88,7 +93,6 @@ export default function ColetaDadosPage() {
   const handleSaveSetorizacao = async (e) => {
     e.preventDefault();
 
-    // Se o usuário selecionou a opção de digitar um novo valor, utiliza o input correspondente
     const pavimentoFinal = formDataSetorizacao.pavimento === 'OUTRO' ? novoPavimentoInput : formDataSetorizacao.pavimento;
     const faseFinal = formDataSetorizacao.fase === 'OUTRO' ? novaFaseInput : formDataSetorizacao.fase;
 
@@ -116,6 +120,30 @@ export default function ColetaDadosPage() {
       setNovoPavimentoInput('');
       setNovaFaseInput('');
       setFormDataSetorizacao({ projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: '' });
+      fetchData();
+    }
+  };
+
+  // Salvar nova coluna/serviço direto pela linha da tabela
+  const handleAddServicoNaLinha = async (e) => {
+    e.preventDefault();
+    const [amb, pav, fas] = formNovoServicoLinha.comboKey.split('___');
+    const projetoRef = setorizacoesLista.find(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas)?.projeto_id || '';
+
+    const { error } = await supabase.from('setorizacao_obras').insert([{
+      projeto_id: projetoRef,
+      ambiente: amb,
+      pavimento: pav,
+      fase: fas,
+      servico: formNovoServicoLinha.servico,
+      quantidade: formNovoServicoLinha.quantidade
+    }]);
+
+    if (error) alert('Erro ao inserir serviço: ' + error.message);
+    else {
+      alert('Novo serviço/coluna adicionado com sucesso!');
+      setShowModalNovoServico(false);
+      setFormNovoServicoLinha({ comboKey: '', servico: '', quantidade: '' });
       fetchData();
     }
   };
@@ -162,14 +190,12 @@ export default function ColetaDadosPage() {
     else fetchData();
   };
 
-  // Listas dinâmicas baseadas no que já foi salvo na base de dados + padrões recomendados
   const pavimentosPadrao = ['PV1', 'PV2', 'PV3', 'PV4', 'PV5', 'Térreo', 'Subsolo'];
   const divisoesExistentes = [...new Set([...pavimentosPadrao, ...setorizacoesLista.map(s => s.pavimento).filter(Boolean)])];
 
   const fasesPadrao = ['Z1', 'Z2', 'Z3', 'Z4', 'Bloco 1', 'Bloco 2', 'Bloco 3', 'Setor 1', 'Setor 2', 'Setor 3'];
   const subdivisoesExistentes = [...new Set([...fasesPadrao, ...setorizacoesLista.map(s => s.fase).filter(Boolean)])];
 
-  // Agrupamento para montar a matriz de setorização
   const ambientesUnicos = [...new Set(setorizacoesLista.map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`))];
   const servicosUnicos = [...new Set(setorizacoesLista.map(s => s.servico))];
 
@@ -264,7 +290,6 @@ export default function ColetaDadosPage() {
 
               <input type="text" placeholder="Ambiente (Ex: Garagem, Cozinha, Quarto)" required value={formDataSetorizacao.ambiente} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, ambiente: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
 
-              {/* CAMPO DIVISÃO COM LISTA + OPÇÃO DE ADICIONAR NOVO */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Divisão</label>
                 <select 
@@ -278,18 +303,10 @@ export default function ColetaDadosPage() {
                   <option value="OUTRO">+ Cadastrar nova divisão...</option>
                 </select>
                 {formDataSetorizacao.pavimento === 'OUTRO' && (
-                  <input 
-                    type="text" 
-                    placeholder="Digite a nova divisão (ex: PV6)" 
-                    required 
-                    value={novoPavimentoInput} 
-                    onChange={(e) => setNovoPavimentoInput(e.target.value)} 
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #3182ce', boxSizing: 'border-box' }} 
-                  />
+                  <input type="text" placeholder="Digite a nova divisão (ex: PV6)" required value={novoPavimentoInput} onChange={(e) => setNovoPavimentoInput(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #3182ce', boxSizing: 'border-box' }} />
                 )}
               </div>
 
-              {/* CAMPO SUBDIVISÃO COM LISTA + OPÇÃO DE ADICIONAR NOVO */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Subdivisão</label>
                 <select 
@@ -303,14 +320,7 @@ export default function ColetaDadosPage() {
                   <option value="OUTRO">+ Cadastrar nova subdivisão...</option>
                 </select>
                 {formDataSetorizacao.fase === 'OUTRO' && (
-                  <input 
-                    type="text" 
-                    placeholder="Digite a nova subdivisão (ex: Z4 ou Bloco 4)" 
-                    required 
-                    value={novaFaseInput} 
-                    onChange={(e) => setNovaFaseInput(e.target.value)} 
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #3182ce', boxSizing: 'border-box' }} 
-                  />
+                  <input type="text" placeholder="Digite a nova subdivisão (ex: Z4)" required value={novaFaseInput} onChange={(e) => setNovaFaseInput(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #3182ce', boxSizing: 'border-box' }} />
                 )}
               </div>
 
@@ -320,6 +330,62 @@ export default function ColetaDadosPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
                 <button type="button" onClick={() => setShowModalSetorizacao(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
                 <button type="submit" style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>Salvar Serviço</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ADICIONAR NOVO SERVIÇO/COLUNA RÁPIDO */}
+      {showModalNovoServico && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px' }}>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px', fontSize: '1.2rem' }}>Inserir Novo Serviço / Coluna</h2>
+            <form onSubmit={handleAddServicoNaLinha} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px' }}>Selecione a Linha (Ambiente)</label>
+                <select 
+                  required 
+                  value={formNovoServicoLinha.comboKey} 
+                  onChange={(e) => setFormNovoServicoLinha({...formNovoServicoLinha, comboKey: e.target.value})}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px' }}
+                >
+                  <option value="">-- Escolha o ambiente --</option>
+                  {ambientesUnicos.map((combo, i) => {
+                    const [amb, pav, fas] = combo.split('___');
+                    return <option key={i} value={combo}>{amb} ({pav} / {fas})</option>;
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px' }}>Nome do Serviço (Nova Coluna)</label>
+                <input 
+                  type="text" 
+                  placeholder="Ex: Pintura, Rodapés, Esquadrias" 
+                  required 
+                  value={formNovoServicoLinha.servico} 
+                  onChange={(e) => setFormNovoServicoLinha({...formNovoServicoLinha, servico: e.target.value})} 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px' }}>Quantidade Específica</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  placeholder="Ex: 21.01" 
+                  required 
+                  value={formNovoServicoLinha.quantidade} 
+                  onChange={(e) => setFormNovoServicoLinha({...formNovoServicoLinha, quantidade: e.target.value})} 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', boxSizing: 'border-box' }} 
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setShowModalNovoServico(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
+                <button type="submit" style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Adicionar Coluna/Serviço</button>
               </div>
             </form>
           </div>
@@ -369,7 +435,17 @@ export default function ColetaDadosPage() {
 
       {/* QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO */}
       <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', overflowX: 'auto', padding: '20px' }}>
-        <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
+          
+          {/* BOTÃO PARA INSERIR NOVA COLUNA/SERVIÇO (LOCALIZADO EXATAMENTE ONDE INDICADO NA LINHA VERMELHA) */}
+          <button 
+            onClick={() => setShowModalNovoServico(true)}
+            style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+          >
+            + Novo Serviço (Coluna)
+          </button>
+        </div>
         
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
           <thead>
