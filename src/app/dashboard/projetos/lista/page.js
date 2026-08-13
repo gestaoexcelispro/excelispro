@@ -13,11 +13,13 @@ export default function ProjetosListaPage() {
     cliente: '',
     num_proposta: '',
     num_contrato: '',
+    codigo_postal: '',
     endereco: '',
+    numero: '',
+    bairro: '',
     cidade: '',
     estado: '',
     pais: 'Brasil',
-    codigo_postal: '',
     valor_contrato: ''
   });
 
@@ -33,6 +35,28 @@ export default function ProjetosListaPage() {
     fetchProjetos();
   }, []);
 
+  // Função para buscar o endereço automaticamente pelo CEP (ViaCEP)
+  const handleCepBlur = async (e) => {
+    const cep = e.target.value.replace(/\D/g, '');
+    if (cep.length === 8) {
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await response.json();
+        if (!data.erro) {
+          setFormData((prev) => ({
+            ...prev,
+            endereco: data.logradouro || prev.endereco,
+            bairro: data.bairro || prev.bairro,
+            cidade: data.localidade || prev.cidade,
+            estado: data.uf || prev.estado
+          }));
+        }
+      } catch (error) {
+        console.error('Erro ao buscar CEP:', error);
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const { error } = await supabase.from('projetos').insert([formData]);
@@ -44,7 +68,7 @@ export default function ProjetosListaPage() {
       setShowModal(false);
       setFormData({
         nome_projeto: '', cliente: '', num_proposta: '', num_contrato: '',
-        endereco: '', cidade: '', estado: '', pais: 'Brasil', codigo_postal: '', valor_contrato: ''
+        codigo_postal: '', endereco: '', numero: '', bairro: '', cidade: '', estado: '', pais: 'Brasil', valor_contrato: ''
       });
       fetchProjetos();
     }
@@ -92,7 +116,7 @@ export default function ProjetosListaPage() {
       {/* MODAL DE CADASTRO */}
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '700px', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '750px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>{lang === 'en-US' ? 'Register New Project' : 'Cadastrar Novo Projeto'}</h2>
             
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -123,9 +147,35 @@ export default function ProjetosListaPage() {
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>{lang === 'en-US' ? 'Address' : 'Endereço'}</label>
-                <input type="text" value={formData.endereco} onChange={(e) => setFormData({...formData, endereco: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
+              {/* CEP e Endereço */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '15px' }}>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>{lang === 'en-US' ? 'Postal Code' : 'Código postal (CEP)'}</label>
+                  <input 
+                    type="text" 
+                    value={formData.codigo_postal} 
+                    onChange={(e) => setFormData({...formData, codigo_postal: e.target.value})} 
+                    onBlur={handleCepBlur}
+                    placeholder="Ex: 84010-000"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>{lang === 'en-US' ? 'Address' : 'Endereço (Logradouro)'}</label>
+                  <input type="text" value={formData.endereco} onChange={(e) => setFormData({...formData, endereco: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              {/* Número e Bairro */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '15px' }}>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>{lang === 'en-US' ? 'Number' : 'Nº'}</label>
+                  <input type="number" value={formData.numero} onChange={(e) => setFormData({...formData, numero: e.target.value})} placeholder="Ex: 123" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>{lang === 'en-US' ? 'Neighborhood' : 'Bairro'}</label>
+                  <input type="text" value={formData.bairro} onChange={(e) => setFormData({...formData, bairro: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
@@ -138,14 +188,9 @@ export default function ProjetosListaPage() {
                   <input type="text" value={formData.estado} onChange={(e) => setFormData({...formData, estado: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>{lang === 'en-US' ? 'Postal Code' : 'Código postal'}</label>
-                  <input type="text" value={formData.codigo_postal} onChange={(e) => setFormData({...formData, codigo_postal: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>{lang === 'en-US' ? 'Country' : 'País'}</label>
+                  <input type="text" value={formData.pais} onChange={(e) => setFormData({...formData, pais: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
                 </div>
-              </div>
-
-              <div>
-                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>{lang === 'en-US' ? 'Country' : 'País'}</label>
-                <input type="text" value={formData.pais} onChange={(e) => setFormData({...formData, pais: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' }}>
