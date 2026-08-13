@@ -52,7 +52,8 @@ const translations = {
 };
 
 export default function DashboardLayout({ children }) {
-  const { lang, setLang } = useLanguage();
+  // Garantimos que pegamos tanto setLang quanto toggleLanguage do contexto para evitar falhas
+  const { lang, setLang, toggleLanguage } = useLanguage();
   const t = translations[lang] || translations['pt-BR'];
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -75,6 +76,15 @@ export default function DashboardLayout({ children }) {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Função auxiliar segura para forçar a troca de idioma
+  const handleLanguageChange = (targetLang) => {
+    if (setLang) {
+      setLang(targetLang);
+    } else if (toggleLanguage) {
+      toggleLanguage();
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f4f7f6', fontFamily: 'sans-serif' }}>
@@ -114,7 +124,7 @@ export default function DashboardLayout({ children }) {
         {/* SELETOR DE IDIOMA COM BANDEIRAS (PT / EN) */}
         <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', border: '1px solid #2a4365', gap: '3px' }}>
           <button 
-            onClick={() => setLang('pt-BR')} 
+            onClick={() => handleLanguageChange('pt-BR')} 
             style={{ 
               background: lang === 'pt-BR' ? '#3182ce' : 'transparent', 
               color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
@@ -124,7 +134,7 @@ export default function DashboardLayout({ children }) {
             <span>🇧🇷</span> PT
           </button>
           <button 
-            onClick={() => setLang('en-US')} 
+            onClick={() => handleLanguageChange('en-US')} 
             style={{ 
               background: lang === 'en-US' ? '#3182ce' : 'transparent', 
               color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
