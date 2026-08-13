@@ -15,6 +15,7 @@ const translations = {
     services: 'Serviços e Tabela M²',
     projectsModule: 'MÓDULO PROJETOS (PMBOK)',
     projectList: 'Cadastrar / Listar Projetos',
+    coletaDados: 'Coleta de Dados',
     tap: 'Termo de Abertura (TAP)',
     managementPlan: 'Plano de Gerenciamento',
     raci: 'Matriz RACI',
@@ -38,6 +39,7 @@ const translations = {
     services: 'Services & M² Table',
     projectsModule: 'PROJECTS MODULE (PMBOK)',
     projectList: 'Register / List Projects',
+    coletaDados: 'Data Collection',
     tap: 'Project Charter (TAP)',
     managementPlan: 'Management Plan',
     raci: 'RACI Matrix',
@@ -52,7 +54,6 @@ const translations = {
 };
 
 export default function DashboardLayout({ children }) {
-  // Garantimos que pegamos tanto setLang quanto toggleLanguage do contexto para evitar falhas
   const { lang, setLang, toggleLanguage } = useLanguage();
   const t = translations[lang] || translations['pt-BR'];
 
@@ -77,11 +78,12 @@ export default function DashboardLayout({ children }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Função auxiliar segura para forçar a troca de idioma
-  const handleLanguageChange = (targetLang) => {
+  // Função robusta para alternar o idioma corretamente independente do método do contexto
+  const changeLanguage = (targetLang) => {
     if (setLang) {
       setLang(targetLang);
-    } else if (toggleLanguage) {
+    }
+    if (toggleLanguage && lang !== targetLang) {
       toggleLanguage();
     }
   };
@@ -121,10 +123,10 @@ export default function DashboardLayout({ children }) {
           </div>
         </div>
 
-        {/* SELETOR DE IDIOMA COM BANDEIRAS (PT / EN) */}
+        {/* SELETOR DE IDIOMA COM BANDEIRAS (PT / EN) FUNCIONAL */}
         <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', border: '1px solid #2a4365', gap: '3px' }}>
           <button 
-            onClick={() => handleLanguageChange('pt-BR')} 
+            onClick={() => changeLanguage('pt-BR')} 
             style={{ 
               background: lang === 'pt-BR' ? '#3182ce' : 'transparent', 
               color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
@@ -134,7 +136,7 @@ export default function DashboardLayout({ children }) {
             <span>🇧🇷</span> PT
           </button>
           <button 
-            onClick={() => handleLanguageChange('en-US')} 
+            onClick={() => changeLanguage('en-US')} 
             style={{ 
               background: lang === 'en-US' ? '#3182ce' : 'transparent', 
               color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
@@ -209,6 +211,7 @@ export default function DashboardLayout({ children }) {
             {isProjectsOpen && (
               <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
                 <a href="/dashboard/projetos/lista" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📁</span> {t.projectList}</a>
+                <a href="/dashboard/projetos/coleta" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>✏️</span> {t.coletaDados}</a>
                 <a href="/dashboard/projetos/tap" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📜</span> {t.tap}</a>
                 <a href="/dashboard/projetos/plano" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📑</span> {t.managementPlan}</a>
                 <a href="/dashboard/projetos/raci" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>👥</span> {t.raci}</a>
