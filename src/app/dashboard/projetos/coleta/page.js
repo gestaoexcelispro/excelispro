@@ -13,6 +13,10 @@ export default function ColetaDadosPage() {
   const [showModalColeta, setShowModalColeta] = useState(false);
   const [showModalSetorizacao, setShowModalSetorizacao] = useState(false);
 
+  // Estados de Edição
+  const [editColetaId, setEditColetaId] = useState(null);
+  const [editComboKey, setEditComboKey] = useState(null); // chave "amb___pav___fas" para edição do quadro
+
   // Formulário da Coleta Inicial
   const [formDataColeta, setFormDataColeta] = useState({
     projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: ''
@@ -40,33 +44,92 @@ export default function ColetaDadosPage() {
 
   const handleSaveColeta = async (e) => {
     e.preventDefault();
-    const { error } = await supabase.from('coleta_dados').insert([{
-      projeto_id: formDataColeta.projeto_id,
-      pavimentos: formDataColeta.pavimentos,
-      area_terreno: formDataColeta.areaTerreno,
-      area_construida: formDataColeta.areaConstruida,
-      tipo_obra: formDataColeta.tipoObra
-    }]);
+    
+    if (editColetaId) {
+      // Atualizar registro existente
+      const { error } = await supabase.from('coleta_dados').update({
+        projeto_id: formDataColeta.projeto_id,
+        pavimentos: formDataColeta.pavimentos,
+        area_terreno: formDataColeta.areaTerreno,
+        area_construida: formDataColeta.areaConstruida,
+        tipo_obra: formDataColeta.tipoObra
+      }).eq('id', editColetaId);
 
-    if (error) alert('Erro: ' + error.message);
-    else {
-      alert('Coleta inicial salva com sucesso!');
-      setShowModalColeta(false);
-      setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
-      fetchData();
+      if (error) alert('Erro ao atualizar: ' + error.message);
+      else {
+        alert('Coleta inicial atualizada com sucesso!');
+        setShowModalColeta(false);
+        setEditColetaId(null);
+        setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
+        fetchData();
+      }
+    } else {
+      // Inserir novo registro
+      const { error } = await supabase.from('coleta_dados').insert([{
+        projeto_id: formDataColeta.projeto_id,
+        pavimentos: formDataColeta.pavimentos,
+        area_terreno: formDataColeta.areaTerreno,
+        area_construida: formDataColeta.areaConstruida,
+        tipo_obra: formDataColeta.tipoObra
+      }]);
+
+      if (error) alert('Erro: ' + error.message);
+      else {
+        alert('Coleta inicial salva com sucesso!');
+        setShowModalColeta(false);
+        setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
+        fetchData();
+      }
     }
   };
 
   const handleSaveSetorizacao = async (e) => {
     e.preventDefault();
+
+    if (editComboKey) {
+      // Se estiver editando uma linha do quadro, removemos os antigos e inserimos os novos atualizados para simplificar
+      const [oldAmb, oldPav, oldFas] = editComboKey.split('___');
+      await supabase.from('setorizacao_obras').delete().match({ ambiente: oldAmb, pavimento: oldPav, fase: oldFas });
+    }
+
     const { error } = await supabase.from('setorizacao_obras').insert([formDataSetorizacao]);
 
     if (error) alert('Erro: ' + error.message);
     else {
-      alert('Serviço quantificado e setorizado com sucesso!');
+      alert('Serviço salvo com sucesso!');
       setShowModalSetorizacao(false);
-      setFormDataSetorizacao({ projeto_id: formDataSetorizacao.projeto_id, ambiente: '', pavimento: '', fase: '', servico: '', quantidade: '' });
+      setEditComboKey(null);
+      setFormDataSetorizacao({ projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: '' });
       fetchData();
+    }
+  };
+
+  const handleEditColeta = (item) => {
+    setEditColetaId(item.id);
+    setFormDataColeta({
+      projeto_id: item.projeto_id || '',
+      pavimentos: item.pavimentos || '',
+      areaTerreno: item.area_terreno || '',
+      areaConstruida: item.area_construida || '',
+      tipoObra: item.tipo_obra || ''
+    });
+    setShowModalColeta(true);
+  };
+
+  const handleEditLinhaQuadro = (amb, pav, fas) => {
+    const itensDaLinha = setorizacoesLista.filter(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas);
+    if (itensDaLinha.length > 0) {
+      // Carrega o primeiro item para edição rápida (ou expande se necessário)
+      setEditComboKey(`${amb}___${pav}___${fas}`);
+      setFormDataSetorizacao({
+        projeto_id: itensDaLinha[0].projeto_id || '',
+        ambiente: amb,
+        pavimento: pav,
+        fase: fas,
+        servico: itensDaLinha[0].servico || '',
+        quantidade: itensDaLinha[0].quantidade || ''
+      });
+      setShowModalSetorizacao(true);
     }
   };
 
@@ -97,14 +160,22 @@ export default function ColetaDadosPage() {
       {/* BOTÕES DE AÇÃO RÁPIDA */}
       <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
         <button 
-          onClick={() => setShowModalColeta(true)}
+          onClick={() => {
+            setEditColetaId(null);
+            setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
+            setShowModalColeta(true);
+          }}
           style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
         >
           {lang === 'en-US' ? '+ Initial Data Collection' : '+ Cadastrar Coleta Inicial'}
         </button>
 
         <button 
-          onClick={() => setShowModalSetorizacao(true)}
+          onClick={() => {
+            setEditComboKey(null);
+            setFormDataSetorizacao({ projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: '' });
+            setShowModalSetorizacao(true);
+          }}
           style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
         >
           {lang === 'en-US' ? '+ Quantification & Setorization' : '+ Nova Quantificação e Classificação'}
@@ -115,7 +186,7 @@ export default function ColetaDadosPage() {
       {showModalColeta && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Coleta de Dados Inicial</h2>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>{editColetaId ? 'Editar Coleta Inicial' : 'Coleta de Dados Inicial'}</h2>
             <form onSubmit={handleSaveColeta} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <select required value={formDataColeta.projeto_id} onChange={(e) => setFormDataColeta({...formDataColeta, projeto_id: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }}>
                 <option value="">-- Selecione o Projeto --</option>
@@ -144,7 +215,7 @@ export default function ColetaDadosPage() {
       {showModalSetorizacao && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Quantificação e Classificação por Ambiente</h2>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>{editComboKey ? 'Editar Linha de Setorização' : 'Quantificação e Classificação por Ambiente'}</h2>
             <form onSubmit={handleSaveSetorizacao} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <select required value={formDataSetorizacao.projeto_id} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, projeto_id: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }}>
                 <option value="">-- Selecione o Projeto --</option>
@@ -194,7 +265,8 @@ export default function ColetaDadosPage() {
                     <td style={{ padding: '12px' }}>{item.area_terreno ? `${Number(item.area_terreno).toLocaleString('pt-BR')} m²` : '-'}</td>
                     <td style={{ padding: '12px' }}>{item.area_construida ? `${Number(item.area_construida).toLocaleString('pt-BR')} m²` : '-'}</td>
                     <td style={{ padding: '12px' }}>{item.tipo_obra || '-'}</td>
-                    <td style={{ padding: '12px' }}>
+                    <td style={{ padding: '12px', display: 'flex', gap: '8px' }}>
+                      <button onClick={() => handleEditColeta(item)} style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Editar</button>
                       <button onClick={() => handleDeleteColeta(item.id)} style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Excluir</button>
                     </td>
                   </tr>
@@ -246,7 +318,13 @@ export default function ColetaDadosPage() {
                         </td>
                       );
                     })}
-                    <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '8px', border: '1px solid #e2e8f0', display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                      <button 
+                        onClick={() => handleEditLinhaQuadro(amb, pav, fas)}
+                        style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                      >
+                        Editar
+                      </button>
                       <button 
                         onClick={() => {
                           const itensParaExcluir = setorizacoesLista.filter(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas);
@@ -256,7 +334,7 @@ export default function ColetaDadosPage() {
                         }}
                         style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
                       >
-                        Excluir Linha
+                        Excluir
                       </button>
                     </td>
                   </tr>
