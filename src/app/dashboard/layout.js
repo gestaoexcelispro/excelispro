@@ -13,6 +13,12 @@ const translations = {
     proposals: 'Propostas Comerciais',
     templates: 'Modelos (Templates)',
     services: 'Serviços e Tabela M²',
+    projectsModule: 'MÓDULO PROJETOS (PMBOK)',
+    projectList: 'Cadastrar / Listar Projetos',
+    tap: 'Termo de Abertura (TAP)',
+    managementPlan: 'Plano de Gerenciamento',
+    raci: 'Matriz RACI',
+    risks: 'Gerenciamento de Riscos',
     financialModule: 'MÓDULO CONTROLADORIA',
     receivable: 'Contas a Receber',
     payable: 'Contas a Pagar',
@@ -30,6 +36,12 @@ const translations = {
     proposals: 'Commercial Proposals',
     templates: 'Templates',
     services: 'Services & M² Table',
+    projectsModule: 'PROJECTS MODULE (PMBOK)',
+    projectList: 'Register / List Projects',
+    tap: 'Project Charter (TAP)',
+    managementPlan: 'Management Plan',
+    raci: 'RACI Matrix',
+    risks: 'Risk Management',
     financialModule: 'CONTROLLER MODULE',
     receivable: 'Accounts Receivable',
     payable: 'Accounts Payable',
@@ -45,11 +57,11 @@ export default function DashboardLayout({ children }) {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isCommercialOpen, setIsCommercialOpen] = useState(true);
+  const [isProjectsOpen, setIsProjectsOpen] = useState(true);
   const [isFinancialOpen, setIsFinancialOpen] = useState(true);
   const [isLegalOpen, setIsLegalOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Verifica o tamanho da tela de forma segura no cliente
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
@@ -118,7 +130,7 @@ export default function DashboardLayout({ children }) {
       {/* CORPO DO DASHBOARD */}
       <div style={{ display: 'flex', flex: 1, position: 'relative', width: '100%', overflowX: 'hidden' }}>
         
-        {/* SIDEBAR RESPONSIVA */}
+        {/* SIDEBAR */}
         <aside style={{ 
           width: isSidebarOpen ? '260px' : '0px', 
           backgroundColor: '#ffffff', 
@@ -165,7 +177,27 @@ export default function DashboardLayout({ children }) {
               </nav>
             )}
 
-            {/* 2. MÓDULO CONTROLADORIA */}
+            {/* 2. MÓDULO PROJETOS (PMBOK) */}
+            <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                <span>📋</span> <span style={{ fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden' }}>{t.projectsModule}</span>
+              </div>
+              <button onClick={() => setIsProjectsOpen(!isProjectsOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                {isProjectsOpen ? '▲' : '▼'}
+              </button>
+            </div>
+
+            {isProjectsOpen && (
+              <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
+                <a href="/dashboard/projetos/lista" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📁</span> {t.projectList}</a>
+                <a href="/dashboard/projetos/tap" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📜</span> {t.tap}</a>
+                <a href="/dashboard/projetos/plano" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📑</span> {t.managementPlan}</a>
+                <a href="/dashboard/projetos/raci" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>👥</span> {t.raci}</a>
+                <a href="/dashboard/projetos/riscos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>⚠️</span> {t.risks}</a>
+              </nav>
+            )}
+
+            {/* 3. MÓDULO CONTROLADORIA */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                 <span>💰</span> <span style={{ fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden' }}>{t.financialModule}</span>
@@ -182,7 +214,7 @@ export default function DashboardLayout({ children }) {
               </nav>
             )}
 
-            {/* 3. MÓDULO JURÍDICO */}
+            {/* 4. MÓDULO JURÍDICO */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                 <span>⚖️</span> <span style={{ fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden' }}>{t.legalModule}</span>
