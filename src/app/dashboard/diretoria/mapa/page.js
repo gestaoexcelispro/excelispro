@@ -52,6 +52,12 @@ export default function MapaDiretoriaPage() {
     carregarProjetosNoMapa();
   }, []);
 
+  // Limites para evitar a repetição infinita do globo
+  const bounds = [
+    [-85, -180], // Sudoeste
+    [85, 180]    // Nordeste
+  ];
+
   return (
     <div style={{ padding: '40px' }}>
       <h1 style={{ color: '#2A4365', margin: '0 0 10px 0', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>
@@ -68,10 +74,18 @@ export default function MapaDiretoriaPage() {
             {lang === 'en-US' ? 'Loading map and projects...' : 'Carregando mapa e localizando projetos...'}
           </div>
         ) : (
-          <MapContainer center={[-23.5505, -46.6333]} zoom={5} style={{ height: '100%', width: '100%', borderRadius: '6px', zIndex: 1 }}>
+          <MapContainer 
+            center={[-14.2350, -51.9253]} 
+            zoom={4} 
+            minZoom={3}
+            maxBounds={bounds}
+            maxBoundsViscosity={1.0}
+            style={{ height: '100%', width: '100%', borderRadius: '6px', zIndex: 1 }}
+          >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              noWrap={true}
             />
             {projetosComCoordenadas.map((proj) => (
               <Marker key={proj.id} position={[proj.lat, proj.lon]}>
