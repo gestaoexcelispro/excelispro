@@ -25,6 +25,8 @@ const translations = {
     payable: 'Contas a Pagar',
     legalModule: 'MÓDULO JURÍDICO',
     contracts: 'Fluxo de Contratos',
+    directorateModule: 'MÓDULO DIRETORIA',
+    mapDashboard: 'Mapa de Obras & Gestão',
     logout: 'Sair'
   },
   'en-US': {
@@ -49,6 +51,8 @@ const translations = {
     payable: 'Accounts Payable',
     legalModule: 'LEGAL MODULE',
     contracts: 'Contract Workflows',
+    directorateModule: 'DIRECTORATE MODULE',
+    mapDashboard: 'Works Map & Management',
     logout: 'Logout'
   }
 };
@@ -62,6 +66,7 @@ export default function DashboardLayout({ children }) {
   const [isProjectsOpen, setIsProjectsOpen] = useState(true);
   const [isFinancialOpen, setIsFinancialOpen] = useState(true);
   const [isLegalOpen, setIsLegalOpen] = useState(true);
+  const [isDirectorateOpen, setIsDirectorateOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -78,14 +83,9 @@ export default function DashboardLayout({ children }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Função robusta para alternar o idioma corretamente independente do método do contexto
   const changeLanguage = (targetLang) => {
-    if (setLang) {
-      setLang(targetLang);
-    }
-    if (toggleLanguage && lang !== targetLang) {
-      toggleLanguage();
-    }
+    if (setLang) setLang(targetLang);
+    if (toggleLanguage && lang !== targetLang) toggleLanguage();
   };
 
   return (
@@ -123,25 +123,17 @@ export default function DashboardLayout({ children }) {
           </div>
         </div>
 
-        {/* SELETOR DE IDIOMA COM BANDEIRAS (PT / EN) FUNCIONAL */}
+        {/* SELETOR DE IDIOMA */}
         <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', border: '1px solid #2a4365', gap: '3px' }}>
           <button 
             onClick={() => changeLanguage('pt-BR')} 
-            style={{ 
-              background: lang === 'pt-BR' ? '#3182ce' : 'transparent', 
-              color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
-              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background 0.2s' 
-            }}
+            style={{ background: lang === 'pt-BR' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>🇧🇷</span> PT
           </button>
           <button 
             onClick={() => changeLanguage('en-US')} 
-            style={{ 
-              background: lang === 'en-US' ? '#3182ce' : 'transparent', 
-              color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
-              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background 0.2s' 
-            }}
+            style={{ background: lang === 'en-US' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>🇺🇸</span> EN
           </button>
@@ -156,20 +148,30 @@ export default function DashboardLayout({ children }) {
           width: isSidebarOpen ? '260px' : '0px', 
           backgroundColor: '#ffffff', 
           borderRight: isSidebarOpen ? '1px solid #e2e8f0' : 'none', 
-          display: 'flex', 
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          overflow: 'hidden',
-          transition: 'width 0.3s ease, border 0.3s ease',
-          whiteSpace: 'nowrap',
-          zIndex: 1000,
-          position: isMobile ? 'absolute' : 'relative',
-          height: isMobile ? 'calc(100vh - 60px)' : 'auto'
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+          overflow: 'hidden', transition: 'width 0.3s ease, border 0.3s ease', whiteSpace: 'nowrap',
+          zIndex: 1000, position: isMobile ? 'absolute' : 'relative', height: isMobile ? 'calc(100vh - 60px)' : 'auto'
         }}>
           
           <div style={{ overflowY: 'auto', flex: 1, width: '260px' }}>
             
-            {/* 1. MÓDULO COMERCIAL */}
+            {/* MÓDULO DIRETORIA */}
+            <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#ebf8ff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                <span>📊</span> <span style={{ fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden' }}>{t.directorateModule}</span>
+              </div>
+              <button onClick={() => setIsDirectorateOpen(!isDirectorateOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                {isDirectorateOpen ? '▲' : '▼'}
+              </button>
+            </div>
+
+            {isDirectorateOpen && (
+              <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
+                <a href="/dashboard/diretoria/mapa" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🗺️</span> {t.mapDashboard}</a>
+              </nav>
+            )}
+
+            {/* MÓDULO COMERCIAL */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                 <span>🏢</span> <span style={{ fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden' }}>{t.commercialModule}</span>
@@ -182,23 +184,14 @@ export default function DashboardLayout({ children }) {
             {isCommercialOpen && (
               <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
                 <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>⊞</span> {t.dashboard}</a>
-                <a href="#clientes" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span>👥</span> {t.clients}</div>
-                  <span style={{ backgroundColor: '#e2e8f0', color: '#1a365d', padding: '2px 5px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 'bold' }}>1</span>
-                </a>
-                <a href="/dashboard/orcamentos" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span>📊</span> {t.budgets}</div>
-                </a>
-                <a href="/dashboard/propostas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span>📄</span> {t.proposals}</div>
-                  <span style={{ backgroundColor: '#e2e8f0', color: '#1a365d', padding: '2px 5px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 'bold' }}>1</span>
-                </a>
+                <a href="/dashboard/orcamentos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📊</span> {t.budgets}</a>
+                <a href="/dashboard/propostas" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📄</span> {t.proposals}</a>
                 <a href="/dashboard/modelos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📚</span> {t.templates}</a>
                 <a href="/dashboard/servicos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🏷️</span> {t.services}</a>
               </nav>
             )}
 
-            {/* 2. MÓDULO PROJETOS (PMBOK) */}
+            {/* MÓDULO PROJETOS */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                 <span>📋</span> <span style={{ fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden' }}>{t.projectsModule}</span>
@@ -219,7 +212,7 @@ export default function DashboardLayout({ children }) {
               </nav>
             )}
 
-            {/* 3. MÓDULO CONTROLADORIA */}
+            {/* MÓDULO CONTROLADORIA */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                 <span>💰</span> <span style={{ fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden' }}>{t.financialModule}</span>
@@ -236,7 +229,7 @@ export default function DashboardLayout({ children }) {
               </nav>
             )}
 
-            {/* 4. MÓDULO JURÍDICO */}
+            {/* MÓDULO JURÍDICO */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                 <span>⚖️</span> <span style={{ fontSize: '0.75rem', textOverflow: 'ellipsis', overflow: 'hidden' }}>{t.legalModule}</span>
@@ -254,7 +247,6 @@ export default function DashboardLayout({ children }) {
 
           </div>
 
-          {/* Botão Sair no Rodapé */}
           <div style={{ padding: '12px 10px', borderTop: '1px solid #e2e8f0', width: '260px', backgroundColor: 'white' }}>
             <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#e53e3e', borderRadius: '6px', fontWeight: 'bold', backgroundColor: '#fff5f5', fontSize: '0.85rem' }}>
               <span>🚪</span> {t.logout}
@@ -263,7 +255,6 @@ export default function DashboardLayout({ children }) {
 
         </aside>
 
-        {/* ÁREA PRINCIPAL DE CONTEÚDO */}
         <main style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '15px' }}>
           <div style={{ minWidth: '320px' }}>
             {children}
