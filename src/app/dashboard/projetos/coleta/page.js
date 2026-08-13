@@ -12,26 +12,22 @@ export default function ColetaDadosPage() {
   
   const [showModalColeta, setShowModalColeta] = useState(false);
   const [showModalSetorizacao, setShowModalSetorizacao] = useState(false);
-  const [showModalNovoServico, setShowModalNovoServico] = useState(false); // Modal para adicionar nova coluna/serviço direto na tabela
+  const [showModalNovoServico, setShowModalNovoServico] = useState(false);
 
   const [novoPavimentoInput, setNovoPavimentoInput] = useState('');
   const [novaFaseInput, setNovaFaseInput] = useState('');
 
-  // Estados de Edição
   const [editColetaId, setEditColetaId] = useState(null);
   const [editComboKey, setEditComboKey] = useState(null);
 
-  // Formulário da Coleta Inicial
   const [formDataColeta, setFormDataColeta] = useState({
     projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: ''
   });
 
-  // Formulário de Quantificação e Setorização
   const [formDataSetorizacao, setFormDataSetorizacao] = useState({
     projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: ''
   });
 
-  // Formulário para adicionar quantidade a um serviço específico em uma linha existente
   const [formNovoServicoLinha, setFormNovoServicoLinha] = useState({
     comboKey: '', servico: '', quantidade: ''
   });
@@ -53,7 +49,6 @@ export default function ColetaDadosPage() {
 
   const handleSaveColeta = async (e) => {
     e.preventDefault();
-    
     if (editColetaId) {
       const { error } = await supabase.from('coleta_dados').update({
         projeto_id: formDataColeta.projeto_id,
@@ -92,7 +87,6 @@ export default function ColetaDadosPage() {
 
   const handleSaveSetorizacao = async (e) => {
     e.preventDefault();
-
     const pavimentoFinal = formDataSetorizacao.pavimento === 'OUTRO' ? novoPavimentoInput : formDataSetorizacao.pavimento;
     const faseFinal = formDataSetorizacao.fase === 'OUTRO' ? novaFaseInput : formDataSetorizacao.fase;
 
@@ -124,7 +118,6 @@ export default function ColetaDadosPage() {
     }
   };
 
-  // Salvar nova coluna/serviço direto pela linha da tabela
   const handleAddServicoNaLinha = async (e) => {
     e.preventDefault();
     const [amb, pav, fas] = formNovoServicoLinha.comboKey.split('___');
@@ -392,53 +385,54 @@ export default function ColetaDadosPage() {
         </div>
       )}
 
-      {/* TABELA 1: INFORMAÇÕES INICIAIS COLETADAS */}
-      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', overflow: 'hidden', padding: '20px' }}>
+      {/* QUADRO 1: INFORMAÇÕES INICIAIS COLETADAS (COM SCROLL PRÓPRIO E HEADER STICKY) */}
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
         <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>INFORMAÇÕES GERAIS / COLETA INICIAL</h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#2a4365', color: 'white' }}>
-              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Projeto</th>
-              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Pavimentos</th>
-              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Área do Terreno</th>
-              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Área Construída</th>
-              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Tipo de Obra</th>
-              <th style={{ padding: '12px', border: '1px solid #1a365d' }}>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {coletasLista.length === 0 ? (
+        <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#2a4365', color: 'white' }}>
               <tr>
-                <td colSpan="6" style={{ padding: '15px', textAlign: 'center', color: '#718096' }}>Nenhuma coleta inicial cadastrada.</td>
+                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Projeto</th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Pavimentos</th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Área do Terreno</th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Área Construída</th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Tipo de Obra</th>
+                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Ações</th>
               </tr>
-            ) : (
-              coletasLista.map((item) => {
-                const proj = projetosLista.find(p => String(p.id) === String(item.projeto_id));
-                return (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '12px', fontWeight: 'bold', color: '#1a365d' }}>{proj ? `${proj.nome_projeto} (#${proj.id})` : `#${item.projeto_id}`}</td>
-                    <td style={{ padding: '12px' }}>{item.pavimentos || '-'}</td>
-                    <td style={{ padding: '12px' }}>{item.area_terreno ? `${Number(item.area_terreno).toLocaleString('pt-BR')} m²` : '-'}</td>
-                    <td style={{ padding: '12px' }}>{item.area_construida ? `${Number(item.area_construida).toLocaleString('pt-BR')} m²` : '-'}</td>
-                    <td style={{ padding: '12px' }}>{item.tipo_obra || '-'}</td>
-                    <td style={{ padding: '12px', display: 'flex', gap: '8px' }}>
-                      <button onClick={() => handleEditColeta(item)} style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Editar</button>
-                      <button onClick={() => handleDeleteColeta(item.id)} style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Excluir</button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {coletasLista.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{ padding: '15px', textAlign: 'center', color: '#718096' }}>Nenhuma coleta inicial cadastrada.</td>
+                </tr>
+              ) : (
+                coletasLista.map((item) => {
+                  const proj = projetosLista.find(p => String(p.id) === String(item.projeto_id));
+                  return (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#1a365d' }}>{proj ? `${proj.nome_projeto} (#${proj.id})` : `#${item.projeto_id}`}</td>
+                      <td style={{ padding: '12px' }}>{item.pavimentos || '-'}</td>
+                      <td style={{ padding: '12px' }}>{item.area_terreno ? `${Number(item.area_terreno).toLocaleString('pt-BR')} m²` : '-'}</td>
+                      <td style={{ padding: '12px' }}>{item.area_construida ? `${Number(item.area_construida).toLocaleString('pt-BR')} m²` : '-'}</td>
+                      <td style={{ padding: '12px' }}>{item.tipo_obra || '-'}</td>
+                      <td style={{ padding: '12px', display: 'flex', gap: '8px' }}>
+                        <button onClick={() => handleEditColeta(item)} style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Editar</button>
+                        <button onClick={() => handleDeleteColeta(item.id)} style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Excluir</button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO */}
-      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', overflowX: 'auto', padding: '20px' }}>
+      {/* QUADRO 2 - SETORIZAÇÃO E QUANTIFICAÇÃO (COM SCROLL PRÓPRIO E HEADER STICKY) */}
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
           
-          {/* BOTÃO PARA INSERIR NOVA COLUNA/SERVIÇO (LOCALIZADO EXATAMENTE ONDE INDICADO NA LINHA VERMELHA) */}
           <button 
             onClick={() => setShowModalNovoServico(true)}
             style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
@@ -447,70 +441,72 @@ export default function ColetaDadosPage() {
           </button>
         </div>
         
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
-              <th style={{ padding: '10px', border: '1px solid #c05621' }}>LOCALIZAÇÃO</th>
-              <th style={{ padding: '10px', border: '1px solid #c05621' }}>DIVISÃO</th>
-              <th style={{ padding: '10px', border: '1px solid #c05621' }}>SUBDIVISÃO</th>
-              {servicosUnicos.map((serv, idx) => (
-                <th key={idx} style={{ padding: '10px', border: '1px solid #c05621' }}>{serv.toUpperCase()}</th>
-              ))}
-              <th style={{ padding: '10px', border: '1px solid #c05621' }}>AÇÕES</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ambientesUnicos.length === 0 ? (
-              <tr>
-                <td colSpan={4 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
-                  Nenhum dado de setorização cadastrado ainda. Clique em "+ Nova Quantificação e Classificação" acima.
-                </td>
+        <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+              <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
+                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>LOCALIZAÇÃO</th>
+                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>DIVISÃO</th>
+                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>SUBDIVISÃO</th>
+                {servicosUnicos.map((serv, idx) => (
+                  <th key={idx} style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>{serv.toUpperCase()}</th>
+                ))}
+                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>AÇÕES</th>
               </tr>
-            ) : (
-              ambientesUnicos.map((combo, rowIdx) => {
-                const [amb, pav, fas] = combo.split('___');
-                const corLinha = obterCorPorSubdivisao(fas);
+            </thead>
+            <tbody>
+              {ambientesUnicos.length === 0 ? (
+                <tr>
+                  <td colSpan={4 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
+                    Nenhum dado de setorização cadastrado ainda. Clique em "+ Nova Quantificação e Classificação" acima.
+                  </td>
+                </tr>
+              ) : (
+                ambientesUnicos.map((combo, rowIdx) => {
+                  const [amb, pav, fas] = combo.split('___');
+                  const corLinha = obterCorPorSubdivisao(fas);
 
-                return (
-                  <tr key={rowIdx} style={{ backgroundColor: corLinha, borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold', textAlign: 'left' }}>{amb}</td>
-                    <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{pav}</td>
-                    <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold' }}>{fas}</td>
-                    {servicosUnicos.map((serv, colIdx) => {
-                      const encontrado = setorizacoesLista.find(
-                        s => s.ambiente === amb && s.pavimento === pav && s.fase === fas && s.servico === serv
-                      );
-                      return (
-                        <td key={colIdx} style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
-                          {encontrado ? Number(encontrado.quantidade).toLocaleString('pt-BR') : ''}
-                        </td>
-                      );
-                    })}
-                    <td style={{ padding: '8px', border: '1px solid #cbd5e0', display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                      <button 
-                        onClick={() => handleEditLinhaQuadro(amb, pav, fas)}
-                        style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
-                      >
-                        Editar
-                      </button>
-                      <button 
-                        onClick={() => {
-                          const itensParaExcluir = setorizacoesLista.filter(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas);
-                          if (window.confirm(`Deseja excluir toda a linha do ambiente "${amb}"?`)) {
-                            itensParaExcluir.forEach(i => handleDeleteSetorizacao(i.id));
-                          }
-                        }}
-                        style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
-                      >
-                        Excluir
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                  return (
+                    <tr key={rowIdx} style={{ backgroundColor: corLinha, borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold', textAlign: 'left' }}>{amb}</td>
+                      <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{pav}</td>
+                      <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold' }}>{fas}</td>
+                      {servicosUnicos.map((serv, colIdx) => {
+                        const encontrado = setorizacoesLista.find(
+                          s => s.ambiente === amb && s.pavimento === pav && s.fase === fas && s.servico === serv
+                        );
+                        return (
+                          <td key={colIdx} style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
+                            {encontrado ? Number(encontrado.quantidade).toLocaleString('pt-BR') : ''}
+                          </td>
+                        );
+                      })}
+                      <td style={{ padding: '8px', border: '1px solid #cbd5e0', display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                        <button 
+                          onClick={() => handleEditLinhaQuadro(amb, pav, fas)}
+                          style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                        >
+                          Editar
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const itensParaExcluir = setorizacoesLista.filter(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas);
+                            if (window.confirm(`Deseja excluir toda a linha do ambiente "${amb}"?`)) {
+                              itensParaExcluir.forEach(i => handleDeleteSetorizacao(i.id));
+                            }
+                          }}
+                          style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                        >
+                          Excluir
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>
