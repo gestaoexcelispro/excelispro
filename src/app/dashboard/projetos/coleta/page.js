@@ -13,6 +13,10 @@ export default function ColetaDadosPage() {
   const [showModalColeta, setShowModalColeta] = useState(false);
   const [showModalSetorizacao, setShowModalSetorizacao] = useState(false);
 
+  // Estados para gerenciar a opção de digitar novo valor nos selects dinâmicos
+  const [novoPavimentoInput, setNovoPavimentoInput] = useState('');
+  const [novaFaseInput, setNovaFaseInput] = useState('');
+
   // Estados de Edição
   const [editColetaId, setEditColetaId] = useState(null);
   const [editComboKey, setEditComboKey] = useState(null);
@@ -84,18 +88,33 @@ export default function ColetaDadosPage() {
   const handleSaveSetorizacao = async (e) => {
     e.preventDefault();
 
+    // Se o usuário selecionou a opção de digitar um novo valor, utiliza o input correspondente
+    const pavimentoFinal = formDataSetorizacao.pavimento === 'OUTRO' ? novoPavimentoInput : formDataSetorizacao.pavimento;
+    const faseFinal = formDataSetorizacao.fase === 'OUTRO' ? novaFaseInput : formDataSetorizacao.fase;
+
+    if (!pavimentoFinal || !faseFinal) {
+      alert('Por favor, preencha a Divisão e a Subdivisão.');
+      return;
+    }
+
     if (editComboKey) {
       const [oldAmb, oldPav, oldFas] = editComboKey.split('___');
       await supabase.from('setorizacao_obras').delete().match({ ambiente: oldAmb, pavimento: oldPav, fase: oldFas });
     }
 
-    const { error } = await supabase.from('setorizacao_obras').insert([formDataSetorizacao]);
+    const { error } = await supabase.from('setorizacao_obras').insert([{
+      ...formDataSetorizacao,
+      pavimento: pavimentoFinal,
+      fase: faseFinal
+    }]);
 
     if (error) alert('Erro: ' + error.message);
     else {
       alert('Serviço salvo com sucesso!');
       setShowModalSetorizacao(false);
       setEditComboKey(null);
+      setNovoPavimentoInput('');
+      setNovaFaseInput('');
       setFormDataSetorizacao({ projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: '' });
       fetchData();
     }
@@ -143,23 +162,31 @@ export default function ColetaDadosPage() {
     else fetchData();
   };
 
+  // Listas dinâmicas baseadas no que já foi salvo na base de dados + padrões recomendados
+  const pavimentosPadrao = ['PV1', 'PV2', 'PV3', 'PV4', 'PV5', 'Térreo', 'Subsolo'];
+  const divisoesExistentes = [...new Set([...pavimentosPadrao, ...setorizacoesLista.map(s => s.pavimento).filter(Boolean)])];
+
+  const fasesPadrao = ['Z1', 'Z2', 'Z3', 'Z4', 'Bloco 1', 'Bloco 2', 'Bloco 3', 'Setor 1', 'Setor 2', 'Setor 3'];
+  const subdivisoesExistentes = [...new Set([...fasesPadrao, ...setorizacoesLista.map(s => s.fase).filter(Boolean)])];
+
   // Agrupamento para montar a matriz de setorização
   const ambientesUnicos = [...new Set(setorizacoesLista.map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`))];
   const servicosUnicos = [...new Set(setorizacoesLista.map(s => s.servico))];
 
-  // Função para definir a cor de fundo da linha com base na subdivisão (fase)
   const obterCorPorSubdivisao = (fase) => {
     if (!fase) return '#ffffff';
     const f = fase.trim().toUpperCase();
-    // Paleta profissional inspirada em pranchas de projeto e zoneamento
     const cores = {
-      'Z1': '#ebf8ff', // Azul bem suave
-      'Z2': '#f0fff4', // Verde bem suave
-      'Z3': '#fffaf0', // Amarelo/Laranja bem suave
-      'Z4': '#f5f3ff', // Roxo/Lilás bem suave
-      'Z5': '#fff1f2'  // Rosa/Vermelho bem suave
+      'Z1': '#ebf8ff',
+      'Z2': '#f0fff4',
+      'Z3': '#fffaf0',
+      'Z4': '#f5f3ff',
+      'Z5': '#fff1f2',
+      'BLOCO 1': '#e6fffa',
+      'BLOCO 2': '#edf2f7',
+      'SETOR 1': '#fefcbf'
     };
-    return cores[f] || '#f7fafc'; // Cor padrão caso seja outra subdivisão
+    return cores[f] || '#f7fafc';
   };
 
   return (
@@ -184,6 +211,8 @@ export default function ColetaDadosPage() {
         <button 
           onClick={() => {
             setEditComboKey(null);
+            setNovoPavimentoInput('');
+            setNovaFaseInput('');
             setFormDataSetorizacao({ projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: '' });
             setShowModalSetorizacao(true);
           }}
@@ -232,9 +261,59 @@ export default function ColetaDadosPage() {
                 <option value="">-- Selecione o Projeto --</option>
                 {projetosLista.map(p => <option key={p.id} value={p.id}>#{p.id} - {p.nome_projeto}</option>)}
               </select>
+
               <input type="text" placeholder="Ambiente (Ex: Garagem, Cozinha, Quarto)" required value={formDataSetorizacao.ambiente} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, ambiente: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
-              <input type="text" placeholder="Pavimento / Divisão (Ex: PV1, PV2)" required value={formDataSetorizacao.pavimento} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, pavimento: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
-              <input type="text" placeholder="Fase / Subdivisão (Ex: Z1, Z2)" required value={formDataSetorizacao.fase} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, fase: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
+
+              {/* CAMPO DIVISÃO COM LISTA + OPÇÃO DE ADICIONAR NOVO */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Divisão</label>
+                <select 
+                  required 
+                  value={formDataSetorizacao.pavimento} 
+                  onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, pavimento: e.target.value})} 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', marginBottom: formDataSetorizacao.pavimento === 'OUTRO' ? '10px' : '0' }}
+                >
+                  <option value="">-- Selecione a Divisão --</option>
+                  {divisoesExistentes.map((div, i) => <option key={i} value={div}>{div}</option>)}
+                  <option value="OUTRO">+ Cadastrar nova divisão...</option>
+                </select>
+                {formDataSetorizacao.pavimento === 'OUTRO' && (
+                  <input 
+                    type="text" 
+                    placeholder="Digite a nova divisão (ex: PV6)" 
+                    required 
+                    value={novoPavimentoInput} 
+                    onChange={(e) => setNovoPavimentoInput(e.target.value)} 
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #3182ce', boxSizing: 'border-box' }} 
+                  />
+                )}
+              </div>
+
+              {/* CAMPO SUBDIVISÃO COM LISTA + OPÇÃO DE ADICIONAR NOVO */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Subdivisão</label>
+                <select 
+                  required 
+                  value={formDataSetorizacao.fase} 
+                  onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, fase: e.target.value})} 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', marginBottom: formDataSetorizacao.fase === 'OUTRO' ? '10px' : '0' }}
+                >
+                  <option value="">-- Selecione a Subdivisão --</option>
+                  {subdivisoesExistentes.map((fas, i) => <option key={i} value={fas}>{fas}</option>)}
+                  <option value="OUTRO">+ Cadastrar nova subdivisão...</option>
+                </select>
+                {formDataSetorizacao.fase === 'OUTRO' && (
+                  <input 
+                    type="text" 
+                    placeholder="Digite a nova subdivisão (ex: Z4 ou Bloco 4)" 
+                    required 
+                    value={novaFaseInput} 
+                    onChange={(e) => setNovaFaseInput(e.target.value)} 
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #3182ce', boxSizing: 'border-box' }} 
+                  />
+                )}
+              </div>
+
               <input type="text" placeholder="Serviço (Ex: Piso Porcelanato, Parede, Forro)" required value={formDataSetorizacao.servico} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, servico: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
               <input type="number" step="0.01" placeholder="Quantidade Específica" required value={formDataSetorizacao.quantidade} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, quantidade: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
               
@@ -314,7 +393,7 @@ export default function ColetaDadosPage() {
             ) : (
               ambientesUnicos.map((combo, rowIdx) => {
                 const [amb, pav, fas] = combo.split('___');
-                const corLinha = obterCorPorSubdivisao(fas); // Aplica a cor com base na Subdivisão (Z1, Z2, etc.)
+                const corLinha = obterCorPorSubdivisao(fas);
 
                 return (
                   <tr key={rowIdx} style={{ backgroundColor: corLinha, borderBottom: '1px solid #e2e8f0' }}>
