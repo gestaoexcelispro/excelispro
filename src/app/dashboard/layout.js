@@ -111,16 +111,25 @@ export default function DashboardLayout({ children }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '6px', backgroundColor: '#2a4365', padding: '3px', borderRadius: '6px' }}>
+        {/* SELETOR DE IDIOMA EM FORMATO DE BOTÕES COMPACTOS (PT / EN) */}
+        <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', border: '1px solid #2a4365' }}>
           <button 
             onClick={() => setLang('pt-BR')} 
-            style={{ background: lang === 'pt-BR' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+            style={{ 
+              background: lang === 'pt-BR' ? '#3182ce' : 'transparent', 
+              color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
+              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition: 'background 0.2s' 
+            }}
           >
             PT
           </button>
           <button 
             onClick={() => setLang('en-US')} 
-            style={{ background: lang === 'en-US' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+            style={{ 
+              background: lang === 'en-US' ? '#3182ce' : 'transparent', 
+              color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', 
+              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition: 'background 0.2s' 
+            }}
           >
             EN
           </button>
