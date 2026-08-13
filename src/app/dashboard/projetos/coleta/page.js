@@ -15,7 +15,7 @@ export default function ColetaDadosPage() {
 
   // Estados de Edição
   const [editColetaId, setEditColetaId] = useState(null);
-  const [editComboKey, setEditComboKey] = useState(null); // chave "amb___pav___fas" para edição do quadro
+  const [editComboKey, setEditComboKey] = useState(null);
 
   // Formulário da Coleta Inicial
   const [formDataColeta, setFormDataColeta] = useState({
@@ -46,7 +46,6 @@ export default function ColetaDadosPage() {
     e.preventDefault();
     
     if (editColetaId) {
-      // Atualizar registro existente
       const { error } = await supabase.from('coleta_dados').update({
         projeto_id: formDataColeta.projeto_id,
         pavimentos: formDataColeta.pavimentos,
@@ -64,7 +63,6 @@ export default function ColetaDadosPage() {
         fetchData();
       }
     } else {
-      // Inserir novo registro
       const { error } = await supabase.from('coleta_dados').insert([{
         projeto_id: formDataColeta.projeto_id,
         pavimentos: formDataColeta.pavimentos,
@@ -87,7 +85,6 @@ export default function ColetaDadosPage() {
     e.preventDefault();
 
     if (editComboKey) {
-      // Se estiver editando uma linha do quadro, removemos os antigos e inserimos os novos atualizados para simplificar
       const [oldAmb, oldPav, oldFas] = editComboKey.split('___');
       await supabase.from('setorizacao_obras').delete().match({ ambiente: oldAmb, pavimento: oldPav, fase: oldFas });
     }
@@ -119,7 +116,6 @@ export default function ColetaDadosPage() {
   const handleEditLinhaQuadro = (amb, pav, fas) => {
     const itensDaLinha = setorizacoesLista.filter(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas);
     if (itensDaLinha.length > 0) {
-      // Carrega o primeiro item para edição rápida (ou expande se necessário)
       setEditComboKey(`${amb}___${pav}___${fas}`);
       setFormDataSetorizacao({
         projeto_id: itensDaLinha[0].projeto_id || '',
@@ -150,6 +146,21 @@ export default function ColetaDadosPage() {
   // Agrupamento para montar a matriz de setorização
   const ambientesUnicos = [...new Set(setorizacoesLista.map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`))];
   const servicosUnicos = [...new Set(setorizacoesLista.map(s => s.servico))];
+
+  // Função para definir a cor de fundo da linha com base na subdivisão (fase)
+  const obterCorPorSubdivisao = (fase) => {
+    if (!fase) return '#ffffff';
+    const f = fase.trim().toUpperCase();
+    // Paleta profissional inspirada em pranchas de projeto e zoneamento
+    const cores = {
+      'Z1': '#ebf8ff', // Azul bem suave
+      'Z2': '#f0fff4', // Verde bem suave
+      'Z3': '#fffaf0', // Amarelo/Laranja bem suave
+      'Z4': '#f5f3ff', // Roxo/Lilás bem suave
+      'Z5': '#fff1f2'  // Rosa/Vermelho bem suave
+    };
+    return cores[f] || '#f7fafc'; // Cor padrão caso seja outra subdivisão
+  };
 
   return (
     <div style={{ padding: '40px', maxWidth: '1200px', fontFamily: 'sans-serif' }}>
@@ -303,22 +314,24 @@ export default function ColetaDadosPage() {
             ) : (
               ambientesUnicos.map((combo, rowIdx) => {
                 const [amb, pav, fas] = combo.split('___');
+                const corLinha = obterCorPorSubdivisao(fas); // Aplica a cor com base na Subdivisão (Z1, Z2, etc.)
+
                 return (
-                  <tr key={rowIdx} style={{ backgroundColor: rowIdx % 2 === 0 ? '#fffaf0' : 'white' }}>
-                    <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontWeight: 'bold', textAlign: 'left' }}>{amb}</td>
-                    <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>{pav}</td>
-                    <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>{fas}</td>
+                  <tr key={rowIdx} style={{ backgroundColor: corLinha, borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold', textAlign: 'left' }}>{amb}</td>
+                    <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{pav}</td>
+                    <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold' }}>{fas}</td>
                     {servicosUnicos.map((serv, colIdx) => {
                       const encontrado = setorizacoesLista.find(
                         s => s.ambiente === amb && s.pavimento === pav && s.fase === fas && s.servico === serv
                       );
                       return (
-                        <td key={colIdx} style={{ padding: '8px', border: '1px solid #e2e8f0' }}>
+                        <td key={colIdx} style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
                           {encontrado ? Number(encontrado.quantidade).toLocaleString('pt-BR') : ''}
                         </td>
                       );
                     })}
-                    <td style={{ padding: '8px', border: '1px solid #e2e8f0', display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                    <td style={{ padding: '8px', border: '1px solid #cbd5e0', display: 'flex', gap: '5px', justifyContent: 'center' }}>
                       <button 
                         onClick={() => handleEditLinhaQuadro(amb, pav, fas)}
                         style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
