@@ -1,11 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { supabase } from '../../../../lib/supabase';
 
 export default function ColetaDadosPage() {
   const { lang } = useLanguage();
   
+  const [projetosLista, setProjetosLista] = useState([]);
   const [formData, setFormData] = useState({
     projeto_id: '',
     pavimentos: '',
@@ -14,10 +15,25 @@ export default function ColetaDadosPage() {
     tipoObra: ''
   });
 
+  // Buscar a lista de projetos cadastrados para preencher o select
+  useEffect(() => {
+    async function carregarProjetos() {
+      const { data, error } = await supabase.from('projetos').select('id, nome_projeto, cliente');
+      if (!error && data) {
+        setProjetosLista(data);
+      }
+    }
+    carregarProjetos();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Enviando para a tabela coleta_dados no Supabase
+    if (!formData.projeto_id) {
+      alert(lang === 'en-US' ? 'Please select a project.' : 'Por favor, selecione um projeto.');
+      return;
+    }
+
     const { error } = await supabase.from('coleta_dados').insert([
       {
         projeto_id: formData.projeto_id,
@@ -44,10 +60,24 @@ export default function ColetaDadosPage() {
       
       <form onSubmit={handleSubmit} style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
         
-        {/* Campo de vínculo com o ID do projeto */}
+        {/* Select dinâmico puxando os projetos do Supabase */}
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>{lang === 'en-US' ? 'Project ID' : 'ID do Projeto'}</label>
-          <input type="text" required value={formData.projeto_id} onChange={(e) => setFormData({...formData, projeto_id: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0' }} />
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+            {lang === 'en-US' ? 'Select Project' : 'Selecione o Projeto'}
+          </label>
+          <select 
+            required 
+            value={formData.projeto_id} 
+            onChange={(e) => setFormData({...formData, projeto_id: e.target.value})} 
+            style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
+          >
+            <option value="">{lang === 'en-US' ? '-- Select a project --' : '-- Escolha um projeto cadastrado --'}</option>
+            {projetosLista.map((proj) => (
+              <option key={proj.id} value={proj.id}>
+                #{proj.id} - {proj.nome_projeto} ({proj.cliente})
+              </option>
+            ))}
+          </select>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
@@ -59,12 +89,12 @@ export default function ColetaDadosPage() {
 
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>{lang === 'en-US' ? 'Land Area (m²)' : 'Área do Terreno (m²)'}</label>
-            <input type="number" value={formData.areaTerreno} onChange={(e) => setFormData({...formData, areaTerreno: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0' }} />
+            <input type="number" step="0.01" value={formData.areaTerreno} onChange={(e) => setFormData({...formData, areaTerreno: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0' }} />
           </div>
 
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>{lang === 'en-US' ? 'Built Area (m²)' : 'Área Construída (m²)'}</label>
-            <input type="number" value={formData.areaConstruida} onChange={(e) => setFormData({...formData, areaConstruida: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0' }} />
+            <input type="number" step="0.01" value={formData.areaConstruida} onChange={(e) => setFormData({...formData, areaConstruida: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0' }} />
           </div>
 
           <div>
