@@ -30,7 +30,6 @@ export default function ColetaDadosPage() {
     projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: ''
   });
 
-  // Adicionado tipo_ambiente com padrão 'Interno'
   const [formDataSetorizacao, setFormDataSetorizacao] = useState({
     projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: ''
   });
@@ -57,7 +56,7 @@ export default function ColetaDadosPage() {
   const handleCellChange = async (amb, tipoAmb, pav, fas, servico, novaQuantidade) => {
     const valorNumerico = novaQuantidade === '' ? null : parseFloat(novaQuantidade);
     const registroExistente = setorizacoesLista.find(
-      s => s.ambiente === amb && s.tipo_ambiente === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === servico
+      s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === servico
     );
 
     if (registroExistente) {
@@ -122,7 +121,7 @@ export default function ColetaDadosPage() {
   const handleAddServicoNaLinha = async (e) => {
     e.preventDefault();
     const [amb, tipoAmb, pav, fas] = formNovoServicoLinha.comboKey.split('___');
-    const projetoRef = setorizacoesLista.find(s => s.ambiente === amb && s.tipo_ambiente === tipoAmb && s.pavimento === pav && s.fase === fas)?.projeto_id || projetosLista[0]?.id || '';
+    const projetoRef = setorizacoesLista.find(s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas)?.projeto_id || projetosLista[0]?.id || '';
     
     await supabase.from('setorizacao_obras').insert([{
       projeto_id: projetoRef,
@@ -152,7 +151,7 @@ export default function ColetaDadosPage() {
   };
 
   const handleEditLinhaQuadro = (amb, tipoAmb, pav, fas) => {
-    const itens = setorizacoesLista.filter(s => s.ambiente === amb && s.tipo_ambiente === tipoAmb && s.pavimento === pav && s.fase === fas);
+    const itens = setorizacoesLista.filter(s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas);
     if (itens.length > 0) {
       setEditComboKey(`${amb}___${tipoAmb}___${pav}___${fas}`);
       setFormDataSetorizacao({
@@ -177,7 +176,7 @@ export default function ColetaDadosPage() {
 
   const handleDeleteSetorizacao = async (amb, tipoAmb, pav, fas) => {
     if (window.confirm(`Tem certeza que deseja excluir toda a linha do ambiente "${amb}" (${tipoAmb})?`)) {
-      const itens = setorizacoesLista.filter(s => s.ambiente === amb && s.tipo_ambiente === tipoAmb && s.pavimento === pav && s.fase === fas);
+      const itens = setorizacoesLista.filter(s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas);
       for (const item of itens) {
         await supabase.from('setorizacao_obras').delete().eq('id', item.id);
       }
@@ -191,11 +190,10 @@ export default function ColetaDadosPage() {
   const fasesPadrao = ['Z1', 'Z2', 'Z3', 'Z4', 'Bloco 1', 'Bloco 2', 'Bloco 3', 'Setor 1', 'Setor 2', 'Setor 3'];
   const subdivisoesExistentes = [...new Set([...fasesPadrao, ...setorizacoesLista.map(s => s.fase).filter(Boolean)])];
 
-  // Identificação única combinando Ambiente + Tipo + Divisão + Subdivisão
   const ambientesFiltradosEOrdenados = [...new Set(
     setorizacoesLista
       .filter(s => {
-        const matchTipo = filtroTipoAmbiente ? s.tipo_ambiente === filtroTipoAmbiente : true;
+        const matchTipo = filtroTipoAmbiente ? (s.tipo_ambiente || 'Interno') === filtroTipoAmbiente : true;
         const matchDivisao = filtroDivisao ? s.pavimento === filtroDivisao : true;
         const matchSubdivisao = filtroSubdivisao ? s.fase === filtroSubdivisao : true;
         return matchTipo && matchDivisao && matchSubdivisao;
@@ -246,35 +244,37 @@ export default function ColetaDadosPage() {
 
   return (
     <div style={{ padding: '40px', maxWidth: '1200px', fontFamily: 'sans-serif' }}>
-      <h1 style={{ color: '#2A4365', marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>
-        {lang === 'en-US' ? 'Project Data Collection & Setorization' : 'Coleta, Quantificação e Setorização de Obras'}
-      </h1>
+      
+      {/* HEADER FIXA COM BOTÕES DE AÇÃO RÁPIDA */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#f4f7f6', paddingBottom: '20px', paddingTop: '10px', borderBottom: '1px solid #e2e8f0', marginBottom: '30px' }}>
+        <h1 style={{ color: '#2A4365', marginBottom: '15px', paddingBottom: '5px' }}>
+          {lang === 'en-US' ? 'Project Data Collection & Setorization' : 'Coleta, Quantificação e Setorização de Obras'}
+        </h1>
+        <div style={{ display: 'flex', gap: '15px' }}>
+          <button 
+            onClick={() => {
+              setEditColetaId(null);
+              setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
+              setShowModalColeta(true);
+            }}
+            style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            {lang === 'en-US' ? '+ Initial Data Collection' : '+ Cadastrar Coleta Inicial'}
+          </button>
 
-      {/* BOTÕES DE AÇÃO RÁPIDA */}
-      <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
-        <button 
-          onClick={() => {
-            setEditColetaId(null);
-            setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
-            setShowModalColeta(true);
-          }}
-          style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-        >
-          {lang === 'en-US' ? '+ Initial Data Collection' : '+ Cadastrar Coleta Inicial'}
-        </button>
-
-        <button 
-          onClick={() => {
-            setEditComboKey(null);
-            setNovoPavimentoInput('');
-            setNovaFaseInput('');
-            setFormDataSetorizacao({ projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: '' });
-            setShowModalSetorizacao(true);
-          }}
-          style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-        >
-          {lang === 'en-US' ? '+ Quantification & Setorization' : '+ Nova Quantificação e Classificação'}
-        </button>
+          <button 
+            onClick={() => {
+              setEditComboKey(null);
+              setNovoPavimentoInput('');
+              setNovaFaseInput('');
+              setFormDataSetorizacao({ projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: '' });
+              setShowModalSetorizacao(true);
+            }}
+            style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            {lang === 'en-US' ? '+ Quantification & Setorization' : '+ Nova Quantificação e Classificação'}
+          </button>
+        </div>
       </div>
 
       {/* MODAL COLETA INICIAL */}
@@ -319,7 +319,6 @@ export default function ColetaDadosPage() {
 
               <input type="text" placeholder="Ambiente (Ex: Garagem, Cozinha, Quarto)" required value={formDataSetorizacao.ambiente} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, ambiente: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
 
-              {/* CAMPO NOVO: TIPO DE AMBIENTE (INTERNO / EXTERNO) */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Tipo de Ambiente</label>
                 <select 
