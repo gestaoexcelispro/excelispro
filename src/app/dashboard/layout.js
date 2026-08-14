@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const translations = {
@@ -60,6 +61,7 @@ const translations = {
 export default function DashboardLayout({ children }) {
   const { lang, setLang, toggleLanguage } = useLanguage();
   const t = translations[lang] || translations['pt-BR'];
+  const pathname = usePathname();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDirectorateOpen, setIsDirectorateOpen] = useState(true);
@@ -73,6 +75,25 @@ export default function DashboardLayout({ children }) {
     if (toggleLanguage && lang !== targetLang) toggleLanguage();
   };
 
+  // Mapeamento dinâmico da rota atual para exibir o Módulo > Página na Header
+  const getBreadcrumb = () => {
+    if (pathname.includes('/diretoria/mapa')) return `${t.directorateModule} > ${t.mapDashboard}`;
+    if (pathname.includes('/projetos/lista')) return `${t.projectsModule} > ${t.projectList}`;
+    if (pathname.includes('/projetos/coleta')) return `${t.projectsModule} > ${t.coletaDados}`;
+    if (pathname.includes('/projetos/tap')) return `${t.projectsModule} > ${t.tap}`;
+    if (pathname.includes('/projetos/plano')) return `${t.projectsModule} > ${t.managementPlan}`;
+    if (pathname.includes('/projetos/raci')) return `${t.projectsModule} > ${t.raci}`;
+    if (pathname.includes('/projetos/riscos')) return `${t.projectsModule} > ${t.risks}`;
+    if (pathname.includes('/orcamentos')) return `${t.commercialModule} > ${t.budgets}`;
+    if (pathname.includes('/propostas')) return `${t.commercialModule} > ${t.proposals}`;
+    if (pathname.includes('/modelos')) return `${t.commercialModule} > ${t.templates}`;
+    if (pathname.includes('/servicos')) return `${t.commercialModule} > ${t.services}`;
+    if (pathname.includes('/controladoria/receber')) return `${t.financialModule} > ${t.receivable}`;
+    if (pathname.includes('/controladoria/pagar')) return `${t.financialModule} > ${t.payable}`;
+    if (pathname.includes('/juridico/contratos')) return `${t.legalModule} > ${t.contracts}`;
+    return `${t.commercialModule} > ${t.dashboard}`;
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', backgroundColor: '#f4f7f6', fontFamily: 'sans-serif' }}>
       
@@ -83,10 +104,11 @@ export default function DashboardLayout({ children }) {
         padding: '10px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         boxShadow: '0 2px 5px rgba(0,0,0,0.15)', zIndex: 1200
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', borderRadius: '6px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 'bold' }}
+            title={isSidebarOpen ? 'Ocultar Menu' : 'Mostrar Menu'}
           >
             {isSidebarOpen ? '◀' : '▶'}
           </button>
@@ -99,6 +121,13 @@ export default function DashboardLayout({ children }) {
               <span style={{ fontSize: '0.65rem', color: '#90cdf4' }}>{t.subtitle}</span>
             </div>
           </div>
+
+          {/* EXIBE O NOME DO MÓDULO E PÁGINA APENAS QUANDO O SIDEBAR ESTIVER FECHADO */}
+          {!isSidebarOpen && (
+            <div style={{ marginLeft: '20px', paddingLeft: '20px', borderLeft: '1px solid #2a4365', color: '#e2e8f0', fontSize: '0.9rem', fontWeight: '500', letterSpacing: '0.5px' }}>
+              {getBreadcrumb()}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', gap: '3px' }}>
