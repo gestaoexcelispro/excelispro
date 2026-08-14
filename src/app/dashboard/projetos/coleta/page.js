@@ -15,6 +15,12 @@ export default function ColetaDadosPage() {
   const [showModalNovoServico, setShowModalNovoServico] = useState(false);
   const [showModalRelatorio, setShowModalRelatorio] = useState(false);
 
+  // Estados para controlar a exibição (Ocultar/Mostrar) de cada quadro
+  const [showGeral, setShowGeral] = useState(true);
+  const [showQuadro1, setShowQuadro1] = useState(true);
+  const [showQuadro2, setShowQuadro2] = useState(true);
+  const [showQuadro3, setShowQuadro3] = useState(true);
+
   const [filtroTipoAmbiente, setFiltroTipoAmbiente] = useState('');
   const [filtroDivisao, setFiltroDivisao] = useState('');
   const [filtroSubdivisao, setFiltroSubdivisao] = useState('');
@@ -38,7 +44,6 @@ export default function ColetaDadosPage() {
     comboKey: '', servico: '', quantidade: ''
   });
 
-  // Estado para armazenar os parâmetros de Takt (Produtividade e Efetivo)
   const [parametrosTakt, setParametrosTakt] = useState({});
 
   const handleParametroTaktChange = (divisao, servico, campo, valor) => {
@@ -55,7 +60,6 @@ export default function ColetaDadosPage() {
     filtroAmbiente: 'todos'
   });
 
-  // Escuta os eventos globais disparados pelos botões da Header
   useEffect(() => {
     const handleOpenColeta = () => {
       setEditColetaId(null);
@@ -303,6 +307,21 @@ export default function ColetaDadosPage() {
     return cores[f] || '#f7fafc';
   };
 
+  // Estilo padronizado para os botões de Mostrar/Ocultar
+  const toggleBtnStyle = {
+    backgroundColor: '#edf2f7',
+    color: '#4a5568',
+    border: '1px solid #cbd5e0',
+    padding: '6px 12px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.8rem',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
+  };
+
   return (
     <div style={{ padding: '40px', maxWidth: '1200px', fontFamily: 'sans-serif' }}>
       
@@ -318,162 +337,423 @@ export default function ColetaDadosPage() {
         </button>
       </div>
 
-      {/* MODAL COLETA INICIAL */}
-      {showModalColeta && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>{editColetaId ? 'Editar Coleta Inicial' : 'Coleta de Dados Inicial'}</h2>
-            <form onSubmit={handleSaveColeta} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <select required value={formDataColeta.projeto_id} onChange={(e) => setFormDataColeta({...formDataColeta, projeto_id: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }}>
-                <option value="">-- Selecione o Projeto --</option>
-                {projetosLista.map(p => <option key={p.id} value={p.id}>#{p.id} - {p.nome_projeto}</option>)}
-              </select>
-              <input type="number" placeholder="Número de Pavimentos" value={formDataColeta.pavimentos} onChange={(e) => setFormDataColeta({...formDataColeta, pavimentos: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
-              <input type="number" step="0.01" placeholder="Área do Terreno (m²)" value={formDataColeta.areaTerreno} onChange={(e) => setFormDataColeta({...formDataColeta, areaTerreno: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
-              <input type="number" step="0.01" placeholder="Área Construída (m²)" value={formDataColeta.areaConstruida} onChange={(e) => setFormDataColeta({...formDataColeta, areaConstruida: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
-              <select value={formDataColeta.tipoObra} onChange={(e) => setFormDataColeta({...formDataColeta, tipoObra: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }}>
-                <option value="">Selecione o Tipo de Obra</option>
-                <option value="Residencial">Residencial</option>
-                <option value="Comercial">Comercial</option>
-                <option value="Corporativa">Corporativa</option>
-                <option value="Industrial">Industrial</option>
-              </select>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" onClick={() => setShowModalColeta(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
-                <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>Salvar</button>
-              </div>
-            </form>
+      {/* INFORMAÇÕES GERAIS / COLETA INICIAL */}
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showGeral ? '15px' : '0' }}>
+          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>INFORMAÇÕES GERAIS / COLETA INICIAL</h2>
+          <button onClick={() => setShowGeral(!showGeral)} style={toggleBtnStyle}>
+            {showGeral ? 'Ocultar ▲' : 'Mostrar ▼'}
+          </button>
+        </div>
+
+        {showGeral && (
+          <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid #cbd5e0', borderRadius: '6px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#2a4365', color: 'white' }}>
+                <tr>
+                  <th style={{ padding: '12px', borderBottom: '1px solid #1a365d' }}>Projeto</th>
+                  <th style={{ padding: '12px', borderBottom: '1px solid #1a365d' }}>Pavimentos</th>
+                  <th style={{ padding: '12px', borderBottom: '1px solid #1a365d' }}>Área do Terreno</th>
+                  <th style={{ padding: '12px', borderBottom: '1px solid #1a365d' }}>Área Construída</th>
+                  <th style={{ padding: '12px', borderBottom: '1px solid #1a365d' }}>Tipo de Obra</th>
+                  <th style={{ padding: '12px', borderBottom: '1px solid #1a365d' }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {coletasLista.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" style={{ padding: '15px', textAlign: 'center', color: '#718096' }}>Nenhuma coleta inicial cadastrada.</td>
+                  </tr>
+                ) : (
+                  coletasLista.map((item) => {
+                    const proj = projetosLista.find(p => String(p.id) === String(item.projeto_id));
+                    return (
+                      <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '12px', fontWeight: 'bold', color: '#1a365d' }}>{proj ? `${proj.nome_projeto} (#${proj.id})` : `#${item.projeto_id}`}</td>
+                        <td style={{ padding: '12px' }}>{item.pavimentos || '-'}</td>
+                        <td style={{ padding: '12px' }}>{item.area_terreno ? `${Number(item.area_terreno).toLocaleString('pt-BR')} m²` : '-'}</td>
+                        <td style={{ padding: '12px' }}>{item.area_construida ? `${Number(item.area_construida).toLocaleString('pt-BR')} m²` : '-'}</td>
+                        <td style={{ padding: '12px' }}>{item.tipo_obra || '-'}</td>
+                        <td style={{ padding: '12px', display: 'flex', gap: '8px' }}>
+                          <button onClick={() => handleEditColeta(item)} style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Editar</button>
+                          <button onClick={() => handleDeleteColeta(item.id)} style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Excluir</button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* QUADRO 1 - SETORIZAÇÃO DETALHADA E CLASSIFICAÇÃO */}
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', padding: '20px', marginBottom: '40px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showQuadro1 ? '15px' : '0', flexWrap: 'wrap', gap: '15px' }}>
+          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO DETALHADA E CLASSIFICAÇÃO</h2>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={() => setShowModalNovoServico(true)}
+              style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+            >
+              + Novo Serviço (Coluna)
+            </button>
+            <button onClick={() => setShowQuadro1(!showQuadro1)} style={toggleBtnStyle}>
+              {showQuadro1 ? 'Ocultar ▲' : 'Mostrar ▼'}
+            </button>
           </div>
         </div>
-      )}
 
-      {/* MODAL QUANTIFICAÇÃO E SETORIZAÇÃO */}
-      {showModalSetorizacao && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>{editComboKey ? 'Editar Linha de Setorização' : 'Quantificação e Classificação por Ambiente'}</h2>
-            <form onSubmit={handleSaveSetorizacao} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <select required value={formDataSetorizacao.projeto_id} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, projeto_id: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }}>
-                <option value="">-- Selecione o Projeto --</option>
-                {projetosLista.map(p => <option key={p.id} value={p.id}>#{p.id} - {p.nome_projeto}</option>)}
-              </select>
-
-              <input type="text" placeholder="Ambiente (Ex: Garagem, Cozinha, Quarto)" required value={formDataSetorizacao.ambiente} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, ambiente: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Tipo de Ambiente</label>
+        {showQuadro1 && (
+          <>
+            {/* BARRA DE FILTROS */}
+            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', backgroundColor: '#f7fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '150px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar Tipo</label>
                 <select 
-                  required 
-                  value={formDataSetorizacao.tipo_ambiente} 
-                  onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, tipo_ambiente: e.target.value})} 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', backgroundColor: 'white' }}
+                  value={filtroTipoAmbiente} 
+                  onChange={(e) => setFiltroTipoAmbiente(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
                 >
+                  <option value="">Todos (Int/Ext)</option>
                   <option value="Interno">Interno</option>
                   <option value="Externo">Externo</option>
                 </select>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Divisão</label>
+              <div style={{ flex: 1, minWidth: '150px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar Divisão</label>
                 <select 
-                  required 
-                  value={formDataSetorizacao.pavimento} 
-                  onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, pavimento: e.target.value})} 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', marginBottom: formDataSetorizacao.pavimento === 'OUTRO' ? '10px' : '0' }}
+                  value={filtroDivisao} 
+                  onChange={(e) => setFiltroDivisao(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
                 >
-                  <option value="">-- Selecione a Divisão --</option>
+                  <option value="">Todas as Divisões</option>
                   {divisoesExistentes.map((div, i) => <option key={i} value={div}>{div}</option>)}
-                  <option value="OUTRO">+ Cadastrar nova divisão...</option>
                 </select>
-                {formDataSetorizacao.pavimento === 'OUTRO' && (
-                  <input type="text" placeholder="Digite a nova divisão (ex: PV6)" required value={novoPavimentoInput} onChange={(e) => setNovoPavimentoInput(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #3182ce', boxSizing: 'border-box' }} />
-                )}
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Subdivisão</label>
+              <div style={{ flex: 1, minWidth: '150px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar Subdivisão</label>
                 <select 
-                  required 
-                  value={formDataSetorizacao.fase} 
-                  onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, fase: e.target.value})} 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', marginBottom: formDataSetorizacao.fase === 'OUTRO' ? '10px' : '0' }}
+                  value={filtroSubdivisao} 
+                  onChange={(e) => setFiltroSubdivisao(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
                 >
-                  <option value="">-- Selecione a Subdivisão --</option>
+                  <option value="">Todas as Subdivisões</option>
                   {subdivisoesExistentes.map((fas, i) => <option key={i} value={fas}>{fas}</option>)}
-                  <option value="OUTRO">+ Cadastrar nova subdivisão...</option>
                 </select>
-                {formDataSetorizacao.fase === 'OUTRO' && (
-                  <input type="text" placeholder="Digite a nova subdivisão (ex: Z4)" required value={novaFaseInput} onChange={(e) => setNovaFaseInput(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #3182ce', boxSizing: 'border-box' }} />
-                )}
               </div>
 
-              <input type="text" placeholder="Serviço (Ex: Piso Porcelanato, Parede, Forro)" required value={formDataSetorizacao.servico} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, servico: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
-              <input type="number" step="0.01" placeholder="Quantidade Específica" required value={formDataSetorizacao.quantidade} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, quantidade: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
-              
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" onClick={() => setShowModalSetorizacao(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
-                <button type="submit" style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>Salvar Serviço</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL ADICIONAR NOVO SERVIÇO/COLUNA RÁPIDO */}
-      {showModalNovoServico && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px' }}>
-            <h2 style={{ color: '#1a365d', marginBottom: '20px', fontSize: '1.2rem' }}>Inserir Novo Serviço / Coluna</h2>
-            <form onSubmit={handleAddServicoNaLinha} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px' }}>Selecione a Linha (Ambiente)</label>
+              <div style={{ flex: 1, minWidth: '180px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Ordenar por</label>
                 <select 
-                  required 
-                  value={formNovoServicoLinha.comboKey} 
-                  onChange={(e) => setFormNovoServicoLinha({...formNovoServicoLinha, comboKey: e.target.value})}
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px' }}
+                  value={ordenacao} 
+                  onChange={(e) => setOrdenacao(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
                 >
-                  <option value="">-- Escolha o ambiente --</option>
-                  {[...new Set(setorizacoesLista.map(s => `${s.ambiente}___${s.tipo_ambiente || 'Interno'}___${s.pavimento}___${s.fase}`))].map((combo, i) => {
-                    const [amb, tipoAmb, pav, fas] = combo.split('___');
-                    return <option key={i} value={combo}>{amb} ({tipoAmb}) - {pav} / {fas}</option>;
-                  })}
+                  <option value="divisao_asc">Divisão (Crescente)</option>
+                  <option value="divisao_desc">Divisão (Decrescente)</option>
+                  <option value="subdivisao_asc">Subdivisão / Fase (Crescente)</option>
+                  <option value="subdivisao_desc">Subdivisão / Fase (Decrescente)</option>
+                  <option value="ambiente_asc">Localização / Ambiente (A-Z)</option>
+                  <option value="ambiente_desc">Localização / Ambiente (Z-A)</option>
                 </select>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px' }}>Nome do Serviço (Nova Coluna)</label>
-                <input 
-                  type="text" 
-                  placeholder="Ex: Pintura, Rodapés, Esquadrias" 
-                  required 
-                  value={formNovoServicoLinha.servico} 
-                  onChange={(e) => setFormNovoServicoLinha({...formNovoServicoLinha, servico: e.target.value})} 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', boxSizing: 'border-box' }} 
-                />
-              </div>
+              {(filtroTipoAmbiente || filtroDivisao || filtroSubdivisao || ordenacao !== 'divisao_asc') && (
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button 
+                    onClick={() => { setFiltroTipoAmbiente(''); setFiltroDivisao(''); setFiltroSubdivisao(''); setOrdenacao('divisao_asc'); }}
+                    style={{ padding: '8px 12px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', color: '#4a5568' }}
+                  >
+                    Resetar Filtros
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            {/* TABELA QUADRO 1 */}
+            <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #cbd5e0', borderRadius: '6px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                  <tr style={{ backgroundColor: '#2a4365', color: 'white' }}>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #1a365d' }}>LOCALIZAÇÃO</th>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #1a365d' }}>TIPO</th>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #1a365d' }}>DIVISÃO</th>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #1a365d' }}>SUBDIVISÃO</th>
+                    {servicosUnicos.map((serv, idx) => (
+                      <th key={idx} style={{ padding: '10px', borderBottom: '1px solid #1a365d', width: '110px' }}>{serv.toUpperCase()}</th>
+                    ))}
+                    <th style={{ padding: '10px', borderBottom: '1px solid #1a365d', width: '130px' }}>AÇÕES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ambientesFiltradosEOrdenados.length === 0 ? (
+                    <tr>
+                      <td colSpan={5 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
+                        Nenhum registro encontrado com os filtros selecionados.
+                      </td>
+                    </tr>
+                  ) : (
+                    ambientesFiltradosEOrdenados.map((combo, rowIdx) => {
+                      const [amb, tipoAmb, pav, fas] = combo.split('___');
+                      const corLinha = obterCorPorSubdivisao(fas);
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px' }}>Quantidade Específica</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  placeholder="Ex: 21.01" 
-                  required 
-                  value={formNovoServicoLinha.quantidade} 
-                  onChange={(e) => setFormNovoServicoLinha({...formNovoServicoLinha, quantidade: e.target.value})} 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', boxSizing: 'border-box' }} 
-                />
-              </div>
+                      return (
+                        <tr key={rowIdx} style={{ backgroundColor: corLinha, borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold', textAlign: 'left' }}>{amb}</td>
+                          <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
+                            <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold', backgroundColor: tipoAmb === 'Externo' ? '#feebc8' : '#e2e8f0', color: tipoAmb === 'Externo' ? '#9c4221' : '#2d3748' }}>
+                              {tipoAmb || 'Interno'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{pav}</td>
+                          <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold' }}>{fas}</td>
+                          
+                          {servicosUnicos.map((serv, colIdx) => {
+                            const encontrado = setorizacoesLista.find(
+                              s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === serv
+                            );
+                            return (
+                              <td key={colIdx} style={{ padding: '4px 6px', border: '1px solid #cbd5e0' }}>
+                                <input 
+                                  type="number"
+                                  step="0.01"
+                                  defaultValue={encontrado ? encontrado.quantidade : ''}
+                                  key={encontrado ? `${encontrado.id}-${encontrado.quantidade}` : `${amb}-${tipoAmb}-${serv}-empty`}
+                                  onBlur={(e) => handleCellChange(amb, tipoAmb, pav, fas, serv, e.target.value)}
+                                  style={{ 
+                                    width: '75px', 
+                                    padding: '5px', 
+                                    textAlign: 'center', 
+                                    border: '1px solid #cbd5e0', 
+                                    backgroundColor: 'white',
+                                    borderRadius: '4px',
+                                    outline: 'none',
+                                    fontWeight: '500',
+                                    fontSize: '0.85rem',
+                                    margin: '0 auto',
+                                    display: 'block'
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" onClick={() => setShowModalNovoServico(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
-                <button type="submit" style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Adicionar Coluna/Serviço</button>
-              </div>
-            </form>
-          </div>
+                          <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
+                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                              <button 
+                                onClick={() => handleEditLinhaQuadro(amb, tipoAmb, pav, fas)}
+                                style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                              >
+                                Editar
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteSetorizacao(amb, tipoAmb, pav, fas)}
+                                style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* QUADRO 2 - QUANTIFICAÇÃO DOS PACOTES POR LOCALIZAÇÃO */}
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showQuadro2 ? '15px' : '0' }}>
+          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 2 - QUANTIFICAÇÃO DOS PACOTES POR LOCALIZAÇÃO</h2>
+          <button onClick={() => setShowQuadro2(!showQuadro2)} style={toggleBtnStyle}>
+            {showQuadro2 ? 'Ocultar ▲' : 'Mostrar ▼'}
+          </button>
         </div>
-      )}
+        
+        {showQuadro2 && (
+          <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #cbd5e0', borderRadius: '6px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
+              <tbody>
+                {divisoesUnicasQuadro2.length === 0 ? (
+                  <tr>
+                    <td style={{ padding: '20px', color: '#718096' }}>Nenhum dado de setorização cadastrado para gerar o Quadro 2.</td>
+                  </tr>
+                ) : (
+                  divisoesUnicasQuadro2.map((divisao, dIdx) => {
+                    return (
+                      <table key={dIdx} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+                        <thead>
+                          {/* LINHA 1 (Azul Escuro) */}
+                          <tr style={{ backgroundColor: '#2a4365', color: 'white' }}>
+                            <th style={{ padding: '10px', border: '1px solid #1a365d', width: '35%', textAlign: 'left', fontWeight: 'bold' }}>
+                              {divisao}
+                            </th>
+                            <th colSpan={zonasUnicasQuadro2.length} style={{ padding: '10px', border: '1px solid #1a365d', textAlign: 'center', fontWeight: 'bold', letterSpacing: '1px' }}>
+                              ZONAS
+                            </th>
+                          </tr>
+                          {/* LINHA 2 (Azul Claro) */}
+                          <tr style={{ backgroundColor: '#e2e8f0', color: '#1a365d' }}>
+                            <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left', fontStyle: 'italic' }}>
+                              DESCRIÇÃO
+                            </th>
+                            {zonasUnicasQuadro2.map((zona, zIdx) => (
+                              <th key={zIdx} style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold' }}>
+                                {zona}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {servicosUnicos.length === 0 ? (
+                            <tr>
+                              <td colSpan={zonasUnicasQuadro2.length + 1} style={{ padding: '10px', color: '#718096' }}>Nenhum serviço cadastrado.</td>
+                            </tr>
+                          ) : (
+                            servicosUnicos.map((servico, sIdx) => (
+                              <tr key={sIdx} style={{ backgroundColor: sIdx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: '8px 12px', border: '1px solid #cbd5e0', textAlign: 'left', fontWeight: 'bold', color: '#2d3748' }}>
+                                  {servico.toUpperCase()}
+                                </td>
+                                {zonasUnicasQuadro2.map((zona, zIdx) => {
+                                  const somaQuantidades = setorizacoesLista
+                                    .filter(s => s.pavimento === divisao && s.fase === zona && s.servico === servico)
+                                    .reduce((acc, curr) => acc + (Number(curr.quantidade) || 0), 0);
+
+                                  return (
+                                    <td key={zIdx} style={{ padding: '8px', border: '1px solid #cbd5e0', color: somaQuantidades > 0 ? '#000' : '#a0aec0' }}>
+                                      {somaQuantidades > 0 ? somaQuantidades.toLocaleString('pt-BR') : '0'}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* QUADRO 3 - PRÉ-DIMENSIONAMENTO TAKT */}
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showQuadro3 ? '15px' : '0' }}>
+          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 3 - PRÉ-DIMENSIONAMENTO TAKT</h2>
+          <button onClick={() => setShowQuadro3(!showQuadro3)} style={toggleBtnStyle}>
+            {showQuadro3 ? 'Ocultar ▲' : 'Mostrar ▼'}
+          </button>
+        </div>
+        
+        {showQuadro3 && (
+          <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #cbd5e0', borderRadius: '6px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
+              <tbody>
+                {divisoesUnicasQuadro2.length === 0 ? (
+                  <tr>
+                    <td style={{ padding: '20px', color: '#718096' }}>Nenhum dado cadastrado para o pré-dimensionamento.</td>
+                  </tr>
+                ) : (
+                  divisoesUnicasQuadro2.map((divisao, dIdx) => (
+                    <table key={dIdx} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+                      <thead>
+                        {/* LINHA 1 (Azul Escuro) */}
+                        <tr style={{ backgroundColor: '#2a4365', color: 'white' }}>
+                          <th style={{ padding: '10px', border: '1px solid #1a365d', width: '25%', textAlign: 'left', fontWeight: 'bold' }}>
+                            {divisao}
+                          </th>
+                          <th style={{ padding: '10px', border: '1px solid #1a365d', width: '15%', fontWeight: 'bold' }}>PRODUTIVIDADE</th>
+                          <th colSpan={zonasUnicasQuadro2.length} style={{ padding: '10px', border: '1px solid #1a365d', textAlign: 'center', fontWeight: 'bold', letterSpacing: '1px' }}>
+                            ZONAS
+                          </th>
+                          <th style={{ padding: '10px', border: '1px solid #1a365d', width: '15%', fontWeight: 'bold' }}>EFETIVO</th>
+                        </tr>
+                        {/* LINHA 2 (Azul Claro) */}
+                        <tr style={{ backgroundColor: '#e2e8f0', color: '#1a365d' }}>
+                          <th style={{ padding: '8px', border: '1px solid #cbd5e0', textAlign: 'left', fontStyle: 'italic' }}>DESCRIÇÃO</th>
+                          <th style={{ padding: '8px', border: '1px solid #cbd5e0' }}></th>
+                          {zonasUnicasQuadro2.map((zona, zIdx) => (
+                            <th key={zIdx} style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold' }}>{zona}</th>
+                          ))}
+                          <th style={{ padding: '8px', border: '1px solid #cbd5e0' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {servicosUnicos.length === 0 ? (
+                          <tr>
+                            <td colSpan={zonasUnicasQuadro2.length + 3} style={{ padding: '10px', color: '#718096' }}>Nenhum serviço cadastrado.</td>
+                          </tr>
+                        ) : (
+                          servicosUnicos.map((servico, sIdx) => {
+                            const prodKey = `${divisao}___${servico}___produtividade`;
+                            const efetivoKey = `${divisao}___${servico}___efetivo`;
+                            const prodValue = parametrosTakt[prodKey] || '';
+                            const efetivoValue = parametrosTakt[efetivoKey] || '';
+
+                            return (
+                              <tr key={sIdx} style={{ backgroundColor: sIdx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: '8px 12px', border: '1px solid #cbd5e0', textAlign: 'left', fontWeight: 'bold', color: '#2d3748' }}>
+                                  {servico.toUpperCase()}
+                                </td>
+                                <td style={{ padding: '4px', border: '1px solid #cbd5e0' }}>
+                                  <input 
+                                    type="number"
+                                    step="0.01"
+                                    value={prodValue}
+                                    onChange={(e) => handleParametroTaktChange(divisao, servico, 'produtividade', e.target.value)}
+                                    style={{ width: '70px', padding: '5px', textAlign: 'center', border: '1px solid #cbd5e0', borderRadius: '4px', outline: 'none' }}
+                                  />
+                                </td>
+                                {zonasUnicasQuadro2.map((zona, zIdx) => {
+                                  const somaQuantidades = setorizacoesLista
+                                    .filter(s => s.pavimento === divisao && s.fase === zona && s.servico === servico)
+                                    .reduce((acc, curr) => acc + (Number(curr.quantidade) || 0), 0);
+                                  
+                                  const produtividadeNum = Number(prodValue);
+                                  let taktCalculado = 0;
+                                  if (somaQuantidades > 0 && produtividadeNum > 0) {
+                                    taktCalculado = Math.ceil(somaQuantidades / produtividadeNum);
+                                  }
+
+                                  return (
+                                    <td key={zIdx} style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold', color: taktCalculado > 0 ? '#2b6cb0' : '#a0aec0', backgroundColor: taktCalculado > 0 ? '#ebf8ff' : 'transparent' }}>
+                                      {taktCalculado}
+                                    </td>
+                                  );
+                                })}
+                                <td style={{ padding: '4px', border: '1px solid #cbd5e0' }}>
+                                  <input 
+                                    type="number"
+                                    value={efetivoValue}
+                                    onChange={(e) => handleParametroTaktChange(divisao, servico, 'efetivo', e.target.value)}
+                                    style={{ width: '70px', padding: '5px', textAlign: 'center', border: '1px solid #cbd5e0', borderRadius: '4px', outline: 'none' }}
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* MODAL DE CONFIGURAÇÃO DO RELATÓRIO */}
       {showModalRelatorio && (
@@ -497,7 +777,7 @@ export default function ColetaDadosPage() {
                   checked={opcoesRelatorio.incluirSetorizacao} 
                   onChange={(e) => setOpcoesRelatorio({...opcoesRelatorio, incluirSetorizacao: e.target.checked})}
                 />
-                Incluir Quadro de Setorização e Quantificação de Serviços
+                Incluir Quadro 1 - Setorização Detalhada
               </label>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '500' }}>
@@ -506,7 +786,7 @@ export default function ColetaDadosPage() {
                   checked={opcoesRelatorio.incluirTakt} 
                   onChange={(e) => setOpcoesRelatorio({...opcoesRelatorio, incluirTakt: e.target.checked})}
                 />
-                Incluir Quadro de Pré-Dimensionamento Takt
+                Incluir Quadro 3 - Pré-Dimensionamento Takt
               </label>
 
               <div>
@@ -541,393 +821,7 @@ export default function ColetaDadosPage() {
         </div>
       )}
 
-      {/* QUADRO 1: INFORMAÇÕES GERAIS / COLETA INICIAL */}
-      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
-        <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>INFORMAÇÕES GERAIS / COLETA INICIAL</h2>
-        <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-            <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#2a4365', color: 'white' }}>
-              <tr>
-                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Projeto</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Pavimentos</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Área do Terreno</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Área Construída</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Tipo de Obra</th>
-                <th style={{ padding: '12px', borderBottom: '2px solid #1a365d' }}>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {coletasLista.length === 0 ? (
-                <tr>
-                  <td colSpan="6" style={{ padding: '15px', textAlign: 'center', color: '#718096' }}>Nenhuma coleta inicial cadastrada.</td>
-                </tr>
-              ) : (
-                coletasLista.map((item) => {
-                  const proj = projetosLista.find(p => String(p.id) === String(item.projeto_id));
-                  return (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#1a365d' }}>{proj ? `${proj.nome_projeto} (#${proj.id})` : `#${item.projeto_id}`}</td>
-                      <td style={{ padding: '12px' }}>{item.pavimentos || '-'}</td>
-                      <td style={{ padding: '12px' }}>{item.area_terreno ? `${Number(item.area_terreno).toLocaleString('pt-BR')} m²` : '-'}</td>
-                      <td style={{ padding: '12px' }}>{item.area_construida ? `${Number(item.area_construida).toLocaleString('pt-BR')} m²` : '-'}</td>
-                      <td style={{ padding: '12px' }}>{item.tipo_obra || '-'}</td>
-                      <td style={{ padding: '12px', display: 'flex', gap: '8px' }}>
-                        <button onClick={() => handleEditColeta(item)} style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Editar</button>
-                        <button onClick={() => handleDeleteColeta(item.id)} style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Excluir</button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* QUADRO 2 - QUANTIFICAÇÃO DOS PACOTES POR LOCALIZAÇÃO */}
-      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
-        <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>QUADRO 2 - QUANTIFICAÇÃO DOS PACOTES POR LOCALIZAÇÃO</h2>
-        <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
-            <tbody>
-              {divisoesUnicasQuadro2.length === 0 ? (
-                <tr>
-                  <td style={{ padding: '20px', color: '#718096' }}>Nenhum dado de setorização cadastrado para gerar o Quadro 2.</td>
-                </tr>
-              ) : (
-                divisoesUnicasQuadro2.map((divisao, dIdx) => {
-                  return (
-                    <table key={dIdx} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
-                      {/* CABEÇALHO DA DIVISÃO (PAVIMENTO) */}
-                      <thead>
-                        <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
-                          <th style={{ padding: '10px', border: '1px solid #c05621', width: '35%', textAlign: 'left', fontWeight: 'bold' }}>
-                            {divisao}
-                          </th>
-                          <th colSpan={zonasUnicasQuadro2.length} style={{ padding: '10px', border: '1px solid #c05621', textAlign: 'center', fontWeight: 'bold', letterSpacing: '1px' }}>
-                            ZONAS
-                          </th>
-                        </tr>
-                        {/* SUB-CABEÇALHO COM AS ZONAS */}
-                        <tr style={{ backgroundColor: '#f6ad55', color: '#1a365d' }}>
-                          <th style={{ padding: '8px', border: '1px solid #c05621', textAlign: 'left', fontStyle: 'italic' }}>
-                            DESCRIÇÃO
-                          </th>
-                          {zonasUnicasQuadro2.map((zona, zIdx) => (
-                            <th key={zIdx} style={{ padding: '8px', border: '1px solid #c05621', fontWeight: 'bold' }}>
-                              {zona}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      {/* LINHAS DOS SERVIÇOS */}
-                      <tbody>
-                        {servicosUnicos.length === 0 ? (
-                          <tr>
-                            <td colSpan={zonasUnicasQuadro2.length + 1} style={{ padding: '10px', color: '#718096' }}>Nenhum serviço cadastrado.</td>
-                          </tr>
-                        ) : (
-                          servicosUnicos.map((servico, sIdx) => (
-                            <tr key={sIdx} style={{ backgroundColor: sIdx % 2 === 0 ? '#fff' : '#f7fafc', borderBottom: '1px solid #e2e8f0' }}>
-                              <td style={{ padding: '8px 12px', border: '1px solid #cbd5e0', textAlign: 'left', fontWeight: 'bold', color: '#2d3748' }}>
-                                {servico.toUpperCase()}
-                              </td>
-                              {zonasUnicasQuadro2.map((zona, zIdx) => {
-                                // Soma as quantidades para essa Divisão + Zona + Servico
-                                const somaQuantidades = setorizacoesLista
-                                  .filter(s => s.pavimento === divisao && s.fase === zona && s.servico === servico)
-                                  .reduce((acc, curr) => acc + (Number(curr.quantidade) || 0), 0);
-
-                                return (
-                                  <td key={zIdx} style={{ padding: '8px', border: '1px solid #cbd5e0', color: somaQuantidades > 0 ? '#000' : '#a0aec0' }}>
-                                    {somaQuantidades > 0 ? somaQuantidades.toLocaleString('pt-BR') : '0'}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* QUADRO 4 - PRÉ-DIMENSIONAMENTO TAKT */}
-      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
-        <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>QUADRO 4 - PRÉ-DIMENSIONAMENTO TAKT</h2>
-        <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
-            <tbody>
-              {divisoesUnicasQuadro2.length === 0 ? (
-                <tr>
-                  <td style={{ padding: '20px', color: '#718096' }}>Nenhum dado cadastrado para o pré-dimensionamento.</td>
-                </tr>
-              ) : (
-                divisoesUnicasQuadro2.map((divisao, dIdx) => (
-                  <table key={dIdx} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
-                        <th style={{ padding: '10px', border: '1px solid #c05621', width: '25%', textAlign: 'left', fontWeight: 'bold' }}>
-                          {divisao}
-                        </th>
-                        <th style={{ padding: '10px', border: '1px solid #c05621', width: '15%', fontWeight: 'bold' }}>PRODUTIVIDADE</th>
-                        <th colSpan={zonasUnicasQuadro2.length} style={{ padding: '10px', border: '1px solid #c05621', textAlign: 'center', fontWeight: 'bold', letterSpacing: '1px' }}>
-                          ZONAS
-                        </th>
-                        <th style={{ padding: '10px', border: '1px solid #c05621', width: '15%', fontWeight: 'bold' }}>EFETIVO</th>
-                      </tr>
-                      <tr style={{ backgroundColor: '#f6ad55', color: '#1a365d' }}>
-                        <th style={{ padding: '8px', border: '1px solid #c05621', textAlign: 'left', fontStyle: 'italic' }}>DESCRIÇÃO</th>
-                        <th style={{ padding: '8px', border: '1px solid #c05621' }}></th>
-                        {zonasUnicasQuadro2.map((zona, zIdx) => (
-                          <th key={zIdx} style={{ padding: '8px', border: '1px solid #c05621', fontWeight: 'bold' }}>{zona}</th>
-                        ))}
-                        <th style={{ padding: '8px', border: '1px solid #c05621' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {servicosUnicos.length === 0 ? (
-                        <tr>
-                          <td colSpan={zonasUnicasQuadro2.length + 3} style={{ padding: '10px', color: '#718096' }}>Nenhum serviço cadastrado.</td>
-                        </tr>
-                      ) : (
-                        servicosUnicos.map((servico, sIdx) => {
-                          const prodKey = `${divisao}___${servico}___produtividade`;
-                          const efetivoKey = `${divisao}___${servico}___efetivo`;
-                          const prodValue = parametrosTakt[prodKey] || '';
-                          const efetivoValue = parametrosTakt[efetivoKey] || '';
-
-                          return (
-                            <tr key={sIdx} style={{ backgroundColor: sIdx % 2 === 0 ? '#fff' : '#f7fafc', borderBottom: '1px solid #e2e8f0' }}>
-                              <td style={{ padding: '8px 12px', border: '1px solid #cbd5e0', textAlign: 'left', fontWeight: 'bold', color: '#2d3748' }}>
-                                {servico.toUpperCase()}
-                              </td>
-                              <td style={{ padding: '4px', border: '1px solid #cbd5e0' }}>
-                                <input 
-                                  type="number"
-                                  step="0.01"
-                                  value={prodValue}
-                                  onChange={(e) => handleParametroTaktChange(divisao, servico, 'produtividade', e.target.value)}
-                                  style={{ width: '70px', padding: '5px', textAlign: 'center', border: '1px solid #cbd5e0', borderRadius: '4px', outline: 'none' }}
-                                />
-                              </td>
-                              {zonasUnicasQuadro2.map((zona, zIdx) => {
-                                const somaQuantidades = setorizacoesLista
-                                  .filter(s => s.pavimento === divisao && s.fase === zona && s.servico === servico)
-                                  .reduce((acc, curr) => acc + (Number(curr.quantidade) || 0), 0);
-                                
-                                const produtividadeNum = Number(prodValue);
-                                let taktCalculado = 0;
-                                if (somaQuantidades > 0 && produtividadeNum > 0) {
-                                  taktCalculado = Math.ceil(somaQuantidades / produtividadeNum);
-                                }
-
-                                return (
-                                  <td key={zIdx} style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold', color: taktCalculado > 0 ? '#2b6cb0' : '#a0aec0', backgroundColor: taktCalculado > 0 ? '#ebf8ff' : 'transparent' }}>
-                                    {taktCalculado}
-                                  </td>
-                                );
-                              })}
-                              <td style={{ padding: '4px', border: '1px solid #cbd5e0' }}>
-                                <input 
-                                  type="number"
-                                  value={efetivoValue}
-                                  onChange={(e) => handleParametroTaktChange(divisao, servico, 'efetivo', e.target.value)}
-                                  style={{ width: '70px', padding: '5px', textAlign: 'center', border: '1px solid #cbd5e0', borderRadius: '4px', outline: 'none' }}
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* QUADRO 3 - SETORIZAÇÃO DETALHADA E CLASSIFICAÇÃO */}
-      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
-          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 3 - SETORIZAÇÃO DETALHADA E CLASSIFICAÇÃO</h2>
-          
-          <button 
-            onClick={() => setShowModalNovoServico(true)}
-            style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
-          >
-            + Novo Serviço (Coluna)
-          </button>
-        </div>
-
-        {/* BARRA DE FILTROS E ORDENAÇÃO */}
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', backgroundColor: '#f7fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
-          
-          <div style={{ flex: 1, minWidth: '150px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar Tipo</label>
-            <select 
-              value={filtroTipoAmbiente} 
-              onChange={(e) => setFiltroTipoAmbiente(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
-            >
-              <option value="">Todos (Int/Ext)</option>
-              <option value="Interno">Interno</option>
-              <option value="Externo">Externo</option>
-            </select>
-          </div>
-
-          <div style={{ flex: 1, minWidth: '150px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar Divisão</label>
-            <select 
-              value={filtroDivisao} 
-              onChange={(e) => setFiltroDivisao(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
-            >
-              <option value="">Todas as Divisões</option>
-              {divisoesExistentes.map((div, i) => <option key={i} value={div}>{div}</option>)}
-            </select>
-          </div>
-
-          <div style={{ flex: 1, minWidth: '150px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar Subdivisão</label>
-            <select 
-              value={filtroSubdivisao} 
-              onChange={(e) => setFiltroSubdivisao(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
-            >
-              <option value="">Todas as Subdivisões</option>
-              {subdivisoesExistentes.map((fas, i) => <option key={i} value={fas}>{fas}</option>)}
-            </select>
-          </div>
-
-          <div style={{ flex: 1, minWidth: '180px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Ordenar por</label>
-            <select 
-              value={ordenacao} 
-              onChange={(e) => setOrdenacao(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
-            >
-              <option value="divisao_asc">Divisão (Crescente)</option>
-              <option value="divisao_desc">Divisão (Decrescente)</option>
-              <option value="subdivisao_asc">Subdivisão / Fase (Crescente)</option>
-              <option value="subdivisao_desc">Subdivisão / Fase (Decrescente)</option>
-              <option value="ambiente_asc">Localização / Ambiente (A-Z)</option>
-              <option value="ambiente_desc">Localização / Ambiente (Z-A)</option>
-            </select>
-          </div>
-
-          {(filtroTipoAmbiente || filtroDivisao || filtroSubdivisao || ordenacao !== 'divisao_asc') && (
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button 
-                onClick={() => { setFiltroTipoAmbiente(''); setFiltroDivisao(''); setFiltroSubdivisao(''); setOrdenacao('divisao_asc'); }}
-                style={{ padding: '8px 12px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', color: '#4a5568' }}
-              >
-                Resetar Filtros
-              </button>
-            </div>
-          )}
-        </div>
-        
-        <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
-            <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-              <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
-                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>LOCALIZAÇÃO</th>
-                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>TIPO</th>
-                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>DIVISÃO</th>
-                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>SUBDIVISÃO</th>
-                {servicosUnicos.map((serv, idx) => (
-                  <th key={idx} style={{ padding: '10px', borderBottom: '2px solid #c05621', width: '110px' }}>{serv.toUpperCase()}</th>
-                ))}
-                <th style={{ padding: '10px', borderBottom: '2px solid #c05621', width: '130px' }}>AÇÕES</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ambientesFiltradosEOrdenados.length === 0 ? (
-                <tr>
-                  <td colSpan={5 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
-                    Nenhum registro encontrado com os filtros selecionados.
-                  </td>
-                </tr>
-              ) : (
-                ambientesFiltradosEOrdenados.map((combo, rowIdx) => {
-                  const [amb, tipoAmb, pav, fas] = combo.split('___');
-                  const corLinha = obterCorPorSubdivisao(fas);
-
-                  return (
-                    <tr key={rowIdx} style={{ backgroundColor: corLinha, borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold', textAlign: 'left' }}>{amb}</td>
-                      <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
-                        <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold', backgroundColor: tipoAmb === 'Externo' ? '#feebc8' : '#e2e8f0', color: tipoAmb === 'Externo' ? '#9c4221' : '#2d3748' }}>
-                          {tipoAmb || 'Interno'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{pav}</td>
-                      <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold' }}>{fas}</td>
-                      
-                      {servicosUnicos.map((serv, colIdx) => {
-                        const encontrado = setorizacoesLista.find(
-                          s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === serv
-                        );
-                        return (
-                          <td key={colIdx} style={{ padding: '4px 6px', border: '1px solid #cbd5e0' }}>
-                            <input 
-                              type="number"
-                              step="0.01"
-                              defaultValue={encontrado ? encontrado.quantidade : ''}
-                              key={encontrado ? `${encontrado.id}-${encontrado.quantidade}` : `${amb}-${tipoAmb}-${serv}-empty`}
-                              onBlur={(e) => handleCellChange(amb, tipoAmb, pav, fas, serv, e.target.value)}
-                              style={{ 
-                                width: '75px', 
-                                padding: '5px', 
-                                textAlign: 'center', 
-                                border: '1px solid #cbd5e0', 
-                                backgroundColor: 'white',
-                                borderRadius: '4px',
-                                outline: 'none',
-                                fontWeight: '500',
-                                fontSize: '0.85rem',
-                                margin: '0 auto',
-                                display: 'block'
-                              }}
-                            />
-                          </td>
-                        );
-                      })}
-
-                      <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
-                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                          <button 
-                            onClick={() => handleEditLinhaQuadro(amb, tipoAmb, pav, fas)}
-                            style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
-                          >
-                            Editar
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteSetorizacao(amb, tipoAmb, pav, fas)}
-                            style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* CONTEÚDO OCULTO QUE SERÁ CONVERTIDO EM PDF */}
+      {/* CONTEÚDO OCULTO QUE SERÁ CONVERTIDO EM PDF (Não é afetado pelo Ocultar/Mostrar da tela) */}
       <div style={{ display: 'none' }}>
         <div id="conteudo-relatorio-pdf" style={{ padding: '20px', fontFamily: 'sans-serif', color: '#000', backgroundColor: '#fff' }}>
           <h1 style={{ color: '#1a365d', borderBottom: '2px solid #1a365d', paddingBottom: '10px', fontSize: '22px' }}>
@@ -937,18 +831,17 @@ export default function ColetaDadosPage() {
             Gerado em: {new Date().toLocaleDateString('pt-BR')} | ExcelisPro Consultoria e Gestão
           </p>
 
-          {/* Quadro Geral Condicional */}
           {opcoesRelatorio.incluirGeral && (
             <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>1. Informações Gerais / Coleta Inicial</h3>
+              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>Informações Gerais / Coleta Inicial</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#2a4365', color: 'white' }}>
-                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Projeto</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Pavimentos</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Área Terreno</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Área Construída</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Tipo de Obra</th>
+                    <th style={{ padding: '8px', border: '1px solid #cbd5e0' }}>Projeto</th>
+                    <th style={{ padding: '8px', border: '1px solid #cbd5e0' }}>Pavimentos</th>
+                    <th style={{ padding: '8px', border: '1px solid #cbd5e0' }}>Área Terreno</th>
+                    <th style={{ padding: '8px', border: '1px solid #cbd5e0' }}>Área Construída</th>
+                    <th style={{ padding: '8px', border: '1px solid #cbd5e0' }}>Tipo de Obra</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -956,11 +849,11 @@ export default function ColetaDadosPage() {
                     const proj = projetosLista.find(p => String(p.id) === String(item.projeto_id));
                     return (
                       <tr key={item.id}>
-                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{proj ? proj.nome_projeto : item.projeto_id}</td>
-                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{item.pavimentos}</td>
-                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{item.area_terreno} m²</td>
-                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{item.area_construida} m²</td>
-                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{item.tipo_obra}</td>
+                        <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{proj ? proj.nome_projeto : item.projeto_id}</td>
+                        <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{item.pavimentos}</td>
+                        <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{item.area_terreno} m²</td>
+                        <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{item.area_construida} m²</td>
+                        <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{item.tipo_obra}</td>
                       </tr>
                     );
                   })}
@@ -969,19 +862,18 @@ export default function ColetaDadosPage() {
             </div>
           )}
 
-          {/* Quadro de Setorização Condicional */}
           {opcoesRelatorio.incluirSetorizacao && (
             <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>2. Setorização Detalhada</h3>
+              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>Quadro 1 - Setorização Detalhada</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', textAlign: 'center' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
-                    <th style={{ padding: '6px', border: '1px solid #ddd' }}>Localização</th>
-                    <th style={{ padding: '6px', border: '1px solid #ddd' }}>Tipo</th>
-                    <th style={{ padding: '6px', border: '1px solid #ddd' }}>Divisão</th>
-                    <th style={{ padding: '6px', border: '1px solid #ddd' }}>Subdivisão</th>
+                  <tr style={{ backgroundColor: '#2a4365', color: 'white' }}>
+                    <th style={{ padding: '6px', border: '1px solid #cbd5e0' }}>Localização</th>
+                    <th style={{ padding: '6px', border: '1px solid #cbd5e0' }}>Tipo</th>
+                    <th style={{ padding: '6px', border: '1px solid #cbd5e0' }}>Divisão</th>
+                    <th style={{ padding: '6px', border: '1px solid #cbd5e0' }}>Subdivisão</th>
                     {servicosUnicos.map((serv, i) => (
-                      <th key={i} style={{ padding: '6px', border: '1px solid #ddd' }}>{serv.toUpperCase()}</th>
+                      <th key={i} style={{ padding: '6px', border: '1px solid #cbd5e0' }}>{serv.toUpperCase()}</th>
                     ))}
                   </tr>
                 </thead>
@@ -996,16 +888,16 @@ export default function ColetaDadosPage() {
                       const [amb, tipoAmb, pav, fas] = combo.split('___');
                       return (
                         <tr key={idx}>
-                          <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold' }}>{amb}</td>
-                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{tipoAmb}</td>
-                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{pav}</td>
-                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{fas}</td>
+                          <td style={{ padding: '6px', border: '1px solid #cbd5e0', textAlign: 'left', fontWeight: 'bold' }}>{amb}</td>
+                          <td style={{ padding: '6px', border: '1px solid #cbd5e0' }}>{tipoAmb}</td>
+                          <td style={{ padding: '6px', border: '1px solid #cbd5e0' }}>{pav}</td>
+                          <td style={{ padding: '6px', border: '1px solid #cbd5e0' }}>{fas}</td>
                           {servicosUnicos.map((serv, cIdx) => {
                             const encontrado = setorizacoesLista.find(
                               s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === serv
                             );
                             return (
-                              <td key={cIdx} style={{ padding: '6px', border: '1px solid #ddd' }}>
+                              <td key={cIdx} style={{ padding: '6px', border: '1px solid #cbd5e0' }}>
                                 {encontrado ? encontrado.quantidade : '-'}
                               </td>
                             );
@@ -1018,26 +910,25 @@ export default function ColetaDadosPage() {
             </div>
           )}
 
-          {/* Quadro Takt Condicional */}
           {opcoesRelatorio.incluirTakt && (
             <div>
-              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>3. Pré-Dimensionamento Takt</h3>
+              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>Quadro 3 - Pré-Dimensionamento Takt</h3>
               {divisoesUnicasQuadro2.map((divisao, dIdx) => (
                 <table key={dIdx} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px', fontSize: '10px', textAlign: 'center' }}>
                   <thead>
-                    <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
-                      <th style={{ padding: '6px', border: '1px solid #c05621', width: '25%', textAlign: 'left' }}>{divisao}</th>
-                      <th style={{ padding: '6px', border: '1px solid #c05621', width: '15%' }}>PROD.</th>
-                      <th colSpan={zonasUnicasQuadro2.length} style={{ padding: '6px', border: '1px solid #c05621' }}>ZONAS</th>
-                      <th style={{ padding: '6px', border: '1px solid #c05621', width: '15%' }}>EFETIVO</th>
+                    <tr style={{ backgroundColor: '#2a4365', color: 'white' }}>
+                      <th style={{ padding: '6px', border: '1px solid #cbd5e0', width: '25%', textAlign: 'left' }}>{divisao}</th>
+                      <th style={{ padding: '6px', border: '1px solid #cbd5e0', width: '15%' }}>PROD.</th>
+                      <th colSpan={zonasUnicasQuadro2.length} style={{ padding: '6px', border: '1px solid #cbd5e0' }}>ZONAS</th>
+                      <th style={{ padding: '6px', border: '1px solid #cbd5e0', width: '15%' }}>EFETIVO</th>
                     </tr>
-                    <tr style={{ backgroundColor: '#f6ad55', color: '#1a365d' }}>
-                      <th style={{ padding: '6px', border: '1px solid #c05621', textAlign: 'left' }}>DESCRIÇÃO</th>
-                      <th style={{ padding: '6px', border: '1px solid #c05621' }}></th>
+                    <tr style={{ backgroundColor: '#e2e8f0', color: '#1a365d' }}>
+                      <th style={{ padding: '6px', border: '1px solid #cbd5e0', textAlign: 'left' }}>DESCRIÇÃO</th>
+                      <th style={{ padding: '6px', border: '1px solid #cbd5e0' }}></th>
                       {zonasUnicasQuadro2.map((zona, zIdx) => (
-                        <th key={zIdx} style={{ padding: '6px', border: '1px solid #c05621' }}>{zona}</th>
+                        <th key={zIdx} style={{ padding: '6px', border: '1px solid #cbd5e0' }}>{zona}</th>
                       ))}
-                      <th style={{ padding: '6px', border: '1px solid #c05621' }}></th>
+                      <th style={{ padding: '6px', border: '1px solid #cbd5e0' }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1049,8 +940,8 @@ export default function ColetaDadosPage() {
 
                       return (
                         <tr key={sIdx}>
-                          <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold' }}>{servico.toUpperCase()}</td>
-                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{prodValue}</td>
+                          <td style={{ padding: '6px', border: '1px solid #cbd5e0', textAlign: 'left', fontWeight: 'bold' }}>{servico.toUpperCase()}</td>
+                          <td style={{ padding: '6px', border: '1px solid #cbd5e0' }}>{prodValue}</td>
                           {zonasUnicasQuadro2.map((zona, zIdx) => {
                             const somaQuantidades = setorizacoesLista
                               .filter(s => s.pavimento === divisao && s.fase === zona && s.servico === servico)
@@ -1061,12 +952,12 @@ export default function ColetaDadosPage() {
                               taktCalculado = Math.ceil(somaQuantidades / Number(prodValue));
                             }
                             return (
-                              <td key={zIdx} style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 'bold' }}>
+                              <td key={zIdx} style={{ padding: '6px', border: '1px solid #cbd5e0', fontWeight: 'bold' }}>
                                 {taktCalculado > 0 ? taktCalculado : '-'}
                               </td>
                             );
                           })}
-                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{efetivoValue}</td>
+                          <td style={{ padding: '6px', border: '1px solid #cbd5e0' }}>{efetivoValue}</td>
                         </tr>
                       );
                     })}
@@ -1075,7 +966,6 @@ export default function ColetaDadosPage() {
               ))}
             </div>
           )}
-
         </div>
       </div>
 
