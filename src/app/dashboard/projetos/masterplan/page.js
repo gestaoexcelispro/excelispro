@@ -30,6 +30,13 @@ export default function MasterPlanPage() {
   // Estado para ocultar/mostrar finais de semana
   const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(false);
 
+  // Estados para o Modal de PDF
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfConfig, setPdfConfig] = useState({
+    formato: 'a3', // a4, a3, a2, a1, unica
+    orientacao: 'landscape' // landscape, portrait
+  });
+
   const [datasPlanilha, setDatasPlanilha] = useState([]);
   const [dadosCelulas, setDadosCelulas] = useState({});
   const [zonasColeta, setZonasColeta] = useState([]);
@@ -61,7 +68,6 @@ export default function MasterPlanPage() {
     const fetchZonas = async () => {
       const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase');
       if (data) {
-        // Cria combinações únicas "Pavimento Fase" (Ex: "PV1 ZONA 1")
         const unicas = [...new Set(data.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
         setZonasColeta(unicas);
       }
@@ -74,12 +80,11 @@ export default function MasterPlanPage() {
     const gerarDatas = () => {
       if (!dataInicio || !dataFim) return;
 
-      // Adicionando 'T00:00:00' para evitar que o fuso horário mude o dia no JavaScript
       const inicio = new Date(`${dataInicio}T00:00:00`);
       const fim = new Date(`${dataFim}T00:00:00`);
 
       if (fim < inicio) {
-        setDatasPlanilha([]); // Limpa se a data final for menor que a inicial
+        setDatasPlanilha([]); 
         return;
       }
 
@@ -100,7 +105,6 @@ export default function MasterPlanPage() {
           isFimDeSemana: diaSemanaIndex === 0 || diaSemanaIndex === 6
         });
         
-        // Adiciona 1 dia
         dataAtual.setDate(dataAtual.getDate() + 1);
       }
       setDatasPlanilha(datas);
@@ -109,79 +113,69 @@ export default function MasterPlanPage() {
     gerarDatas();
   }, [dataInicio, dataFim]);
 
-  // Variável computada que filtra os finais de semana se o botão estiver ativado
+  // Filtra os finais de semana se o botão estiver ativado
   const datasVisiveis = datasPlanilha.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true);
 
-  // Funções para manipular a matriz de cores
   const handleCellChange = (linhaId, dataLabel, valor) => {
     setDadosCelulas(prev => ({ ...prev, [`${linhaId}___${dataLabel}`]: valor }));
   };
 
-  // Funções para manipular as Linhas Internas
-  const adicionarLinhaInterna = () => {
-    setLinhasInternas([...linhasInternas, { id: `int_${Date.now()}`, descricao: '' }]);
-  };
-  const atualizarLinhaInterna = (id, valor) => {
-    setLinhasInternas(linhasInternas.map(l => l.id === id ? { ...l, descricao: valor } : l));
-  };
-  const removerLinhaInterna = (id) => {
-    setLinhasInternas(linhasInternas.filter(l => l.id !== id));
-  };
+  const adicionarLinhaInterna = () => setLinhasInternas([...linhasInternas, { id: `int_${Date.now()}`, descricao: '' }]);
+  const atualizarLinhaInterna = (id, valor) => setLinhasInternas(linhasInternas.map(l => l.id === id ? { ...l, descricao: valor } : l));
+  const removerLinhaInterna = (id) => setLinhasInternas(linhasInternas.filter(l => l.id !== id));
 
-  // Funções para manipular as Linhas Externas
-  const adicionarLinhaExterna = () => {
-    setLinhasExternas([...linhasExternas, { id: `ext_${Date.now()}`, descricao: '' }]);
-  };
-  const atualizarLinhaExterna = (id, valor) => {
-    setLinhasExternas(linhasExternas.map(l => l.id === id ? { ...l, descricao: valor } : l));
-  };
-  const removerLinhaExterna = (id) => {
-    setLinhasExternas(linhasExternas.filter(l => l.id !== id));
-  };
+  const adicionarLinhaExterna = () => setLinhasExternas([...linhasExternas, { id: `ext_${Date.now()}`, descricao: '' }]);
+  const atualizarLinhaExterna = (id, valor) => setLinhasExternas(linhasExternas.map(l => l.id === id ? { ...l, descricao: valor } : l));
+  const removerLinhaExterna = (id) => setLinhasExternas(linhasExternas.filter(l => l.id !== id));
 
-  // Função para gerar o PDF da Linha de Balanço
+  // Função para gerar o PDF dinâmico
   const gerarPDF = () => {
     import('html2pdf.js').then((html2pdf) => {
       const elemento = document.getElementById('conteudo-masterplan-pdf');
+      
+      let configuracaoPdf = { 
+        unit: 'mm', 
+        format: pdfConfig.formato, 
+        orientation: pdfConfig.orientacao 
+      };
+
+      // Se for "Única", ele ajusta o tamanho da folha do PDF para o tamanho exato da tabela
+      if (pdfConfig.formato === 'unica') {
+        const rect = elemento.getBoundingClientRect();
+        configuracaoPdf = { 
+          unit: 'px', 
+          format: [rect.height + 40, rect.width + 40], // Altura x Largura (margem de segurança)
+          orientation: 'landscape' 
+        };
+      }
+
       const opcoes = {
         margin:       10,
         filename:     `master-plan-${Date.now()}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true },
-        // A3 garante mais espaço horizontal para o cronograma
-        jsPDF:        { unit: 'mm', format: 'a3', orientation: 'landscape' }
+        jsPDF:        configuracaoPdf
       };
       
       const html2pdfInstance = html2pdf.default ? html2pdf.default : html2pdf;
       html2pdfInstance().from(elemento).set(opcoes).save();
+      setShowPdfModal(false);
     });
   };
 
-  // Contador global para manter a sequência do ID independentemente dos grupos
   let globalIdCounter = 1;
 
-  // Estilo padronizado para os botões de adicionar linha
   const btnAdicionarStyle = {
-    backgroundColor: '#ebf8ff',
-    color: '#2b6cb0',
-    border: '1px dashed #3182ce',
-    padding: '4px 10px',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    fontSize: '0.75rem',
-    display: 'inline-block',
-    marginTop: '5px'
+    backgroundColor: '#ebf8ff', color: '#2b6cb0', border: '1px dashed #3182ce',
+    padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold',
+    fontSize: '0.75rem', display: 'inline-block', marginTop: '5px'
   };
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
       
-      {/* DATALIST INVISÍVEL (Alimenta as sugestões das Linhas Internas) */}
       <datalist id="lista-zonas-coleta">
-        {zonasColeta.map((zona, idx) => (
-          <option key={idx} value={zona} />
-        ))}
+        {zonasColeta.map((zona, idx) => <option key={idx} value={zona} />)}
       </datalist>
 
       {/* CABEÇALHO DA PÁGINA COM SELETORES DE DATA E BOTÕES */}
@@ -196,7 +190,7 @@ export default function MasterPlanPage() {
           <button 
             onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)}
             style={{ 
-              backgroundColor: ocultarFinaisDeSemana ? '#e53e3e' : '#edf2f7', 
+              backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', 
               color: ocultarFinaisDeSemana ? 'white' : '#4a5568', 
               border: '1px solid #cbd5e0', 
               padding: '8px 15px', 
@@ -210,12 +204,12 @@ export default function MasterPlanPage() {
             {ocultarFinaisDeSemana ? 'Mostrar Finais de Semana' : 'Ocultar Finais de Semana'}
           </button>
 
-          {/* BOTÃO GERAR PDF */}
+          {/* BOTÃO ABRIR MODAL DE PDF */}
           <button 
-            onClick={gerarPDF}
+            onClick={() => setShowPdfModal(true)}
             style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
           >
-            📊 Gerar PDF
+            📊 Exportar PDF
           </button>
 
           {/* INPUTS DE RANGE DE DATAS */}
@@ -240,11 +234,67 @@ export default function MasterPlanPage() {
               />
             </div>
           </div>
-
         </div>
       </div>
 
-      {/* CONTAINER COM SCROLL DUPLO (Horizontal e Vertical) */}
+      {/* MODAL CONFIGURAÇÃO DO PDF */}
+      {showPdfModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '450px', fontFamily: 'sans-serif' }}>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Configuração de Impressão (PDF)</h2>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Tamanho da Folha</label>
+                <select 
+                  value={pdfConfig.formato} 
+                  onChange={(e) => setPdfConfig({...pdfConfig, formato: e.target.value})}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0' }}
+                >
+                  <option value="a4">A4 (Padrão)</option>
+                  <option value="a3">A3 (Recomendado)</option>
+                  <option value="a2">A2 (Grande)</option>
+                  <option value="a1">A1 (Gigante)</option>
+                  <option value="unica">Ajuste Perfeito (Página Única Contínua)</option>
+                </select>
+                <p style={{ fontSize: '0.7rem', color: '#718096', marginTop: '5px' }}>
+                  * A opção "Ajuste Perfeito" evita cortes na tabela, gerando uma folha digital sob medida.
+                </p>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Orientação</label>
+                <select 
+                  value={pdfConfig.orientacao} 
+                  onChange={(e) => setPdfConfig({...pdfConfig, orientacao: e.target.value})}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0' }}
+                  disabled={pdfConfig.formato === 'unica'} // Desabilita se for única
+                >
+                  <option value="landscape">Paisagem (Horizontal)</option>
+                  <option value="portrait">Retrato (Vertical)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                onClick={() => setShowPdfModal(false)} 
+                style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={gerarPDF} 
+                style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Confirmar e Baixar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTAINER COM SCROLL DUPLO PARA A PLANILHA */}
       <div style={{ 
         flex: 1, 
         overflow: 'auto', 
@@ -253,22 +303,22 @@ export default function MasterPlanPage() {
         borderRadius: '4px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
       }}>
-        {/* A div #conteudo-masterplan-pdf envolve a tabela para a exportação */}
+        {/* A div envolve a tabela para a exportação */}
         <div id="conteudo-masterplan-pdf" style={{ minWidth: 'max-content' }}>
+          
           <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%' }}>
-            
             {/* HEADER DA TABELA */}
             <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#e2e8f0' }}>
               {/* LINHA DE DATAS */}
               <tr>
-                <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px', borderRight: '1px solid #fff', width: '40px' }}>
+                <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px', borderRight: '1px solid #4a5568', width: '40px' }}>
                   ID
                 </th>
-                <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px 15px', borderRight: '1px solid #ccc', textAlign: 'left', minWidth: '280px' }}>
+                <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px 15px', borderRight: '1px solid #cbd5e0', textAlign: 'left', minWidth: '280px' }}>
                   DESCRIÇÃO
                 </th>
                 {datasVisiveis.map((d, i) => (
-                  <th key={`data-${i}`} style={{ backgroundColor: '#e2e8f0', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d' }}>
+                  <th key={`data-${i}`} style={{ backgroundColor: '#edf2f7', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d' }}>
                     {d.labelData}
                   </th>
                 ))}
@@ -287,12 +337,12 @@ export default function MasterPlanPage() {
             <tbody>
 
               {/* GRUPO 1: SERVIÇOS INTERNOS */}
-              <tr style={{ backgroundColor: '#f7fafc' }}>
-                <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#f7fafc', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600' }}>
+              <tr style={{ backgroundColor: '#edf2f7' }}>
+                <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#edf2f7', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', color: '#2a4365', borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365' }}>
                   SERVIÇOS INTERNOS
                 </td>
                 {datasVisiveis.map((d, i) => (
-                  <td key={`g1-${i}`} style={{ borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#f7fafc' }}></td>
+                  <td key={`g1-${i}`} style={{ borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#edf2f7' }}></td>
                 ))}
               </tr>
 
@@ -317,7 +367,7 @@ export default function MasterPlanPage() {
                       </div>
                     </td>
                     
-                    {/* CÉLULAS DE DATAS (Linha de Balanço) */}
+                    {/* CÉLULAS DE DATAS */}
                     {datasVisiveis.map((d, i) => {
                       const cellKey = `${linha.id}___${d.labelData}`;
                       const valorSalvo = dadosCelulas[cellKey];
@@ -357,12 +407,12 @@ export default function MasterPlanPage() {
               </tr>
 
               {/* GRUPO 2: SERVIÇOS EXTERNOS */}
-              <tr style={{ backgroundColor: '#f7fafc' }}>
-                <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#f7fafc', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600' }}>
+              <tr style={{ backgroundColor: '#edf2f7' }}>
+                <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#edf2f7', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', color: '#2a4365', borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365' }}>
                   SERVIÇOS EXTERNOS
                 </td>
                 {datasVisiveis.map((d, i) => (
-                  <td key={`g2-${i}`} style={{ borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#f7fafc' }}></td>
+                  <td key={`g2-${i}`} style={{ borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#edf2f7' }}></td>
                 ))}
               </tr>
 
@@ -386,7 +436,7 @@ export default function MasterPlanPage() {
                       </div>
                     </td>
                     
-                    {/* CÉLULAS DE DATAS (Linha de Balanço) */}
+                    {/* CÉLULAS DE DATAS */}
                     {datasVisiveis.map((d, i) => {
                       const cellKey = `${linha.id}___${d.labelData}`;
                       const valorSalvo = dadosCelulas[cellKey];
