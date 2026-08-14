@@ -13,6 +13,7 @@ export default function ColetaDadosPage() {
   const [showModalColeta, setShowModalColeta] = useState(false);
   const [showModalSetorizacao, setShowModalSetorizacao] = useState(false);
   const [showModalNovoServico, setShowModalNovoServico] = useState(false);
+  const [showModalRelatorio, setShowModalRelatorio] = useState(false);
 
   const [filtroTipoAmbiente, setFiltroTipoAmbiente] = useState('');
   const [filtroDivisao, setFiltroDivisao] = useState('');
@@ -35,6 +36,12 @@ export default function ColetaDadosPage() {
 
   const [formNovoServicoLinha, setFormNovoServicoLinha] = useState({
     comboKey: '', servico: '', quantidade: ''
+  });
+
+  const [opcoesRelatorio, setOpcoesRelatorio] = useState({
+    incluirGeral: true,
+    incluirSetorizacao: true,
+    filtroAmbiente: 'todos'
   });
 
   // Escuta os eventos globais disparados pelos botões da Header
@@ -208,6 +215,23 @@ export default function ColetaDadosPage() {
     }
   };
 
+  const gerarPDF = () => {
+    import('html2pdf.js').then((html2pdf) => {
+      const elemento = document.getElementById('conteudo-relatorio-pdf');
+      const opcoes = {
+        margin:       10,
+        filename:     `relatorio-obras-${Date.now()}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+      };
+      
+      const html2pdfInstance = html2pdf.default ? html2pdf.default : html2pdf;
+      html2pdfInstance().from(elemento).set(opcoes).save();
+      setShowModalRelatorio(false);
+    });
+  };
+
   const pavimentosPadrao = ['PV1', 'PV2', 'PV3', 'PV4', 'PV5', 'Térreo', 'Subsolo'];
   const divisoesExistentes = [...new Set([...pavimentosPadrao, ...setorizacoesLista.map(s => s.pavimento).filter(Boolean)])];
 
@@ -269,9 +293,17 @@ export default function ColetaDadosPage() {
   return (
     <div style={{ padding: '40px', maxWidth: '1200px', fontFamily: 'sans-serif' }}>
       
-      <h1 style={{ color: '#2A4365', marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>
-        {lang === 'en-US' ? 'Project Data Collection & Setorization' : 'Coleta, Quantificação e Setorização de Obras'}
-      </h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>
+        <h1 style={{ color: '#2A4365', margin: 0 }}>
+          {lang === 'en-US' ? 'Project Data Collection & Setorization' : 'Coleta, Quantificação e Setorização de Obras'}
+        </h1>
+        <button 
+          onClick={() => setShowModalRelatorio(true)}
+          style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          📊 {lang === 'en-US' ? 'Generate PDF Report' : 'Gerar Relatório PDF'}
+        </button>
+      </div>
 
       {/* MODAL COLETA INICIAL */}
       {showModalColeta && (
@@ -426,6 +458,63 @@ export default function ColetaDadosPage() {
                 <button type="submit" style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Adicionar Coluna/Serviço</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIGURAÇÃO DO RELATÓRIO */}
+      {showModalRelatorio && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px', fontFamily: 'sans-serif' }}>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Personalizar Relatório em PDF</h2>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '500' }}>
+                <input 
+                  type="checkbox" 
+                  checked={opcoesRelatorio.incluirGeral} 
+                  onChange={(e) => setOpcoesRelatorio({...opcoesRelatorio, incluirGeral: e.target.checked})}
+                />
+                Incluir Quadro de Informações Gerais / Coleta Inicial
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '500' }}>
+                <input 
+                  type="checkbox" 
+                  checked={opcoesRelatorio.incluirSetorizacao} 
+                  onChange={(e) => setOpcoesRelatorio({...opcoesRelatorio, incluirSetorizacao: e.target.checked})}
+                />
+                Incluir Quadro de Setorização e Quantificação de Serviços
+              </label>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar por Tipo de Ambiente no Relatório</label>
+                <select 
+                  value={opcoesRelatorio.filtroAmbiente} 
+                  onChange={(e) => setOpcoesRelatorio({...opcoesRelatorio, filtroAmbiente: e.target.value})}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e0' }}
+                >
+                  <option value="todos">Todos (Interno e Externo)</option>
+                  <option value="Interno">Apenas Ambientes Internos</option>
+                  <option value="Externo">Apenas Ambientes Externos</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                onClick={() => setShowModalRelatorio(false)} 
+                style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={gerarPDF} 
+                style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Baixar PDF Personalizado
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -643,6 +732,99 @@ export default function ColetaDadosPage() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* CONTEÚDO OCULTO QUE SERÁ CONVERTIDO EM PDF */}
+      <div style={{ display: 'none' }}>
+        <div id="conteudo-relatorio-pdf" style={{ padding: '20px', fontFamily: 'sans-serif', color: '#000', backgroundColor: '#fff' }}>
+          <h1 style={{ color: '#1a365d', borderBottom: '2px solid #1a365d', paddingBottom: '10px', fontSize: '22px' }}>
+            Relatório Técnico - Setorização e Planejamento Takt
+          </h1>
+          <p style={{ fontSize: '12px', color: '#555', marginBottom: '20px' }}>
+            Gerado em: {new Date().toLocaleDateString('pt-BR')} | ExcelisPro Consultoria e Gestão
+          </p>
+
+          {/* Quadro Geral Condicional */}
+          {opcoesRelatorio.incluirGeral && (
+            <div style={{ marginBottom: '30px' }}>
+              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>1. Informações Gerais / Coleta Inicial</h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#2a4365', color: 'white' }}>
+                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Projeto</th>
+                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Pavimentos</th>
+                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Área Terreno</th>
+                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Área Construída</th>
+                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Tipo de Obra</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coletasLista.map((item) => {
+                    const proj = projetosLista.find(p => String(p.id) === String(item.projeto_id));
+                    return (
+                      <tr key={item.id}>
+                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{proj ? proj.nome_projeto : item.projeto_id}</td>
+                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{item.pavimentos}</td>
+                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{item.area_terreno} m²</td>
+                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{item.area_construida} m²</td>
+                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{item.tipo_obra}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Quadro de Setorização Condicional */}
+          {opcoesRelatorio.incluirSetorizacao && (
+            <div>
+              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>2. Setorização e Quantificação de Serviços</h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', textAlign: 'center' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
+                    <th style={{ padding: '6px', border: '1px solid #ddd' }}>Localização</th>
+                    <th style={{ padding: '6px', border: '1px solid #ddd' }}>Tipo</th>
+                    <th style={{ padding: '6px', border: '1px solid #ddd' }}>Divisão</th>
+                    <th style={{ padding: '6px', border: '1px solid #ddd' }}>Subdivisão</th>
+                    {servicosUnicos.map((serv, i) => (
+                      <th key={i} style={{ padding: '6px', border: '1px solid #ddd' }}>{serv.toUpperCase()}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ambientesFiltradosEOrdenados
+                    .filter(combo => {
+                      if (opcoesRelatorio.filtroAmbiente === 'todos') return true;
+                      const [, tipoAmb] = combo.split('___');
+                      return tipoAmb === opcoesRelatorio.filtroAmbiente;
+                    })
+                    .map((combo, idx) => {
+                      const [amb, tipoAmb, pav, fas] = combo.split('___');
+                      return (
+                        <tr key={idx}>
+                          <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold' }}>{amb}</td>
+                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{tipoAmb}</td>
+                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{pav}</td>
+                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{fas}</td>
+                          {servicosUnicos.map((serv, cIdx) => {
+                            const encontrado = setorizacoesLista.find(
+                              s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === serv
+                            );
+                            return (
+                              <td key={cIdx} style={{ padding: '6px', border: '1px solid #ddd' }}>
+                                {encontrado ? encontrado.quantidade : '-'}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
