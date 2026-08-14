@@ -24,8 +24,11 @@ export default function MasterPlanPage() {
   const { lang } = useLanguage();
   
   // Estados para gerenciar o range de datas
-  const [dataInicio, setDataInicio] = useState('2026-08-10');
-  const [dataFim, setDataFim] = useState('2026-10-10');
+  const [dataInicio, setDataInicio] = useState('2026-08-03');
+  const [dataFim, setDataFim] = useState('2026-10-31');
+
+  // Estado para ocultar/mostrar finais de semana
+  const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(false);
 
   const [datasPlanilha, setDatasPlanilha] = useState([]);
   const [dadosCelulas, setDadosCelulas] = useState({});
@@ -106,6 +109,9 @@ export default function MasterPlanPage() {
     gerarDatas();
   }, [dataInicio, dataFim]);
 
+  // Variável computada que filtra os finais de semana se o botão estiver ativado
+  const datasVisiveis = datasPlanilha.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true);
+
   // Funções para manipular a matriz de cores
   const handleCellChange = (linhaId, dataLabel, valor) => {
     setDadosCelulas(prev => ({ ...prev, [`${linhaId}___${dataLabel}`]: valor }));
@@ -131,6 +137,24 @@ export default function MasterPlanPage() {
   };
   const removerLinhaExterna = (id) => {
     setLinhasExternas(linhasExternas.filter(l => l.id !== id));
+  };
+
+  // Função para gerar o PDF da Linha de Balanço
+  const gerarPDF = () => {
+    import('html2pdf.js').then((html2pdf) => {
+      const elemento = document.getElementById('conteudo-masterplan-pdf');
+      const opcoes = {
+        margin:       10,
+        filename:     `master-plan-${Date.now()}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        // A3 garante mais espaço horizontal para o cronograma
+        jsPDF:        { unit: 'mm', format: 'a3', orientation: 'landscape' }
+      };
+      
+      const html2pdfInstance = html2pdf.default ? html2pdf.default : html2pdf;
+      html2pdfInstance().from(elemento).set(opcoes).save();
+    });
   };
 
   // Contador global para manter a sequência do ID independentemente dos grupos
@@ -160,33 +184,63 @@ export default function MasterPlanPage() {
         ))}
       </datalist>
 
-      {/* CABEÇALHO DA PÁGINA COM SELETORES DE DATA */}
-      <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <h1 style={{ color: '#2A4365', margin: 0, fontStyle: 'italic' }}>
+      {/* CABEÇALHO DA PÁGINA COM SELETORES DE DATA E BOTÕES */}
+      <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+        <h1 style={{ color: '#2A4365', margin: 0, fontStyle: 'italic', fontSize: '1.5rem' }}>
           {lang === 'en-US' ? 'PHYSICAL SCHEDULE - LINE OF BALANCE' : 'CRONOGRAMA FÍSICO - LINHA DE BALANÇO'}
         </h1>
 
-        {/* INPUTS DE RANGE DE DATAS (O RETÂNGULO VERMELHO) */}
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', backgroundColor: '#f7fafc', padding: '10px 15px', borderRadius: '8px', border: '1px solid #cbd5e0' }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '4px' }}>Início Previsto</label>
-            <input 
-              type="date" 
-              value={dataInicio} 
-              onChange={(e) => setDataInicio(e.target.value)} 
-              style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer' }} 
-            />
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+          
+          {/* BOTÃO OCULTAR FINAIS DE SEMANA */}
+          <button 
+            onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)}
+            style={{ 
+              backgroundColor: ocultarFinaisDeSemana ? '#e53e3e' : '#edf2f7', 
+              color: ocultarFinaisDeSemana ? 'white' : '#4a5568', 
+              border: '1px solid #cbd5e0', 
+              padding: '8px 15px', 
+              borderRadius: '6px', 
+              cursor: 'pointer', 
+              fontWeight: 'bold', 
+              fontSize: '0.85rem',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {ocultarFinaisDeSemana ? 'Mostrar Finais de Semana' : 'Ocultar Finais de Semana'}
+          </button>
+
+          {/* BOTÃO GERAR PDF */}
+          <button 
+            onClick={gerarPDF}
+            style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+          >
+            📊 Gerar PDF
+          </button>
+
+          {/* INPUTS DE RANGE DE DATAS */}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#f7fafc', padding: '8px 15px', borderRadius: '8px', border: '1px solid #cbd5e0' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Início Previsto</label>
+              <input 
+                type="date" 
+                value={dataInicio} 
+                onChange={(e) => setDataInicio(e.target.value)} 
+                style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }} 
+              />
+            </div>
+            <span style={{ color: '#a0aec0', fontWeight: 'bold', marginTop: '12px' }}>➞</span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Término Previsto</label>
+              <input 
+                type="date" 
+                value={dataFim} 
+                onChange={(e) => setDataFim(e.target.value)} 
+                style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }} 
+              />
+            </div>
           </div>
-          <span style={{ color: '#a0aec0', fontWeight: 'bold', marginTop: '15px' }}>➞</span>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '4px' }}>Término Previsto</label>
-            <input 
-              type="date" 
-              value={dataFim} 
-              onChange={(e) => setDataFim(e.target.value)} 
-              style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer' }} 
-            />
-          </div>
+
         </div>
       </div>
 
@@ -199,179 +253,181 @@ export default function MasterPlanPage() {
         borderRadius: '4px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
       }}>
-        <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', minWidth: '100%' }}>
-          
-          {/* HEADER DA TABELA */}
-          <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#e2e8f0' }}>
-            {/* LINHA DE DATAS */}
-            <tr>
-              <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px', borderRight: '1px solid #fff', width: '40px' }}>
-                ID
-              </th>
-              <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px 15px', borderRight: '1px solid #ccc', textAlign: 'left', minWidth: '280px' }}>
-                DESCRIÇÃO
-              </th>
-              {datasPlanilha.map((d, i) => (
-                <th key={`data-${i}`} style={{ backgroundColor: '#e2e8f0', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d' }}>
-                  {d.labelData}
-                </th>
-              ))}
-            </tr>
-            {/* LINHA DE DIAS DA SEMANA */}
-            <tr>
-              {datasPlanilha.map((d, i) => (
-                <th key={`sem-${i}`} style={{ backgroundColor: d.isFimDeSemana ? '#cbd5e0' : '#f7fafc', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.75rem', color: '#4a5568', fontWeight: d.isFimDeSemana ? 'bold' : 'normal' }}>
-                  {d.labelSemana}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          {/* CORPO DA TABELA */}
-          <tbody>
-
-            {/* GRUPO 1: SERVIÇOS INTERNOS */}
-            <tr style={{ backgroundColor: '#f7fafc' }}>
-              <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#f7fafc', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600' }}>
-                SERVIÇOS INTERNOS
-              </td>
-              {datasPlanilha.map((d, i) => (
-                <td key={`g1-${i}`} style={{ borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#f7fafc' }}></td>
-              ))}
-            </tr>
-
-            {linhasInternas.map((linha) => {
-              const currentId = globalIdCounter++;
-              return (
-                <tr key={linha.id} style={{ borderBottom: '1px dotted #cbd5e0' }}>
-                  <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0' }}>
-                    {currentId}
-                  </td>
-                  <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <input 
-                        type="text" 
-                        value={linha.descricao} 
-                        onChange={(e) => atualizarLinhaInterna(linha.id, e.target.value)} 
-                        list="lista-zonas-coleta"
-                        placeholder="Selecione ou digite a etapa..."
-                        style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
-                      />
-                      <button onClick={() => removerLinhaInterna(linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
-                    </div>
-                  </td>
-                  
-                  {/* CÉLULAS DE DATAS (Linha de Balanço) */}
-                  {datasPlanilha.map((d, i) => {
-                    const cellKey = `${linha.id}___${d.labelData}`;
-                    const valorSalvo = dadosCelulas[cellKey];
-                    const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (d.isFimDeSemana ? 'FER' : '');
-                    const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
-
-                    return (
-                      <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: configCor.color === 'transparent' && d.isFimDeSemana ? '#e2e8f0' : 'transparent', textAlign: 'center', minWidth: '45px' }}>
-                        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                          <select
-                            value={valorEfetivo}
-                            onChange={(e) => handleCellChange(linha.id, d.labelData, e.target.value)}
-                            style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: 'pointer', borderRadius: '2px' }}
-                          >
-                            <option value=""></option>
-                            {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
-                              <option key={sigla} value={sigla}>{sigla}</option>
-                            ))}
-                          </select>
-                          <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
+        {/* A div #conteudo-masterplan-pdf envolve a tabela para a exportação */}
+        <div id="conteudo-masterplan-pdf" style={{ minWidth: 'max-content' }}>
+          <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%' }}>
             
-            {/* BOTÃO ADICIONAR LINHA INTERNA */}
-            <tr>
-              <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
-                <button onClick={adicionarLinhaInterna} style={btnAdicionarStyle}>+ Adicionar Linha Interna</button>
-              </td>
-              {datasPlanilha.map((d, i) => (
-                <td key={`add-int-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : 'white' }}></td>
-              ))}
-            </tr>
+            {/* HEADER DA TABELA */}
+            <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#e2e8f0' }}>
+              {/* LINHA DE DATAS */}
+              <tr>
+                <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px', borderRight: '1px solid #fff', width: '40px' }}>
+                  ID
+                </th>
+                <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px 15px', borderRight: '1px solid #ccc', textAlign: 'left', minWidth: '280px' }}>
+                  DESCRIÇÃO
+                </th>
+                {datasVisiveis.map((d, i) => (
+                  <th key={`data-${i}`} style={{ backgroundColor: '#e2e8f0', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d' }}>
+                    {d.labelData}
+                  </th>
+                ))}
+              </tr>
+              {/* LINHA DE DIAS DA SEMANA */}
+              <tr>
+                {datasVisiveis.map((d, i) => (
+                  <th key={`sem-${i}`} style={{ backgroundColor: d.isFimDeSemana ? '#cbd5e0' : '#f7fafc', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.75rem', color: '#4a5568', fontWeight: d.isFimDeSemana ? 'bold' : 'normal' }}>
+                    {d.labelSemana}
+                  </th>
+                ))}
+              </tr>
+            </thead>
 
+            {/* CORPO DA TABELA */}
+            <tbody>
 
-            {/* GRUPO 2: SERVIÇOS EXTERNOS */}
-            <tr style={{ backgroundColor: '#f7fafc' }}>
-              <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#f7fafc', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600' }}>
-                SERVIÇOS EXTERNOS
-              </td>
-              {datasPlanilha.map((d, i) => (
-                <td key={`g2-${i}`} style={{ borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#f7fafc' }}></td>
-              ))}
-            </tr>
+              {/* GRUPO 1: SERVIÇOS INTERNOS */}
+              <tr style={{ backgroundColor: '#f7fafc' }}>
+                <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#f7fafc', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600' }}>
+                  SERVIÇOS INTERNOS
+                </td>
+                {datasVisiveis.map((d, i) => (
+                  <td key={`g1-${i}`} style={{ borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#f7fafc' }}></td>
+                ))}
+              </tr>
 
-            {linhasExternas.map((linha) => {
-              const currentId = globalIdCounter++;
-              return (
-                <tr key={linha.id} style={{ borderBottom: '1px dotted #cbd5e0' }}>
-                  <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0' }}>
-                    {currentId}
-                  </td>
-                  <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <input 
-                        type="text" 
-                        value={linha.descricao} 
-                        onChange={(e) => atualizarLinhaExterna(linha.id, e.target.value)} 
-                        placeholder="Digite a etapa externa..."
-                        style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
-                      />
-                      <button onClick={() => removerLinhaExterna(linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
-                    </div>
-                  </td>
-                  
-                  {/* CÉLULAS DE DATAS (Linha de Balanço) */}
-                  {datasPlanilha.map((d, i) => {
-                    const cellKey = `${linha.id}___${d.labelData}`;
-                    const valorSalvo = dadosCelulas[cellKey];
-                    const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (d.isFimDeSemana ? 'FER' : '');
-                    const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
+              {linhasInternas.map((linha) => {
+                const currentId = globalIdCounter++;
+                return (
+                  <tr key={linha.id} style={{ borderBottom: '1px dotted #cbd5e0' }}>
+                    <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0' }}>
+                      {currentId}
+                    </td>
+                    <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          value={linha.descricao} 
+                          onChange={(e) => atualizarLinhaInterna(linha.id, e.target.value)} 
+                          list="lista-zonas-coleta"
+                          placeholder="Selecione ou digite a etapa..."
+                          style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
+                        />
+                        <button onClick={() => removerLinhaInterna(linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                      </div>
+                    </td>
+                    
+                    {/* CÉLULAS DE DATAS (Linha de Balanço) */}
+                    {datasVisiveis.map((d, i) => {
+                      const cellKey = `${linha.id}___${d.labelData}`;
+                      const valorSalvo = dadosCelulas[cellKey];
+                      const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (d.isFimDeSemana ? 'FER' : '');
+                      const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
 
-                    return (
-                      <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: configCor.color === 'transparent' && d.isFimDeSemana ? '#e2e8f0' : 'transparent', textAlign: 'center', minWidth: '45px' }}>
-                        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                          <select
-                            value={valorEfetivo}
-                            onChange={(e) => handleCellChange(linha.id, d.labelData, e.target.value)}
-                            style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: 'pointer', borderRadius: '2px' }}
-                          >
-                            <option value=""></option>
-                            {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
-                              <option key={sigla} value={sigla}>{sigla}</option>
-                            ))}
-                          </select>
-                          <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
+                      return (
+                        <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: configCor.color === 'transparent' && d.isFimDeSemana ? '#e2e8f0' : 'transparent', textAlign: 'center', minWidth: '45px' }}>
+                          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                            <select
+                              value={valorEfetivo}
+                              onChange={(e) => handleCellChange(linha.id, d.labelData, e.target.value)}
+                              style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: 'pointer', borderRadius: '2px' }}
+                            >
+                              <option value=""></option>
+                              {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
+                                <option key={sigla} value={sigla}>{sigla}</option>
+                              ))}
+                            </select>
+                            <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+              
+              {/* BOTÃO ADICIONAR LINHA INTERNA */}
+              <tr>
+                <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
+                  <button onClick={adicionarLinhaInterna} style={btnAdicionarStyle}>+ Adicionar Linha Interna</button>
+                </td>
+                {datasVisiveis.map((d, i) => (
+                  <td key={`add-int-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : 'white' }}></td>
+                ))}
+              </tr>
 
-            {/* BOTÃO ADICIONAR LINHA EXTERNA */}
-            <tr>
-              <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
-                <button onClick={adicionarLinhaExterna} style={btnAdicionarStyle}>+ Adicionar Linha Externa</button>
-              </td>
-              {datasPlanilha.map((d, i) => (
-                <td key={`add-ext-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : 'white' }}></td>
-              ))}
-            </tr>
+              {/* GRUPO 2: SERVIÇOS EXTERNOS */}
+              <tr style={{ backgroundColor: '#f7fafc' }}>
+                <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#f7fafc', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600' }}>
+                  SERVIÇOS EXTERNOS
+                </td>
+                {datasVisiveis.map((d, i) => (
+                  <td key={`g2-${i}`} style={{ borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#f7fafc' }}></td>
+                ))}
+              </tr>
 
-          </tbody>
-        </table>
+              {linhasExternas.map((linha) => {
+                const currentId = globalIdCounter++;
+                return (
+                  <tr key={linha.id} style={{ borderBottom: '1px dotted #cbd5e0' }}>
+                    <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0' }}>
+                      {currentId}
+                    </td>
+                    <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          value={linha.descricao} 
+                          onChange={(e) => atualizarLinhaExterna(linha.id, e.target.value)} 
+                          placeholder="Digite a etapa externa..."
+                          style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
+                        />
+                        <button onClick={() => removerLinhaExterna(linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                      </div>
+                    </td>
+                    
+                    {/* CÉLULAS DE DATAS (Linha de Balanço) */}
+                    {datasVisiveis.map((d, i) => {
+                      const cellKey = `${linha.id}___${d.labelData}`;
+                      const valorSalvo = dadosCelulas[cellKey];
+                      const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (d.isFimDeSemana ? 'FER' : '');
+                      const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
+
+                      return (
+                        <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: configCor.color === 'transparent' && d.isFimDeSemana ? '#e2e8f0' : 'transparent', textAlign: 'center', minWidth: '45px' }}>
+                          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                            <select
+                              value={valorEfetivo}
+                              onChange={(e) => handleCellChange(linha.id, d.labelData, e.target.value)}
+                              style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: 'pointer', borderRadius: '2px' }}
+                            >
+                              <option value=""></option>
+                              {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
+                                <option key={sigla} value={sigla}>{sigla}</option>
+                              ))}
+                            </select>
+                            <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+
+              {/* BOTÃO ADICIONAR LINHA EXTERNA */}
+              <tr>
+                <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
+                  <button onClick={adicionarLinhaExterna} style={btnAdicionarStyle}>+ Adicionar Linha Externa</button>
+                </td>
+                {datasVisiveis.map((d, i) => (
+                  <td key={`add-ext-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : 'white' }}></td>
+                ))}
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
       </div>
       
       {/* LEGENDA FLUTUANTE INFERIOR */}
