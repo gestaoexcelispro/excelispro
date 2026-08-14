@@ -14,9 +14,10 @@ export default function ColetaDadosPage() {
   const [showModalSetorizacao, setShowModalSetorizacao] = useState(false);
   const [showModalNovoServico, setShowModalNovoServico] = useState(false);
 
-  // Estados dos Filtros do Quadro
+  // Estados dos Filtros e Ordenação
   const [filtroDivisao, setFiltroDivisao] = useState('');
   const [filtroSubdivisao, setFiltroSubdivisao] = useState('');
+  const [ordenacao, setOrdenacao] = useState('divisao_asc'); // Padrão de ordenação
 
   const [novoPavimentoInput, setNovoPavimentoInput] = useState('');
   const [novaFaseInput, setNovaFaseInput] = useState('');
@@ -186,8 +187,8 @@ export default function ColetaDadosPage() {
   const fasesPadrao = ['Z1', 'Z2', 'Z3', 'Z4', 'Bloco 1', 'Bloco 2', 'Bloco 3', 'Setor 1', 'Setor 2', 'Setor 3'];
   const subdivisoesExistentes = [...new Set([...fasesPadrao, ...setorizacoesLista.map(s => s.fase).filter(Boolean)])];
 
-  // Filtragem dos ambientes conforme os filtros selecionados no topo
-  const ambientesUnicosFiltrados = [...new Set(
+  // 1. Filtragem e 2. Ordenação dinâmica dos ambientes
+  const ambientesFiltradosEOrdenados = [...new Set(
     setorizacoesLista
       .filter(s => {
         const matchDivisao = filtroDivisao ? s.pavimento === filtroDivisao : true;
@@ -195,7 +196,30 @@ export default function ColetaDadosPage() {
         return matchDivisao && matchSubdivisao;
       })
       .map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`)
-  )];
+  )].sort((a, b) => {
+    const [ambA, pavA, fasA] = a.split('___');
+    const [ambB, pavB, fasB] = b.split('___');
+
+    if (ordenacao === 'divisao_asc') {
+      return pavA.localeCompare(pavB, 'pt', { numeric: true }) || fasA.localeCompare(fasB, 'pt', { numeric: true });
+    }
+    if (ordenacao === 'divisao_desc') {
+      return pavB.localeCompare(pavA, 'pt', { numeric: true }) || fasB.localeCompare(fasA, 'pt', { numeric: true });
+    }
+    if (ordenacao === 'subdivisao_asc') {
+      return fasA.localeCompare(fasB, 'pt', { numeric: true }) || pavA.localeCompare(pavB, 'pt', { numeric: true });
+    }
+    if (ordenacao === 'subdivisao_desc') {
+      return fasB.localeCompare(fasA, 'pt', { numeric: true }) || pavB.localeCompare(pavA, 'pt', { numeric: true });
+    }
+    if (ordenacao === 'ambiente_asc') {
+      return ambA.localeCompare(ambB, 'pt');
+    }
+    if (ordenacao === 'ambiente_desc') {
+      return ambB.localeCompare(ambA, 'pt');
+    }
+    return 0;
+  });
 
   const servicosUnicos = [...new Set(setorizacoesLista.map(s => s.servico))];
 
@@ -435,7 +459,7 @@ export default function ColetaDadosPage() {
         </div>
       </div>
 
-      {/* QUADRO 2 - SETORIZAÇÃO E QUANTIFICAÇÃO (COM FILTROS NO TOPO E INPUTS COMPACTOS) */}
+      {/* QUADRO 2 - SETORIZAÇÃO E QUANTIFICAÇÃO (COM FILTROS E ORDENAÇÃO) */}
       <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
           <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
@@ -448,9 +472,9 @@ export default function ColetaDadosPage() {
           </button>
         </div>
 
-        {/* BARRA DE FILTROS NA PARTE SUPERIOR DA TABELA */}
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', backgroundColor: '#f7fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-          <div style={{ flex: 1 }}>
+        {/* BARRA DE FILTROS E ORDENAÇÃO NA PARTE SUPERIOR DA TABELA */}
+        <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', backgroundColor: '#f7fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '200px' }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar por Divisão</label>
             <select 
               value={filtroDivisao} 
@@ -462,7 +486,7 @@ export default function ColetaDadosPage() {
             </select>
           </div>
 
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: '200px' }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar por Subdivisão</label>
             <select 
               value={filtroSubdivisao} 
@@ -474,13 +498,29 @@ export default function ColetaDadosPage() {
             </select>
           </div>
 
-          {(filtroDivisao || filtroSubdivisao) && (
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Ordenar por</label>
+            <select 
+              value={ordenacao} 
+              onChange={(e) => setOrdenacao(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
+            >
+              <option value="divisao_asc">Divisão (Crescente)</option>
+              <option value="divisao_desc">Divisão (Decrescente)</option>
+              <option value="subdivisao_asc">Subdivisão / Fase (Crescente)</option>
+              <option value="subdivisao_desc">Subdivisão / Fase (Decrescente)</option>
+              <option value="ambiente_asc">Localização / Ambiente (A-Z)</option>
+              <option value="ambiente_desc">Localização / Ambiente (Z-A)</option>
+            </select>
+          </div>
+
+          {(filtroDivisao || filtroSubdivisao || ordenacao !== 'divisao_asc') && (
             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
               <button 
-                onClick={() => { setFiltroDivisao(''); setFiltroSubdivisao(''); }}
+                onClick={() => { setFiltroDivisao(''); setFiltroSubdivisao(''); setOrdenacao('divisao_asc'); }}
                 style={{ padding: '8px 12px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', color: '#4a5568' }}
               >
-                Limpar Filtros
+                Resetar Filtros
               </button>
             </div>
           )}
@@ -500,14 +540,14 @@ export default function ColetaDadosPage() {
               </tr>
             </thead>
             <tbody>
-              {ambientesUnicosFiltrados.length === 0 ? (
+              {ambientesFiltradosEOrdenados.length === 0 ? (
                 <tr>
                   <td colSpan={4 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
                     Nenhum registro encontrado com os filtros selecionados.
                   </td>
                 </tr>
               ) : (
-                ambientesUnicosFiltrados.map((combo, rowIdx) => {
+                ambientesFiltradosEOrdenados.map((combo, rowIdx) => {
                   const [amb, pav, fas] = combo.split('___');
                   const corLinha = obterCorPorSubdivisao(fas);
 
@@ -523,7 +563,6 @@ export default function ColetaDadosPage() {
                         );
                         return (
                           <td key={colIdx} style={{ padding: '4px 6px', border: '1px solid #cbd5e0' }}>
-                            {/* INPUT COMPACTO E DIRETAMENTE EDITÁVEL */}
                             <input 
                               type="number"
                               step="0.01"
