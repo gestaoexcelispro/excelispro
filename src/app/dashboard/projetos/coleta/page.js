@@ -38,9 +38,20 @@ export default function ColetaDadosPage() {
     comboKey: '', servico: '', quantidade: ''
   });
 
+  // Estado para armazenar os parâmetros de Takt (Produtividade e Efetivo)
+  const [parametrosTakt, setParametrosTakt] = useState({});
+
+  const handleParametroTaktChange = (divisao, servico, campo, valor) => {
+    setParametrosTakt(prev => ({
+      ...prev,
+      [`${divisao}___${servico}___${campo}`]: valor
+    }));
+  };
+
   const [opcoesRelatorio, setOpcoesRelatorio] = useState({
     incluirGeral: true,
     incluirSetorizacao: true,
+    incluirTakt: true,
     filtroAmbiente: 'todos'
   });
 
@@ -489,6 +500,15 @@ export default function ColetaDadosPage() {
                 Incluir Quadro de Setorização e Quantificação de Serviços
               </label>
 
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '500' }}>
+                <input 
+                  type="checkbox" 
+                  checked={opcoesRelatorio.incluirTakt} 
+                  onChange={(e) => setOpcoesRelatorio({...opcoesRelatorio, incluirTakt: e.target.checked})}
+                />
+                Incluir Quadro de Pré-Dimensionamento Takt
+              </label>
+
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar por Tipo de Ambiente no Relatório</label>
                 <select 
@@ -564,7 +584,7 @@ export default function ColetaDadosPage() {
         </div>
       </div>
 
-      {/* QUADRO 2 - QUANTIFICAÇÃO DOS PACOTES POR LOCALIZAÇÃO (NOVO) */}
+      {/* QUADRO 2 - QUANTIFICAÇÃO DOS PACOTES POR LOCALIZAÇÃO */}
       <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
         <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>QUADRO 2 - QUANTIFICAÇÃO DOS PACOTES POR LOCALIZAÇÃO</h2>
         <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
@@ -576,10 +596,6 @@ export default function ColetaDadosPage() {
                 </tr>
               ) : (
                 divisoesUnicasQuadro2.map((divisao, dIdx) => {
-                  const zonasDaDivisao = [...new Set(
-                    setorizacoesLista.filter(s => s.pavimento === divisao).map(s => s.fase).filter(Boolean)
-                  )].sort();
-
                   return (
                     <table key={dIdx} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
                       {/* CABEÇALHO DA DIVISÃO (PAVIMENTO) */}
@@ -641,10 +657,107 @@ export default function ColetaDadosPage() {
         </div>
       </div>
 
-      {/* QUADRO 3 - SETORIZAÇÃO E QUANTIFICAÇÃO (ANTIGO QUADRO 1) */}
+      {/* QUADRO 4 - PRÉ-DIMENSIONAMENTO TAKT */}
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
+        <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>QUADRO 4 - PRÉ-DIMENSIONAMENTO TAKT</h2>
+        <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
+            <tbody>
+              {divisoesUnicasQuadro2.length === 0 ? (
+                <tr>
+                  <td style={{ padding: '20px', color: '#718096' }}>Nenhum dado cadastrado para o pré-dimensionamento.</td>
+                </tr>
+              ) : (
+                divisoesUnicasQuadro2.map((divisao, dIdx) => (
+                  <table key={dIdx} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
+                        <th style={{ padding: '10px', border: '1px solid #c05621', width: '25%', textAlign: 'left', fontWeight: 'bold' }}>
+                          {divisao}
+                        </th>
+                        <th style={{ padding: '10px', border: '1px solid #c05621', width: '15%', fontWeight: 'bold' }}>PRODUTIVIDADE</th>
+                        <th colSpan={zonasUnicasQuadro2.length} style={{ padding: '10px', border: '1px solid #c05621', textAlign: 'center', fontWeight: 'bold', letterSpacing: '1px' }}>
+                          ZONAS
+                        </th>
+                        <th style={{ padding: '10px', border: '1px solid #c05621', width: '15%', fontWeight: 'bold' }}>EFETIVO</th>
+                      </tr>
+                      <tr style={{ backgroundColor: '#f6ad55', color: '#1a365d' }}>
+                        <th style={{ padding: '8px', border: '1px solid #c05621', textAlign: 'left', fontStyle: 'italic' }}>DESCRIÇÃO</th>
+                        <th style={{ padding: '8px', border: '1px solid #c05621' }}></th>
+                        {zonasUnicasQuadro2.map((zona, zIdx) => (
+                          <th key={zIdx} style={{ padding: '8px', border: '1px solid #c05621', fontWeight: 'bold' }}>{zona}</th>
+                        ))}
+                        <th style={{ padding: '8px', border: '1px solid #c05621' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {servicosUnicos.length === 0 ? (
+                        <tr>
+                          <td colSpan={zonasUnicasQuadro2.length + 3} style={{ padding: '10px', color: '#718096' }}>Nenhum serviço cadastrado.</td>
+                        </tr>
+                      ) : (
+                        servicosUnicos.map((servico, sIdx) => {
+                          const prodKey = `${divisao}___${servico}___produtividade`;
+                          const efetivoKey = `${divisao}___${servico}___efetivo`;
+                          const prodValue = parametrosTakt[prodKey] || '';
+                          const efetivoValue = parametrosTakt[efetivoKey] || '';
+
+                          return (
+                            <tr key={sIdx} style={{ backgroundColor: sIdx % 2 === 0 ? '#fff' : '#f7fafc', borderBottom: '1px solid #e2e8f0' }}>
+                              <td style={{ padding: '8px 12px', border: '1px solid #cbd5e0', textAlign: 'left', fontWeight: 'bold', color: '#2d3748' }}>
+                                {servico.toUpperCase()}
+                              </td>
+                              <td style={{ padding: '4px', border: '1px solid #cbd5e0' }}>
+                                <input 
+                                  type="number"
+                                  step="0.01"
+                                  value={prodValue}
+                                  onChange={(e) => handleParametroTaktChange(divisao, servico, 'produtividade', e.target.value)}
+                                  style={{ width: '70px', padding: '5px', textAlign: 'center', border: '1px solid #cbd5e0', borderRadius: '4px', outline: 'none' }}
+                                />
+                              </td>
+                              {zonasUnicasQuadro2.map((zona, zIdx) => {
+                                const somaQuantidades = setorizacoesLista
+                                  .filter(s => s.pavimento === divisao && s.fase === zona && s.servico === servico)
+                                  .reduce((acc, curr) => acc + (Number(curr.quantidade) || 0), 0);
+                                
+                                const produtividadeNum = Number(prodValue);
+                                let taktCalculado = 0;
+                                if (somaQuantidades > 0 && produtividadeNum > 0) {
+                                  taktCalculado = Math.ceil(somaQuantidades / produtividadeNum);
+                                }
+
+                                return (
+                                  <td key={zIdx} style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold', color: taktCalculado > 0 ? '#2b6cb0' : '#a0aec0', backgroundColor: taktCalculado > 0 ? '#ebf8ff' : 'transparent' }}>
+                                    {taktCalculado}
+                                  </td>
+                                );
+                              })}
+                              <td style={{ padding: '4px', border: '1px solid #cbd5e0' }}>
+                                <input 
+                                  type="number"
+                                  value={efetivoValue}
+                                  onChange={(e) => handleParametroTaktChange(divisao, servico, 'efetivo', e.target.value)}
+                                  style={{ width: '70px', padding: '5px', textAlign: 'center', border: '1px solid #cbd5e0', borderRadius: '4px', outline: 'none' }}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* QUADRO 3 - SETORIZAÇÃO DETALHADA E CLASSIFICAÇÃO */}
       <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
-          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 3 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
+          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 3 - SETORIZAÇÃO DETALHADA E CLASSIFICAÇÃO</h2>
           
           <button 
             onClick={() => setShowModalNovoServico(true)}
@@ -858,8 +971,8 @@ export default function ColetaDadosPage() {
 
           {/* Quadro de Setorização Condicional */}
           {opcoesRelatorio.incluirSetorizacao && (
-            <div>
-              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>2. Setorização e Quantificação de Serviços</h3>
+            <div style={{ marginBottom: '30px' }}>
+              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>2. Setorização Detalhada</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', textAlign: 'center' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
@@ -904,6 +1017,65 @@ export default function ColetaDadosPage() {
               </table>
             </div>
           )}
+
+          {/* Quadro Takt Condicional */}
+          {opcoesRelatorio.incluirTakt && (
+            <div>
+              <h3 style={{ color: '#2a4365', fontSize: '16px', marginBottom: '10px' }}>3. Pré-Dimensionamento Takt</h3>
+              {divisoesUnicasQuadro2.map((divisao, dIdx) => (
+                <table key={dIdx} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px', fontSize: '10px', textAlign: 'center' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
+                      <th style={{ padding: '6px', border: '1px solid #c05621', width: '25%', textAlign: 'left' }}>{divisao}</th>
+                      <th style={{ padding: '6px', border: '1px solid #c05621', width: '15%' }}>PROD.</th>
+                      <th colSpan={zonasUnicasQuadro2.length} style={{ padding: '6px', border: '1px solid #c05621' }}>ZONAS</th>
+                      <th style={{ padding: '6px', border: '1px solid #c05621', width: '15%' }}>EFETIVO</th>
+                    </tr>
+                    <tr style={{ backgroundColor: '#f6ad55', color: '#1a365d' }}>
+                      <th style={{ padding: '6px', border: '1px solid #c05621', textAlign: 'left' }}>DESCRIÇÃO</th>
+                      <th style={{ padding: '6px', border: '1px solid #c05621' }}></th>
+                      {zonasUnicasQuadro2.map((zona, zIdx) => (
+                        <th key={zIdx} style={{ padding: '6px', border: '1px solid #c05621' }}>{zona}</th>
+                      ))}
+                      <th style={{ padding: '6px', border: '1px solid #c05621' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {servicosUnicos.map((servico, sIdx) => {
+                      const prodKey = `${divisao}___${servico}___produtividade`;
+                      const efetivoKey = `${divisao}___${servico}___efetivo`;
+                      const prodValue = parametrosTakt[prodKey] || '-';
+                      const efetivoValue = parametrosTakt[efetivoKey] || '-';
+
+                      return (
+                        <tr key={sIdx}>
+                          <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold' }}>{servico.toUpperCase()}</td>
+                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{prodValue}</td>
+                          {zonasUnicasQuadro2.map((zona, zIdx) => {
+                            const somaQuantidades = setorizacoesLista
+                              .filter(s => s.pavimento === divisao && s.fase === zona && s.servico === servico)
+                              .reduce((acc, curr) => acc + (Number(curr.quantidade) || 0), 0);
+                            
+                            let taktCalculado = 0;
+                            if (somaQuantidades > 0 && Number(prodValue) > 0) {
+                              taktCalculado = Math.ceil(somaQuantidades / Number(prodValue));
+                            }
+                            return (
+                              <td key={zIdx} style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 'bold' }}>
+                                {taktCalculado > 0 ? taktCalculado : '-'}
+                              </td>
+                            );
+                          })}
+                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{efetivoValue}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ))}
+            </div>
+          )}
+
         </div>
       </div>
 
