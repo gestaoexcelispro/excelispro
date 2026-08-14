@@ -23,6 +23,10 @@ const SERVICOS_CORES = {
 export default function MasterPlanPage() {
   const { lang } = useLanguage();
   
+  // Estados para gerenciar o range de datas
+  const [dataInicio, setDataInicio] = useState('2026-08-10');
+  const [dataFim, setDataFim] = useState('2026-10-10');
+
   const [datasPlanilha, setDatasPlanilha] = useState([]);
   const [dadosCelulas, setDadosCelulas] = useState({});
   const [zonasColeta, setZonasColeta] = useState([]);
@@ -62,15 +66,25 @@ export default function MasterPlanPage() {
     fetchZonas();
   }, []);
 
-  // Gerar colunas de datas a partir de uma data inicial (ex: 10/08/2026)
+  // Recalcula e gera as colunas de datas sempre que o Início ou o Término forem alterados
   useEffect(() => {
     const gerarDatas = () => {
+      if (!dataInicio || !dataFim) return;
+
+      // Adicionando 'T00:00:00' para evitar que o fuso horário mude o dia no JavaScript
+      const inicio = new Date(`${dataInicio}T00:00:00`);
+      const fim = new Date(`${dataFim}T00:00:00`);
+
+      if (fim < inicio) {
+        setDatasPlanilha([]); // Limpa se a data final for menor que a inicial
+        return;
+      }
+
       const datas = [];
-      let dataAtual = new Date(2026, 7, 10); // 10 de Agosto de 2026 (Mês 7 no JS)
-      
+      let dataAtual = new Date(inicio);
       const diasSemana = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
 
-      for (let i = 0; i < 60; i++) {
+      while (dataAtual <= fim) {
         const dataClonada = new Date(dataAtual);
         const dia = String(dataClonada.getDate()).padStart(2, '0');
         const mes = String(dataClonada.getMonth() + 1).padStart(2, '0');
@@ -83,13 +97,14 @@ export default function MasterPlanPage() {
           isFimDeSemana: diaSemanaIndex === 0 || diaSemanaIndex === 6
         });
         
+        // Adiciona 1 dia
         dataAtual.setDate(dataAtual.getDate() + 1);
       }
       setDatasPlanilha(datas);
     };
 
     gerarDatas();
-  }, []);
+  }, [dataInicio, dataFim]);
 
   // Funções para manipular a matriz de cores
   const handleCellChange = (linhaId, dataLabel, valor) => {
@@ -145,11 +160,34 @@ export default function MasterPlanPage() {
         ))}
       </datalist>
 
-      {/* CABEÇALHO DA PÁGINA */}
-      <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>
+      {/* CABEÇALHO DA PÁGINA COM SELETORES DE DATA */}
+      <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <h1 style={{ color: '#2A4365', margin: 0, fontStyle: 'italic' }}>
           {lang === 'en-US' ? 'PHYSICAL SCHEDULE - LINE OF BALANCE' : 'CRONOGRAMA FÍSICO - LINHA DE BALANÇO'}
         </h1>
+
+        {/* INPUTS DE RANGE DE DATAS (O RETÂNGULO VERMELHO) */}
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', backgroundColor: '#f7fafc', padding: '10px 15px', borderRadius: '8px', border: '1px solid #cbd5e0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '4px' }}>Início Previsto</label>
+            <input 
+              type="date" 
+              value={dataInicio} 
+              onChange={(e) => setDataInicio(e.target.value)} 
+              style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer' }} 
+            />
+          </div>
+          <span style={{ color: '#a0aec0', fontWeight: 'bold', marginTop: '15px' }}>➞</span>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '4px' }}>Término Previsto</label>
+            <input 
+              type="date" 
+              value={dataFim} 
+              onChange={(e) => setDataFim(e.target.value)} 
+              style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer' }} 
+            />
+          </div>
+        </div>
       </div>
 
       {/* CONTAINER COM SCROLL DUPLO (Horizontal e Vertical) */}
