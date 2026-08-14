@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -52,7 +52,7 @@ const translations = {
     payable: 'Accounts Payable',
     legalModule: 'LEGAL MODULE',
     contracts: 'Contract Workflows',
-    directorateModule: 'DIRECTORATE MODULE',
+    directorateMODULE: 'DIRECTORATE MODULE',
     mapDashboard: 'Works Map & Management',
     logout: 'Logout'
   }
@@ -93,6 +93,9 @@ export default function DashboardLayout({ children }) {
     return `${t.commercialModule} > ${t.dashboard}`;
   };
 
+  // Verifica se estamos exatamente na página de coleta
+  const isColetaPage = pathname === '/dashboard/projetos/coleta';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', backgroundColor: '#f4f7f6', fontFamily: 'sans-serif' }}>
       
@@ -122,7 +125,6 @@ export default function DashboardLayout({ children }) {
             </div>
           </div>
 
-          {/* MÓDULO E PÁGINA APENAS QUANDO O SIDEBAR ESTIVER FECHADO */}
           {!isSidebarOpen && (
             <div style={{ marginLeft: '15px', paddingLeft: '15px', borderLeft: '1px solid #2a4365', color: '#e2e8f0', fontSize: '0.85rem', fontWeight: '500' }}>
               {getBreadcrumb()}
@@ -130,13 +132,30 @@ export default function DashboardLayout({ children }) {
           )}
         </div>
 
-        {/* LADO DIREITO DA HEADER: ESPAÇO PARA BOTÕES DA PÁGINA DE COLETAS + IDIOMA */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+        {/* LADO DIREITO DA HEADER: BOTÕES DA PÁGINA DE COLETA + IDIOMA */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           
-          {/* CONTAINER DE SLOT PARA OS BOTÕES DA PÁGINA DE COLETA (INJETADO VIA ID OU GERENCIADO NA PÁGINA) */}
-          <div id="header-coleta-buttons-slot" style={{ display: 'flex', gap: '10px' }}></div>
+          {isColetaPage && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('open-modal-coleta'));
+                }}
+                style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
+              >
+                {lang === 'en-US' ? '+ Initial Collection' : '+ Cadastrar Coleta Inicial'}
+              </button>
+              <button 
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('open-modal-setorizacao'));
+                }}
+                style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
+              >
+                {lang === 'en-US' ? '+ Quantification' : '+ Nova Quantificação e Classificação'}
+              </button>
+            </div>
+          )}
 
-          {/* SELETOR DE IDIOMA */}
           <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', gap: '3px', border: '1px solid #2a4365' }}>
             <button onClick={() => changeLanguage('pt-BR')} style={{ background: lang === 'pt-BR' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🇧🇷 PT</button>
             <button onClick={() => changeLanguage('en-US')} style={{ background: lang === 'en-US' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🇺🇸 EN</button>
@@ -148,7 +167,6 @@ export default function DashboardLayout({ children }) {
       {/* CORPO DO DASHBOARD */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
-        {/* SIDEBAR FIXO */}
         <aside style={{ 
           width: isSidebarOpen ? '260px' : '0px', 
           backgroundColor: '#ffffff', 
