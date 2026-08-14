@@ -14,7 +14,6 @@ export default function ColetaDadosPage() {
   const [showModalSetorizacao, setShowModalSetorizacao] = useState(false);
   const [showModalNovoServico, setShowModalNovoServico] = useState(false);
 
-  // Estados dos Filtros e Ordenação
   const [filtroTipoAmbiente, setFiltroTipoAmbiente] = useState('');
   const [filtroDivisao, setFiltroDivisao] = useState('');
   const [filtroSubdivisao, setFiltroSubdivisao] = useState('');
@@ -37,6 +36,34 @@ export default function ColetaDadosPage() {
   const [formNovoServicoLinha, setFormNovoServicoLinha] = useState({
     comboKey: '', servico: '', quantidade: ''
   });
+
+  // Conecta os botões da Header aos modais desta página quando ela for carregada
+  useEffect(() => {
+    const btnColeta = document.getElementById('btn-header-coleta');
+    const btnSetorizacao = document.getElementById('btn-header-setorizacao');
+
+    const handleOpenColeta = () => {
+      setEditColetaId(null);
+      setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
+      setShowModalColeta(true);
+    };
+
+    const handleOpenSetorizacao = () => {
+      setEditComboKey(null);
+      setNovoPavimentoInput('');
+      setNovaFaseInput('');
+      setFormDataSetorizacao({ projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: '' });
+      setShowModalSetorizacao(true);
+    };
+
+    if (btnColeta) btnColeta.addEventListener('click', handleOpenColeta);
+    if (btnSetorizacao) btnSetorizacao.addEventListener('click', handleOpenSetorizacao);
+
+    return () => {
+      if (btnColeta) btnColeta.removeEventListener('click', handleOpenColeta);
+      if (btnSetorizacao) btnSetorizacao.removeEventListener('click', handleOpenSetorizacao);
+    };
+  }, []);
 
   const fetchData = async () => {
     const { data: projData } = await supabase.from('projetos').select('id, nome_projeto, cliente');
@@ -245,37 +272,9 @@ export default function ColetaDadosPage() {
   return (
     <div style={{ padding: '40px', maxWidth: '1200px', fontFamily: 'sans-serif' }}>
       
-      {/* HEADER FIXA COM BOTÕES DE AÇÃO RÁPIDA */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#f4f7f6', paddingBottom: '20px', paddingTop: '10px', borderBottom: '1px solid #e2e8f0', marginBottom: '30px' }}>
-        <h1 style={{ color: '#2A4365', marginBottom: '15px', paddingBottom: '5px' }}>
-          {lang === 'en-US' ? 'Project Data Collection & Setorization' : 'Coleta, Quantificação e Setorização de Obras'}
-        </h1>
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <button 
-            onClick={() => {
-              setEditColetaId(null);
-              setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
-              setShowModalColeta(true);
-            }}
-            style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-          >
-            {lang === 'en-US' ? '+ Initial Data Collection' : '+ Cadastrar Coleta Inicial'}
-          </button>
-
-          <button 
-            onClick={() => {
-              setEditComboKey(null);
-              setNovoPavimentoInput('');
-              setNovaFaseInput('');
-              setFormDataSetorizacao({ projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: '' });
-              setShowModalSetorizacao(true);
-            }}
-            style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-          >
-            {lang === 'en-US' ? '+ Quantification & Setorization' : '+ Nova Quantificação e Classificação'}
-          </button>
-        </div>
-      </div>
+      <h1 style={{ color: '#2A4365', marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>
+        {lang === 'en-US' ? 'Project Data Collection & Setorization' : 'Coleta, Quantificação e Setorização de Obras'}
+      </h1>
 
       {/* MODAL COLETA INICIAL */}
       {showModalColeta && (
