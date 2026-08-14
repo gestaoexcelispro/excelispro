@@ -24,6 +24,10 @@ const SERVICOS_CORES = {
 export default function MasterPlanPage() {
   const { lang } = useLanguage();
   
+  // --- ESTADOS DE PROJETO ---
+  const [projetosLista, setProjetosLista] = useState([]);
+  const [projetoSelecionado, setProjetoSelecionado] = useState('');
+
   // Estados para gerenciar o range de datas
   const [dataInicio, setDataInicio] = useState('2026-08-03');
   const [dataFim, setDataFim] = useState('2026-10-31');
@@ -79,22 +83,38 @@ export default function MasterPlanPage() {
     }
   ]);
 
-  // Busca as Divisões e Subdivisões do banco de dados para o Datalist
+  // Busca os projetos cadastrados ao carregar a página
   useEffect(() => {
-    const fetchZonas = async () => {
-      const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase');
+    const fetchProjetos = async () => {
+      const { data } = await supabase.from('projetos').select('id, nome_projeto').order('id', { ascending: false });
+      if (data) setProjetosLista(data);
+    };
+    fetchProjetos();
+  }, []);
+
+  // Busca as Divisões e Subdivisões EXCLUSIVAS do projeto selecionado para o Datalist
+  useEffect(() => {
+    const fetchZonasDoProjeto = async () => {
+      if (!projetoSelecionado) {
+        setZonasColeta([]);
+        return;
+      }
+      const { data } = await supabase.from('setorizacao_obras')
+        .select('pavimento, fase')
+        .eq('projeto_id', projetoSelecionado);
+        
       if (data) {
         const unicas = [...new Set(data.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
         setZonasColeta(unicas);
       }
     };
-    fetchZonas();
-  }, []);
+    fetchZonasDoProjeto();
+  }, [projetoSelecionado]);
 
   // Recalcula e gera as colunas de datas com controle exato de timezone
   useEffect(() => {
     const gerarDatas = () => {
-      if (!dataInicio || !dataFim) return;
+      if (!dataInicio || !dataFim || !projetoSelecionado) return;
 
       const parseDataSemFuso = (dataStr) => {
         const [ano, mes, dia] = dataStr.split('-');
@@ -138,18 +158,15 @@ export default function MasterPlanPage() {
     };
 
     gerarDatas();
-  }, [dataInicio, dataFim, feriados]);
+  }, [dataInicio, dataFim, feriados, projetoSelecionado]);
 
   const datasVisiveis = datasPlanilha.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true);
 
   // --- INTELIGÊNCIA: CÁLCULO DE TAMANHO DE PAPEL IDEAL ---
   const calcularPapelSugerido = () => {
     const colunasDeData = datasVisiveis.length;
-    // Largura ID (40) + Largura Descrição (280) = 320px
-    // Cada coluna de data tem ~45px
     const larguraEstimadaPx = 320 + (colunasDeData * 45);
 
-    // Conversão baseada em Paisagem (Landscape) subtraindo margens (10mm de cada lado = ~75px)
     if (larguraEstimadaPx <= 1047) return 'A4';
     if (larguraEstimadaPx <= 1512) return 'A3';
     if (larguraEstimadaPx <= 2170) return 'A2';
@@ -242,7 +259,7 @@ export default function MasterPlanPage() {
 
       const opcoes = {
         margin:       10,
-        filename:     `master-plan-${Date.now()}.pdf`,
+        filename:     `master-plan-${projetoSelecionado}-${Date.now()}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true },
         jsPDF:        configuracaoPdf
@@ -270,73 +287,103 @@ export default function MasterPlanPage() {
         {zonasColeta.map((zona, idx) => <option key={idx} value={zona} />)}
       </datalist>
 
-      {/* CABEÇALHO DA PÁGINA */}
-      <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-        <h1 style={{ color: '#2A4365', margin: 0, fontStyle: 'italic', fontSize: '1.5rem' }}>
-          {lang === 'en-US' ? 'PHYSICAL SCHEDULE - LINE OF BALANCE' : 'CRONOGRAMA FÍSICO - LINHA DE BALANÇO'}
-        </h1>
-
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+      {/* CABEÇALHO DA PÁGINA COM SELETOR DE PROJETO */}
+      <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '15px' }}>
+        <div>
+          <h1 style={{ color: '#2A4365', margin: 0, fontStyle: 'italic', fontSize: '1.5rem', marginBottom: '10px' }}>
+            {lang === 'en-US' ? 'PHYSICAL SCHEDULE - LINE OF BALANCE' : 'CRONOGRAMA FÍSICO - LINHA DE BALANÇO'}
+          </h1>
           
-          <button 
-            onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)}
-            style={{ 
-              backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', 
-              color: ocultarFinaisDeSemana ? 'white' : '#4a5568', 
-              border: '1px solid #cbd5e0', 
-              padding: '8px 15px', 
-              borderRadius: '6px', 
-              cursor: 'pointer', 
-              fontWeight: 'bold', 
-              fontSize: '0.85rem',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            {ocultarFinaisDeSemana ? 'Mostrar Finais de Semana' : 'Ocultar Finais de Semana'}
-          </button>
-
-          <button 
-            onClick={() => setShowFeriadosModal(true)}
-            style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
-          >
-            📅 Feriados
-          </button>
-
-          <button 
-            onClick={() => {
-              // Ao abrir o modal, seta a configuração padrão com a sugestão do sistema (se possível)
-              const fmtSugerido = papelIdeal.split(' ')[0].toLowerCase();
-              setPdfConfig(prev => ({ ...prev, formato: ['a4','a3','a2','a1','a0'].includes(fmtSugerido) ? fmtSugerido : 'unica' }));
-              setShowPdfModal(true);
-            }}
-            style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
-          >
-            📊 Exportar PDF
-          </button>
-
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#f7fafc', padding: '8px 15px', borderRadius: '8px', border: '1px solid #cbd5e0' }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Início Previsto</label>
-              <input 
-                type="date" 
-                value={dataInicio} 
-                onChange={(e) => setDataInicio(e.target.value)} 
-                style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }} 
-              />
-            </div>
-            <span style={{ color: '#a0aec0', fontWeight: 'bold', marginTop: '12px' }}>➞</span>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Término Previsto</label>
-              <input 
-                type="date" 
-                value={dataFim} 
-                onChange={(e) => setDataFim(e.target.value)} 
-                style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }} 
-              />
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568' }}>Selecione o Projeto</label>
+            <select
+              value={projetoSelecionado}
+              onChange={(e) => setProjetoSelecionado(e.target.value)}
+              style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e0', minWidth: '300px', fontSize: '0.9rem', outline: 'none' }}
+            >
+              <option value="">-- Selecione uma Obra --</option>
+              {projetosLista.map(p => (
+                <option key={p.id} value={p.id}>#{p.id} - {p.nome_projeto}</option>
+              ))}
+            </select>
           </div>
         </div>
+
+        {/* OS CONTROLES SÓ APARECEM SE UM PROJETO ESTIVER SELECIONADO */}
+        {projetoSelecionado && (
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            
+            <button 
+              onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)}
+              style={{ 
+                backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', 
+                color: ocultarFinaisDeSemana ? 'white' : '#4a5568', 
+                border: '1px solid #cbd5e0', 
+                padding: '8px 15px', 
+                borderRadius: '6px', 
+                cursor: 'pointer', 
+                fontWeight: 'bold', 
+                fontSize: '0.85rem',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {ocultarFinaisDeSemana ? 'Mostrar Finais de Semana' : 'Ocultar Finais de Semana'}
+            </button>
+
+            <button 
+              onClick={() => setShowFeriadosModal(true)}
+              style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+            >
+              📅 Feriados
+            </button>
+
+            <button 
+              onClick={() => {
+                const fmtSugerido = papelIdeal.split(' ')[0].toLowerCase();
+                setPdfConfig(prev => ({ ...prev, formato: ['a4','a3','a2','a1','a0'].includes(fmtSugerido) ? fmtSugerido : 'unica' }));
+                setShowPdfModal(true);
+              }}
+              style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+            >
+              📊 Exportar PDF
+            </button>
+
+            {/* INPUTS DE RANGE DE DATAS */}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#f7fafc', padding: '8px 15px', borderRadius: '8px', border: '1px solid #cbd5e0' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Início Previsto</label>
+                <input 
+                  type="date" 
+                  value={dataInicio} 
+                  onChange={(e) => setDataInicio(e.target.value)} 
+                  style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }} 
+                />
+              </div>
+              <span style={{ color: '#a0aec0', fontWeight: 'bold', marginTop: '12px' }}>➞</span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Término Previsto</label>
+                <input 
+                  type="date" 
+                  value={dataFim} 
+                  onChange={(e) => setDataFim(e.target.value)} 
+                  style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }} 
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* TELA DE AVISO QUANDO NENHUM PROJETO ESTÁ SELECIONADO */}
+      {!projetoSelecionado && (
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7fafc', borderRadius: '8px', border: '2px dashed #cbd5e0' }}>
+          <div style={{ textAlign: 'center', color: '#718096' }}>
+            <span style={{ fontSize: '3rem', display: 'block', marginBottom: '10px' }}>🏗️</span>
+            <h2>Nenhuma Obra Selecionada</h2>
+            <p>Selecione um projeto no menu acima para criar ou visualizar o Master Plan.</p>
+          </div>
+        </div>
+      )}
 
       {/* MODAL CADASTRAR FERIADOS */}
       {showFeriadosModal && (
@@ -412,7 +459,6 @@ export default function MasterPlanPage() {
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '480px', fontFamily: 'sans-serif' }}>
             <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Configuração de Impressão (PDF)</h2>
             
-            {/* NOVO: AVISO DE SUGESTÃO DE PAPEL */}
             <div style={{ backgroundColor: '#ebf8ff', padding: '12px', borderRadius: '6px', border: '1px solid #90cdf4', marginBottom: '20px' }}>
               <p style={{ margin: 0, fontSize: '0.85rem', color: '#2b6cb0', lineHeight: '1.4' }}>
                 💡 <strong>Sugestão do Sistema:</strong> Com base na largura atual do seu cronograma ({datasVisiveis.length} colunas), recomendamos utilizar o papel <strong>{papelIdeal.toUpperCase()}</strong>. Isso garante que a fonte seja mantida no tamanho original (12pt) sem distorcer.
@@ -462,153 +508,157 @@ export default function MasterPlanPage() {
       )}
 
       {/* CONTAINER PRINCIPAL DO CRONOGRAMA */}
-      <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <div id="conteudo-masterplan-pdf" style={{ minWidth: 'max-content', paddingBottom: '20px' }}>
-          
-          <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%' }}>
-            
-            <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#e2e8f0' }}>
-              <tr>
-                <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px', borderRight: '1px solid #4a5568', width: '40px' }}>ID</th>
-                <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px 15px', borderRight: '1px solid #cbd5e0', textAlign: 'left', minWidth: '280px' }}>DESCRIÇÃO</th>
-                {datasVisiveis.map((d, i) => (
-                  <th key={`data-${i}`} style={{ backgroundColor: '#edf2f7', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d', textAlign: 'center' }}>
-                    {d.labelData}
-                  </th>
-                ))}
-              </tr>
-              <tr>
-                {datasVisiveis.map((d, i) => (
-                  <th key={`sem-${i}`} style={{ backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#cbd5e0' : '#f7fafc'), borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.75rem', color: d.isFeriado ? '#c53030' : '#4a5568', fontWeight: (d.isFimDeSemana || d.isFeriado) ? 'bold' : 'normal', textAlign: 'center' }}>
-                    {d.labelSemana}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {secoes.map((secao) => (
-                <React.Fragment key={secao.id}>
-                  {/* CABEÇALHO DA SEÇÃO */}
-                  <tr style={{ backgroundColor: '#edf2f7' }}>
-                    <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#edf2f7', padding: '6px 15px', borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <input 
-                          type="text"
-                          value={secao.titulo}
-                          onChange={(e) => handleAtualizarTituloSecao(secao.id, e.target.value)}
-                          style={{ fontWeight: 'bold', fontStyle: 'italic', color: '#2a4365', background: 'transparent', border: 'none', outline: 'none', width: '85%', fontSize: '0.9rem' }}
-                        />
-                        <button onClick={() => handleRemoverSecao(secao.id)} title="Excluir Seção Inteira" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
-                      </div>
-                    </td>
+      {projetoSelecionado && (
+        <>
+          <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+            <div id="conteudo-masterplan-pdf" style={{ minWidth: 'max-content', paddingBottom: '20px' }}>
+              
+              <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%' }}>
+                
+                <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#e2e8f0' }}>
+                  <tr>
+                    <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px', borderRight: '1px solid #4a5568', width: '40px' }}>ID</th>
+                    <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px 15px', borderRight: '1px solid #cbd5e0', textAlign: 'left', minWidth: '280px' }}>DESCRIÇÃO</th>
                     {datasVisiveis.map((d, i) => (
-                      <td key={`g-${secao.id}-${i}`} style={{ borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365', backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#e2e8f0' : '#edf2f7'), minWidth: '45px' }}></td>
+                      <th key={`data-${i}`} style={{ backgroundColor: '#edf2f7', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d', textAlign: 'center' }}>
+                        {d.labelData}
+                      </th>
                     ))}
                   </tr>
+                  <tr>
+                    {datasVisiveis.map((d, i) => (
+                      <th key={`sem-${i}`} style={{ backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#cbd5e0' : '#f7fafc'), borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.75rem', color: d.isFeriado ? '#c53030' : '#4a5568', fontWeight: (d.isFimDeSemana || d.isFeriado) ? 'bold' : 'normal', textAlign: 'center' }}>
+                        {d.labelSemana}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
 
-                  {/* LINHAS DENTRO DA SEÇÃO */}
-                  {secao.linhas.map((linha) => {
-                    const currentId = globalIdCounter++;
-                    return (
-                      <tr key={linha.id} style={{ borderBottom: '1px dotted #cbd5e0' }}>
-                        <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0', fontWeight: '500' }}>
-                          {currentId}
-                        </td>
-                        <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0', minWidth: '280px' }}>
+                <tbody>
+                  {secoes.map((secao) => (
+                    <React.Fragment key={secao.id}>
+                      {/* CABEÇALHO DA SEÇÃO */}
+                      <tr style={{ backgroundColor: '#edf2f7' }}>
+                        <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#edf2f7', padding: '6px 15px', borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <input 
-                              type="text" 
-                              value={linha.descricao} 
-                              onChange={(e) => handleAtualizarLinha(secao.id, linha.id, e.target.value)} 
-                              list="lista-zonas-coleta"
-                              placeholder="Selecione ou digite a etapa..."
-                              style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
+                              type="text"
+                              value={secao.titulo}
+                              onChange={(e) => handleAtualizarTituloSecao(secao.id, e.target.value)}
+                              style={{ fontWeight: 'bold', fontStyle: 'italic', color: '#2a4365', background: 'transparent', border: 'none', outline: 'none', width: '85%', fontSize: '0.9rem' }}
                             />
-                            <button onClick={() => handleRemoverLinha(secao.id, linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                            <button onClick={() => handleRemoverSecao(secao.id)} title="Excluir Seção Inteira" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
                           </div>
                         </td>
-                        
-                        {/* CÉLULAS DE DATAS */}
-                        {datasVisiveis.map((d) => {
-                          const cellKey = `${linha.id}___${d.labelData}`;
-                          const valorSalvo = dadosCelulas[cellKey];
-                          
-                          let defaultValor = '';
-                          if (d.isFeriado) defaultValor = 'FER';
-                          else if (d.isFimDeSemana) defaultValor = 'OFF';
+                        {datasVisiveis.map((d, i) => (
+                          <td key={`g-${secao.id}-${i}`} style={{ borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365', backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#e2e8f0' : '#edf2f7'), minWidth: '45px' }}></td>
+                        ))}
+                      </tr>
 
-                          const valorEfetivo = valorSalvo !== undefined ? valorSalvo : defaultValor;
-                          const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
-
-                          let bgColor = 'transparent';
-                          if (configCor.color !== 'transparent') {
-                            bgColor = configCor.color;
-                          } else if (d.isFeriado) {
-                            bgColor = '#fed7d7';
-                          } else if (d.isFimDeSemana) {
-                            bgColor = '#e2e8f0';
-                          }
-
-                          return (
-                            <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: bgColor, textAlign: 'center', minWidth: '45px' }}>
-                              <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                                <select
-                                  value={valorEfetivo}
-                                  onChange={(e) => handleCellChange(linha.id, d.labelData, e.target.value)}
-                                  style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: 'pointer', borderRadius: '2px' }}
-                                >
-                                  <option value=""></option>
-                                  {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
-                                    <option key={sigla} value={sigla}>{sigla}</option>
-                                  ))}
-                                </select>
-                                <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
+                      {/* LINHAS DENTRO DA SEÇÃO */}
+                      {secao.linhas.map((linha) => {
+                        const currentId = globalIdCounter++;
+                        return (
+                          <tr key={linha.id} style={{ borderBottom: '1px dotted #cbd5e0' }}>
+                            <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0', fontWeight: '500' }}>
+                              {currentId}
+                            </td>
+                            <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0', minWidth: '280px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <input 
+                                  type="text" 
+                                  value={linha.descricao} 
+                                  onChange={(e) => handleAtualizarLinha(secao.id, linha.id, e.target.value)} 
+                                  list="lista-zonas-coleta"
+                                  placeholder="Selecione ou digite a etapa..."
+                                  style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
+                                />
+                                <button onClick={() => handleRemoverLinha(secao.id, linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
                               </div>
                             </td>
-                          );
-                        })}
+                            
+                            {/* CÉLULAS DE DATAS (O SELECT) */}
+                            {datasVisiveis.map((d) => {
+                              const cellKey = `${linha.id}___${d.labelData}`;
+                              const valorSalvo = dadosCelulas[cellKey];
+                              
+                              let defaultValor = '';
+                              if (d.isFeriado) defaultValor = 'FER';
+                              else if (d.isFimDeSemana) defaultValor = 'OFF';
+
+                              const valorEfetivo = valorSalvo !== undefined ? valorSalvo : defaultValor;
+                              const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
+
+                              let bgColor = 'transparent';
+                              if (configCor.color !== 'transparent') {
+                                bgColor = configCor.color;
+                              } else if (d.isFeriado) {
+                                bgColor = '#fed7d7';
+                              } else if (d.isFimDeSemana) {
+                                bgColor = '#e2e8f0';
+                              }
+
+                              return (
+                                <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: bgColor, textAlign: 'center', minWidth: '45px' }}>
+                                  <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                    <select
+                                      value={valorEfetivo}
+                                      onChange={(e) => handleCellChange(linha.id, d.labelData, e.target.value)}
+                                      style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: 'pointer', borderRadius: '2px' }}
+                                    >
+                                      <option value=""></option>
+                                      {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
+                                        <option key={sigla} value={sigla}>{sigla}</option>
+                                      ))}
+                                    </select>
+                                    <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                      
+                      {/* BOTAO DE ADICIONAR LINHA NA SEÇÃO */}
+                      <tr>
+                        <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
+                          <button onClick={() => handleAdicionarLinha(secao.id)} style={btnAdicionarStyle}>+ Adicionar Linha à Seção</button>
+                        </td>
+                        {datasVisiveis.map((d, i) => (
+                          <td key={`add-${secao.id}-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#e2e8f0' : 'white') }}></td>
+                        ))}
                       </tr>
-                    );
-                  })}
-                  
-                  {/* BOTAO DE ADICIONAR LINHA NA SEÇÃO */}
+                    </React.Fragment>
+                  ))}
+
+                  {/* LINHA FINAL PARA ADICIONAR NOVA SEÇÃO */}
                   <tr>
-                    <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
-                      <button onClick={() => handleAdicionarLinha(secao.id)} style={btnAdicionarStyle}>+ Adicionar Linha à Seção</button>
+                    <td colSpan={2 + datasVisiveis.length} style={{ padding: '20px', backgroundColor: '#f4f7f6', textAlign: 'left' }}>
+                      <button onClick={handleAdicionarSecao} style={{ backgroundColor: '#2a4365', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                        + Adicionar Nova Seção de Cronograma
+                      </button>
                     </td>
-                    {datasVisiveis.map((d, i) => (
-                      <td key={`add-${secao.id}-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#e2e8f0' : 'white') }}></td>
-                    ))}
                   </tr>
-                </React.Fragment>
-              ))}
 
-              {/* LINHA FINAL PARA ADICIONAR NOVA SEÇÃO */}
-              <tr>
-                <td colSpan={2 + datasVisiveis.length} style={{ padding: '20px', backgroundColor: '#f4f7f6', textAlign: 'left' }}>
-                  <button onClick={handleAdicionarSecao} style={{ backgroundColor: '#2a4365', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                    + Adicionar Nova Seção de Cronograma
-                  </button>
-                </td>
-              </tr>
+                </tbody>
+              </table>
 
-            </tbody>
-          </table>
-
-        </div>
-      </div>
-      
-      {/* LEGENDA FLUTUANTE INFERIOR */}
-      <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #cbd5e0', display: 'flex', gap: '15px', flexWrap: 'wrap', fontSize: '0.75rem' }}>
-        <span style={{ fontWeight: 'bold', color: '#1a365d' }}>LEGENDA:</span>
-        {Object.entries(SERVICOS_CORES).filter(([sigla]) => sigla !== '').map(([sigla, info]) => (
-          <div key={sigla} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <div style={{ width: '12px', height: '12px', backgroundColor: info.color, borderRadius: '2px', border: '1px solid #cbd5e0' }}></div>
-            <span><b>{sigla}</b> - {info.label}</span>
+            </div>
           </div>
-        ))}
-      </div>
+          
+          {/* LEGENDA FLUTUANTE INFERIOR */}
+          <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #cbd5e0', display: 'flex', gap: '15px', flexWrap: 'wrap', fontSize: '0.75rem' }}>
+            <span style={{ fontWeight: 'bold', color: '#1a365d' }}>LEGENDA:</span>
+            {Object.entries(SERVICOS_CORES).filter(([sigla]) => sigla !== '').map(([sigla, info]) => (
+              <div key={sigla} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{ width: '12px', height: '12px', backgroundColor: info.color, borderRadius: '2px', border: '1px solid #cbd5e0' }}></div>
+                <span><b>{sigla}</b> - {info.label}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
     </div>
   );
