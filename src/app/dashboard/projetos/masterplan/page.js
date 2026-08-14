@@ -24,15 +24,17 @@ const SERVICOS_CORES = {
 export default function MasterPlanPage() {
   const { lang } = useLanguage();
   
-  // --- ESTADOS DE PROJETO ---
+  // --- ESTADOS DE PROJETO E ENGENHARIA ---
   const [projetosLista, setProjetosLista] = useState([]);
   const [projetoSelecionado, setProjetoSelecionado] = useState('');
+
+  // Estados de Controle / Linha de Base
+  const [linhaDeBaseCongelada, setLinhaDeBaseCongelada] = useState(false);
+  const [modoControle, setModoControle] = useState(false); // false = Planejamento, true = Controle
 
   // Estados para gerenciar o range de datas
   const [dataInicio, setDataInicio] = useState('2026-08-03');
   const [dataFim, setDataFim] = useState('2026-10-31');
-
-  // Estado para ocultar/mostrar finais de semana
   const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(false);
 
   // Estados para o Modal de Feriados
@@ -49,7 +51,8 @@ export default function MasterPlanPage() {
   });
 
   const [datasPlanilha, setDatasPlanilha] = useState([]);
-  const [dadosCelulas, setDadosCelulas] = useState({});
+  const [dadosCelulas, setDadosCelulas] = useState({});     // Dados do PREVISTO
+  const [dadosRealizado, setDadosRealizado] = useState({}); // Dados do REALIZADO
   const [zonasColeta, setZonasColeta] = useState([]);
 
   // Estrutura Dinâmica de Seções
@@ -83,7 +86,7 @@ export default function MasterPlanPage() {
     }
   ]);
 
-  // Busca os projetos cadastrados ao carregar a página
+  // Busca os projetos cadastrados
   useEffect(() => {
     const fetchProjetos = async () => {
       const { data } = await supabase.from('projetos').select('id, nome_projeto').order('id', { ascending: false });
@@ -92,17 +95,11 @@ export default function MasterPlanPage() {
     fetchProjetos();
   }, []);
 
-  // Busca as Divisões e Subdivisões EXCLUSIVAS do projeto selecionado para o Datalist
+  // Busca as Zonas do projeto selecionado
   useEffect(() => {
     const fetchZonasDoProjeto = async () => {
-      if (!projetoSelecionado) {
-        setZonasColeta([]);
-        return;
-      }
-      const { data } = await supabase.from('setorizacao_obras')
-        .select('pavimento, fase')
-        .eq('projeto_id', projetoSelecionado);
-        
+      if (!projetoSelecionado) { setZonasColeta([]); return; }
+      const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase').eq('projeto_id', projetoSelecionado);
       if (data) {
         const unicas = [...new Set(data.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
         setZonasColeta(unicas);
@@ -111,23 +108,20 @@ export default function MasterPlanPage() {
     fetchZonasDoProjeto();
   }, [projetoSelecionado]);
 
-  // Recalcula e gera as colunas de datas com controle exato de timezone
+  // Recalcula e gera as colunas de datas
   useEffect(() => {
     const gerarDatas = () => {
       if (!dataInicio || !dataFim || !projetoSelecionado) return;
 
       const parseDataSemFuso = (dataStr) => {
         const [ano, mes, dia] = dataStr.split('-');
-        return new Date(ano, mes - 1, dia); // Mês no JS começa em 0
+        return new Date(ano, mes - 1, dia);
       };
 
       const inicio = parseDataSemFuso(dataInicio);
       const fim = parseDataSemFuso(dataFim);
 
-      if (fim < inicio) {
-        setDatasPlanilha([]); 
-        return;
-      }
+      if (fim < inicio) { setDatasPlanilha([]); return; }
 
       const datas = [];
       let dataAtual = new Date(inicio);
@@ -156,13 +150,11 @@ export default function MasterPlanPage() {
       }
       setDatasPlanilha(datas);
     };
-
     gerarDatas();
   }, [dataInicio, dataFim, feriados, projetoSelecionado]);
 
   const datasVisiveis = datasPlanilha.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true);
 
-  // --- INTELIGÊNCIA: CÁLCULO DE TAMANHO DE PAPEL IDEAL ---
   const calcularPapelSugerido = () => {
     const colunasDeData = datasVisiveis.length;
     const larguraEstimadaPx = 320 + (colunasDeData * 45);
@@ -181,92 +173,55 @@ export default function MasterPlanPage() {
     setDadosCelulas(prev => ({ ...prev, [`${linhaId}___${dataLabel}`]: valor }));
   };
 
-  // --- FUNÇÕES DE FERIADOS ---
+  const handleCellRealizadoChange = (linhaId, dataLabel, valor) => {
+    setDadosRealizado(prev => ({ ...prev, [`${linhaId}___${dataLabel}`]: valor }));
+  };
+
+  const handleCongelarLinhaDeBase = () => {
+    if (window.confirm('Tem certeza que deseja congelar o planejamento atual? Isso criará a Linha de Base oficial do projeto.')) {
+      setLinhaDeBaseCongelada(true);
+      setModoControle(true);
+    }
+  };
+
+  const handleDescongelar = () => {
+    if (window.confirm('ATENÇÃO: Descongelar a linha de base permitirá alterações no Previsto. Deseja continuar?')) {
+      setLinhaDeBaseCongelada(false);
+      setModoControle(false);
+    }
+  };
+
+  // Funções de Feriados
   const handleAdicionarFeriado = (e) => {
     e.preventDefault();
     if (novoFeriadoData && novoFeriadoDesc) {
-      if (feriados.find(f => f.data === novoFeriadoData)) {
-        alert('Já existe um feriado cadastrado para esta data!');
-        return;
-      }
+      if (feriados.find(f => f.data === novoFeriadoData)) return alert('Já existe um feriado cadastrado para esta data!');
       setFeriados([...feriados, { data: novoFeriadoData, descricao: novoFeriadoDesc }]);
-      setNovoFeriadoData('');
-      setNovoFeriadoDesc('');
+      setNovoFeriadoData(''); setNovoFeriadoDesc('');
     }
   };
+  const handleRemoverFeriado = (data) => setFeriados(feriados.filter(f => f.data !== data));
 
-  const handleRemoverFeriado = (data) => {
-    setFeriados(feriados.filter(f => f.data !== data));
-  };
+  // Funções de Seções e Linhas
+  const handleAdicionarSecao = () => setSecoes([...secoes, { id: `sec_${Date.now()}`, titulo: 'NOVA SEÇÃO DE SERVIÇOS', linhas: [] }]);
+  const handleAtualizarTituloSecao = (secId, novoTitulo) => setSecoes(secoes.map(s => s.id === secId ? { ...s, titulo: novoTitulo } : s));
+  const handleRemoverSecao = (secId) => { if(window.confirm('Deseja excluir a seção?')) setSecoes(secoes.filter(s => s.id !== secId)); };
+  
+  const handleAdicionarLinha = (secId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: [...s.linhas, { id: `l_${Date.now()}`, descricao: '' }] } : s));
+  const handleAtualizarLinha = (secId, linhaId, valor) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.map(l => l.id === linhaId ? { ...l, descricao: valor } : l) } : s));
+  const handleRemoverLinha = (secId, linhaId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.filter(l => l.id !== linhaId) } : s));
 
-  // --- FUNÇÕES DE MANIPULAÇÃO DAS SEÇÕES E LINHAS ---
-  const handleAdicionarSecao = () => {
-    setSecoes([...secoes, { id: `sec_${Date.now()}`, titulo: 'NOVA SEÇÃO DE SERVIÇOS', linhas: [] }]);
-  };
-
-  const handleAtualizarTituloSecao = (secId, novoTitulo) => {
-    setSecoes(secoes.map(s => s.id === secId ? { ...s, titulo: novoTitulo } : s));
-  };
-
-  const handleRemoverSecao = (secId) => {
-    if(window.confirm('Tem certeza que deseja excluir esta seção inteira e todas as suas linhas?')) {
-      setSecoes(secoes.filter(s => s.id !== secId));
-    }
-  };
-
-  const handleAdicionarLinha = (secId) => {
-    setSecoes(secoes.map(s => {
-      if (s.id === secId) return { ...s, linhas: [...s.linhas, { id: `l_${Date.now()}`, descricao: '' }] };
-      return s;
-    }));
-  };
-
-  const handleAtualizarLinha = (secId, linhaId, valor) => {
-    setSecoes(secoes.map(s => {
-      if (s.id === secId) {
-        return { ...s, linhas: s.linhas.map(l => l.id === linhaId ? { ...l, descricao: valor } : l) };
-      }
-      return s;
-    }));
-  };
-
-  const handleRemoverLinha = (secId, linhaId) => {
-    setSecoes(secoes.map(s => {
-      if (s.id === secId) return { ...s, linhas: s.linhas.filter(l => l.id !== linhaId) };
-      return s;
-    }));
-  };
-
-  // --- FUNÇÃO DE GERAÇÃO DE PDF ---
+  // Função de PDF
   const gerarPDF = () => {
     import('html2pdf.js').then((html2pdf) => {
       const elemento = document.getElementById('conteudo-masterplan-pdf');
-      
-      let configuracaoPdf = { 
-        unit: 'mm', 
-        format: pdfConfig.formato, 
-        orientation: pdfConfig.orientacao 
-      };
-
+      let configuracaoPdf = { unit: 'mm', format: pdfConfig.formato, orientation: pdfConfig.orientacao };
       if (pdfConfig.formato === 'unica') {
         const rect = elemento.getBoundingClientRect();
-        configuracaoPdf = { 
-          unit: 'px', 
-          format: [rect.height + 40, rect.width + 40],
-          orientation: 'landscape' 
-        };
+        configuracaoPdf = { unit: 'px', format: [rect.height + 40, rect.width + 40], orientation: 'landscape' };
       }
-
-      const opcoes = {
-        margin:       10,
-        filename:     `master-plan-${projetoSelecionado}-${Date.now()}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
-        jsPDF:        configuracaoPdf
-      };
-      
-      const html2pdfInstance = html2pdf.default ? html2pdf.default : html2pdf;
-      html2pdfInstance().from(elemento).set(opcoes).save();
+      const opcoes = { margin: 10, filename: `master-plan-${projetoSelecionado}-${Date.now()}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: configuracaoPdf };
+      html2pdf.default().from(elemento).set(opcoes).save();
       setShowPdfModal(false);
     });
   };
@@ -282,92 +237,85 @@ export default function MasterPlanPage() {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
       
-      {/* DATALIST INVISÍVEL */}
       <datalist id="lista-zonas-coleta">
         {zonasColeta.map((zona, idx) => <option key={idx} value={zona} />)}
       </datalist>
 
-      {/* CABEÇALHO DA PÁGINA COM SELETOR DE PROJETO */}
+      {/* CABEÇALHO SUPERIOR */}
       <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h1 style={{ color: '#2A4365', margin: 0, fontStyle: 'italic', fontSize: '1.5rem', marginBottom: '10px' }}>
             {lang === 'en-US' ? 'PHYSICAL SCHEDULE - LINE OF BALANCE' : 'CRONOGRAMA FÍSICO - LINHA DE BALANÇO'}
           </h1>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568' }}>Selecione o Projeto</label>
-            <select
-              value={projetoSelecionado}
-              onChange={(e) => setProjetoSelecionado(e.target.value)}
-              style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e0', minWidth: '300px', fontSize: '0.9rem', outline: 'none' }}
-            >
-              <option value="">-- Selecione uma Obra --</option>
-              {projetosLista.map(p => (
-                <option key={p.id} value={p.id}>#{p.id} - {p.nome_projeto}</option>
-              ))}
-            </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <select
+                value={projetoSelecionado}
+                onChange={(e) => setProjetoSelecionado(e.target.value)}
+                style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e0', minWidth: '300px', fontSize: '0.9rem', outline: 'none' }}
+              >
+                <option value="">-- Selecione uma Obra --</option>
+                {projetosLista.map(p => (
+                  <option key={p.id} value={p.id}>#{p.id} - {p.nome_projeto}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* CONTROLES DE ENGENHARIA (CONGELAR/MODOS) */}
+            {projetoSelecionado && (
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '2px solid #e2e8f0', paddingLeft: '15px' }}>
+                {!linhaDeBaseCongelada ? (
+                  <button onClick={handleCongelarLinhaDeBase} style={{ backgroundColor: '#1a365d', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                    🔒 Congelar Linha de Base
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={handleDescongelar} style={{ backgroundColor: '#e2e8f0', color: '#4a5568', border: '1px solid #cbd5e0', padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                      🔓 Editar Base
+                    </button>
+                    <div style={{ display: 'flex', backgroundColor: '#edf2f7', borderRadius: '6px', border: '1px solid #cbd5e0', overflow: 'hidden' }}>
+                      <button 
+                        onClick={() => setModoControle(false)} 
+                        style={{ backgroundColor: !modoControle ? '#3182ce' : 'transparent', color: !modoControle ? 'white' : '#4a5568', border: 'none', padding: '8px 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+                      >
+                        📋 Planejamento
+                      </button>
+                      <button 
+                        onClick={() => setModoControle(true)} 
+                        style={{ backgroundColor: modoControle ? '#dd6b20' : 'transparent', color: modoControle ? 'white' : '#4a5568', border: 'none', padding: '8px 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+                      >
+                        ⚙️ Controle (Realizado)
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* OS CONTROLES SÓ APARECEM SE UM PROJETO ESTIVER SELECIONADO */}
+        {/* CONTROLES DE DATA E FERIADOS/PDF */}
         {projetoSelecionado && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            
-            <button 
-              onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)}
-              style={{ 
-                backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', 
-                color: ocultarFinaisDeSemana ? 'white' : '#4a5568', 
-                border: '1px solid #cbd5e0', 
-                padding: '8px 15px', 
-                borderRadius: '6px', 
-                cursor: 'pointer', 
-                fontWeight: 'bold', 
-                fontSize: '0.85rem',
-                transition: 'all 0.2s ease'
-              }}
-            >
+            <button onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)} style={{ backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', color: ocultarFinaisDeSemana ? 'white' : '#4a5568', border: '1px solid #cbd5e0', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
               {ocultarFinaisDeSemana ? 'Mostrar Finais de Semana' : 'Ocultar Finais de Semana'}
             </button>
-
-            <button 
-              onClick={() => setShowFeriadosModal(true)}
-              style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
-            >
+            <button onClick={() => setShowFeriadosModal(true)} style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
               📅 Feriados
             </button>
-
-            <button 
-              onClick={() => {
-                const fmtSugerido = papelIdeal.split(' ')[0].toLowerCase();
-                setPdfConfig(prev => ({ ...prev, formato: ['a4','a3','a2','a1','a0'].includes(fmtSugerido) ? fmtSugerido : 'unica' }));
-                setShowPdfModal(true);
-              }}
-              style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
-            >
+            <button onClick={() => { const fmtSugerido = papelIdeal.split(' ')[0].toLowerCase(); setPdfConfig(prev => ({ ...prev, formato: ['a4','a3','a2','a1','a0'].includes(fmtSugerido) ? fmtSugerido : 'unica' })); setShowPdfModal(true); }} style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
               📊 Exportar PDF
             </button>
-
-            {/* INPUTS DE RANGE DE DATAS */}
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#f7fafc', padding: '8px 15px', borderRadius: '8px', border: '1px solid #cbd5e0' }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Início Previsto</label>
-                <input 
-                  type="date" 
-                  value={dataInicio} 
-                  onChange={(e) => setDataInicio(e.target.value)} 
-                  style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }} 
-                />
+                <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} disabled={linhaDeBaseCongelada} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: linhaDeBaseCongelada ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: linhaDeBaseCongelada ? 0.7 : 1 }} />
               </div>
               <span style={{ color: '#a0aec0', fontWeight: 'bold', marginTop: '12px' }}>➞</span>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Término Previsto</label>
-                <input 
-                  type="date" 
-                  value={dataFim} 
-                  onChange={(e) => setDataFim(e.target.value)} 
-                  style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }} 
-                />
+                <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} disabled={linhaDeBaseCongelada} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: linhaDeBaseCongelada ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: linhaDeBaseCongelada ? 0.7 : 1 }} />
               </div>
             </div>
           </div>
@@ -392,24 +340,9 @@ export default function MasterPlanPage() {
             <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Cadastrar Feriados (Mun/Est/Fed)</h2>
             
             <form onSubmit={handleAdicionarFeriado} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              <input 
-                type="date" 
-                required 
-                value={novoFeriadoData}
-                onChange={(e) => setNovoFeriadoData(e.target.value)}
-                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none' }}
-              />
-              <input 
-                type="text" 
-                required 
-                placeholder="Descrição (ex: Padroeira)" 
-                value={novoFeriadoDesc}
-                onChange={(e) => setNovoFeriadoDesc(e.target.value)}
-                style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none' }}
-              />
-              <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                Adicionar
-              </button>
+              <input type="date" required value={novoFeriadoData} onChange={(e) => setNovoFeriadoData(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none' }} />
+              <input type="text" required placeholder="Descrição (ex: Padroeira)" value={novoFeriadoDesc} onChange={(e) => setNovoFeriadoDesc(e.target.value)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none' }} />
+              <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Adicionar</button>
             </form>
 
             <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '20px' }}>
@@ -423,9 +356,7 @@ export default function MasterPlanPage() {
                 </thead>
                 <tbody>
                   {feriados.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} style={{ padding: '15px', textAlign: 'center', color: '#a0aec0' }}>Nenhum feriado cadastrado.</td>
-                    </tr>
+                    <tr><td colSpan={3} style={{ padding: '15px', textAlign: 'center', color: '#a0aec0' }}>Nenhum feriado cadastrado.</td></tr>
                   ) : (
                     feriados.sort((a, b) => new Date(a.data) - new Date(b.data)).map((f, i) => (
                       <tr key={i} style={{ borderBottom: '1px solid #edf2f7' }}>
@@ -442,12 +373,7 @@ export default function MasterPlanPage() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
-                onClick={() => setShowFeriadosModal(false)} 
-                style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Concluir
-              </button>
+              <button onClick={() => setShowFeriadosModal(false)} style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Concluir</button>
             </div>
           </div>
         </div>
@@ -461,18 +387,14 @@ export default function MasterPlanPage() {
             
             <div style={{ backgroundColor: '#ebf8ff', padding: '12px', borderRadius: '6px', border: '1px solid #90cdf4', marginBottom: '20px' }}>
               <p style={{ margin: 0, fontSize: '0.85rem', color: '#2b6cb0', lineHeight: '1.4' }}>
-                💡 <strong>Sugestão do Sistema:</strong> Com base na largura atual do seu cronograma ({datasVisiveis.length} colunas), recomendamos utilizar o papel <strong>{papelIdeal.toUpperCase()}</strong>. Isso garante que a fonte seja mantida no tamanho original (12pt) sem distorcer.
+                💡 <strong>Sugestão do Sistema:</strong> Com base na largura atual do seu cronograma ({datasVisiveis.length} colunas), recomendamos utilizar o papel <strong>{papelIdeal.toUpperCase()}</strong>.
               </p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Tamanho da Folha</label>
-                <select 
-                  value={pdfConfig.formato} 
-                  onChange={(e) => setPdfConfig({...pdfConfig, formato: e.target.value})}
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}
-                >
+                <select value={pdfConfig.formato} onChange={(e) => setPdfConfig({...pdfConfig, formato: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
                   <option value="a4">A4 (Padrão)</option>
                   <option value="a3">A3 (Recomendado)</option>
                   <option value="a2">A2 (Grande)</option>
@@ -480,19 +402,11 @@ export default function MasterPlanPage() {
                   <option value="a0">A0 (Extremo)</option>
                   <option value="unica">Ajuste Perfeito (Página Única Contínua)</option>
                 </select>
-                <p style={{ fontSize: '0.7rem', color: '#718096', marginTop: '5px' }}>
-                  * A opção "Ajuste Perfeito" evita cortes na tabela, gerando uma folha digital de tamanho infinito.
-                </p>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Orientação</label>
-                <select 
-                  value={pdfConfig.orientacao} 
-                  onChange={(e) => setPdfConfig({...pdfConfig, orientacao: e.target.value})}
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}
-                  disabled={pdfConfig.formato === 'unica'}
-                >
+                <select value={pdfConfig.orientacao} onChange={(e) => setPdfConfig({...pdfConfig, orientacao: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} disabled={pdfConfig.formato === 'unica'}>
                   <option value="landscape">Paisagem (Horizontal)</option>
                   <option value="portrait">Retrato (Vertical)</option>
                 </select>
@@ -507,18 +421,17 @@ export default function MasterPlanPage() {
         </div>
       )}
 
-      {/* CONTAINER PRINCIPAL DO CRONOGRAMA */}
+      {/* CONTAINER PRINCIPAL DO CRONOGRAMA COM LINHAS DUPLAS */}
       {projetoSelecionado && (
         <>
           <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
             <div id="conteudo-masterplan-pdf" style={{ minWidth: 'max-content', paddingBottom: '20px' }}>
               
               <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%' }}>
-                
                 <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#e2e8f0' }}>
                   <tr>
                     <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px', borderRight: '1px solid #4a5568', width: '40px' }}>ID</th>
-                    <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px 15px', borderRight: '1px solid #cbd5e0', textAlign: 'left', minWidth: '280px' }}>DESCRIÇÃO</th>
+                    <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px 15px', borderRight: '1px solid #cbd5e0', textAlign: 'left', minWidth: '320px' }}>DESCRIÇÃO</th>
                     {datasVisiveis.map((d, i) => (
                       <th key={`data-${i}`} style={{ backgroundColor: '#edf2f7', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d', textAlign: 'center' }}>
                         {d.labelData}
@@ -545,9 +458,12 @@ export default function MasterPlanPage() {
                               type="text"
                               value={secao.titulo}
                               onChange={(e) => handleAtualizarTituloSecao(secao.id, e.target.value)}
+                              disabled={linhaDeBaseCongelada}
                               style={{ fontWeight: 'bold', fontStyle: 'italic', color: '#2a4365', background: 'transparent', border: 'none', outline: 'none', width: '85%', fontSize: '0.9rem' }}
                             />
-                            <button onClick={() => handleRemoverSecao(secao.id)} title="Excluir Seção Inteira" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                            {!linhaDeBaseCongelada && (
+                              <button onClick={() => handleRemoverSecao(secao.id)} style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                            )}
                           </div>
                         </td>
                         {datasVisiveis.map((d, i) => (
@@ -555,99 +471,133 @@ export default function MasterPlanPage() {
                         ))}
                       </tr>
 
-                      {/* LINHAS DENTRO DA SEÇÃO */}
+                      {/* RENDERIZAÇÃO DAS LINHAS DUPLAS (PREVISTO / REALIZADO) */}
                       {secao.linhas.map((linha) => {
                         const currentId = globalIdCounter++;
-                        return (
-                          <tr key={linha.id} style={{ borderBottom: '1px dotted #cbd5e0' }}>
-                            <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0', fontWeight: '500' }}>
-                              {currentId}
-                            </td>
-                            <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0', minWidth: '280px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <input 
-                                  type="text" 
-                                  value={linha.descricao} 
-                                  onChange={(e) => handleAtualizarLinha(secao.id, linha.id, e.target.value)} 
-                                  list="lista-zonas-coleta"
-                                  placeholder="Selecione ou digite a etapa..."
-                                  style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
-                                />
-                                <button onClick={() => handleRemoverLinha(secao.id, linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
-                              </div>
-                            </td>
+                        
+                        const renderizarCelulas = (isRealizado) => {
+                          return datasVisiveis.map((d) => {
+                            const cellKey = `${linha.id}___${d.labelData}`;
+                            const baseDados = isRealizado ? dadosRealizado : dadosCelulas;
+                            const valorSalvo = baseDados[cellKey];
                             
-                            {/* CÉLULAS DE DATAS (O SELECT) */}
-                            {datasVisiveis.map((d) => {
-                              const cellKey = `${linha.id}___${d.labelData}`;
-                              const valorSalvo = dadosCelulas[cellKey];
-                              
-                              let defaultValor = '';
-                              if (d.isFeriado) defaultValor = 'FER';
-                              else if (d.isFimDeSemana) defaultValor = 'OFF';
+                            let defaultValor = '';
+                            if (d.isFeriado) defaultValor = 'FER';
+                            else if (d.isFimDeSemana) defaultValor = 'OFF';
 
-                              const valorEfetivo = valorSalvo !== undefined ? valorSalvo : defaultValor;
-                              const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
+                            const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (isRealizado ? '' : defaultValor);
+                            const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
 
-                              let bgColor = 'transparent';
-                              if (configCor.color !== 'transparent') {
-                                bgColor = configCor.color;
-                              } else if (d.isFeriado) {
-                                bgColor = '#fed7d7';
-                              } else if (d.isFimDeSemana) {
-                                bgColor = '#e2e8f0';
-                              }
+                            let bgColor = 'transparent';
+                            if (configCor.color !== 'transparent') bgColor = configCor.color;
+                            else if (!isRealizado && d.isFeriado) bgColor = '#fed7d7';
+                            else if (!isRealizado && d.isFimDeSemana) bgColor = '#e2e8f0';
 
-                              return (
-                                <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: bgColor, textAlign: 'center', minWidth: '45px' }}>
-                                  <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                                    <select
-                                      value={valorEfetivo}
-                                      onChange={(e) => handleCellChange(linha.id, d.labelData, e.target.value)}
-                                      style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: 'pointer', borderRadius: '2px' }}
-                                    >
-                                      <option value=""></option>
-                                      {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
-                                        <option key={sigla} value={sigla}>{sigla}</option>
-                                      ))}
-                                    </select>
+                            const inputBloqueado = isRealizado ? false : linhaDeBaseCongelada;
+
+                            return (
+                              <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: bgColor, textAlign: 'center', minWidth: '45px' }}>
+                                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                  <select
+                                    value={valorEfetivo}
+                                    onChange={(e) => isRealizado ? handleCellRealizadoChange(linha.id, d.labelData, e.target.value) : handleCellChange(linha.id, d.labelData, e.target.value)}
+                                    disabled={inputBloqueado}
+                                    style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: inputBloqueado ? 'default' : 'pointer', borderRadius: '2px', opacity: (modoControle && !isRealizado && valorEfetivo) ? 0.6 : 1 }}
+                                  >
+                                    <option value=""></option>
+                                    {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
+                                      <option key={sigla} value={sigla}>{sigla}</option>
+                                    ))}
+                                  </select>
+                                  {!inputBloqueado && (
                                     <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          });
+                        };
+
+                        return (
+                          <React.Fragment key={linha.id}>
+                            {/* LINHA PREVISTA */}
+                            <tr style={{ borderBottom: modoControle ? 'none' : '1px dotted #cbd5e0', backgroundColor: modoControle ? '#f7fafc' : 'white' }}>
+                              <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: modoControle ? '#f7fafc' : 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0', fontWeight: '500' }}>
+                                {currentId}
+                              </td>
+                              <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: modoControle ? '#f7fafc' : 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0', minWidth: '320px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '90%' }}>
+                                    <input 
+                                      type="text" 
+                                      value={linha.descricao} 
+                                      onChange={(e) => handleAtualizarLinha(secao.id, linha.id, e.target.value)} 
+                                      disabled={linhaDeBaseCongelada}
+                                      list="lista-zonas-coleta"
+                                      placeholder="Selecione ou digite a etapa..."
+                                      style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
+                                    />
+                                    {modoControle && <span style={{ fontSize: '0.65rem', backgroundColor: '#cbd5e0', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', color: '#4a5568' }}>PREVISTO</span>}
+                                  </div>
+                                  {!linhaDeBaseCongelada && (
+                                    <button onClick={() => handleRemoverLinha(secao.id, linha.id)} style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                                  )}
+                                </div>
+                              </td>
+                              {renderizarCelulas(false)}
+                            </tr>
+
+                            {/* LINHA REALIZADA (Ativa no modo controle) */}
+                            {modoControle && (
+                              <tr style={{ borderBottom: '1px dotted #cbd5e0', backgroundColor: 'white' }}>
+                                <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', borderRight: '1px solid #e2e8f0', color: 'transparent' }}>
+                                  {currentId}
+                                </td>
+                                <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0', minWidth: '320px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '90%' }}>
+                                      <span style={{ flex: 1, color: '#a0aec0', fontSize: '0.85rem', paddingLeft: '2px' }}>↳ {linha.descricao}</span>
+                                      <span style={{ fontSize: '0.65rem', backgroundColor: '#3182ce', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', color: 'white' }}>REALIZADO</span>
+                                    </div>
                                   </div>
                                 </td>
-                              );
-                            })}
-                          </tr>
+                                {renderizarCelulas(true)}
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                       
                       {/* BOTAO DE ADICIONAR LINHA NA SEÇÃO */}
-                      <tr>
-                        <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
-                          <button onClick={() => handleAdicionarLinha(secao.id)} style={btnAdicionarStyle}>+ Adicionar Linha à Seção</button>
-                        </td>
-                        {datasVisiveis.map((d, i) => (
-                          <td key={`add-${secao.id}-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#e2e8f0' : 'white') }}></td>
-                        ))}
-                      </tr>
+                      {!linhaDeBaseCongelada && (
+                        <tr>
+                          <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
+                            <button onClick={() => handleAdicionarLinha(secao.id)} style={btnAdicionarStyle}>+ Adicionar Linha</button>
+                          </td>
+                          {datasVisiveis.map((d, i) => (
+                            <td key={`add-${secao.id}-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#e2e8f0' : 'white') }}></td>
+                          ))}
+                        </tr>
+                      )}
                     </React.Fragment>
                   ))}
 
                   {/* LINHA FINAL PARA ADICIONAR NOVA SEÇÃO */}
-                  <tr>
-                    <td colSpan={2 + datasVisiveis.length} style={{ padding: '20px', backgroundColor: '#f4f7f6', textAlign: 'left' }}>
-                      <button onClick={handleAdicionarSecao} style={{ backgroundColor: '#2a4365', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                        + Adicionar Nova Seção de Cronograma
-                      </button>
-                    </td>
-                  </tr>
-
+                  {!linhaDeBaseCongelada && (
+                    <tr>
+                      <td colSpan={2 + datasVisiveis.length} style={{ padding: '20px', backgroundColor: '#f4f7f6', textAlign: 'left' }}>
+                        <button onClick={handleAdicionarSecao} style={{ backgroundColor: '#2a4365', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                          + Adicionar Nova Seção de Cronograma
+                        </button>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
 
             </div>
           </div>
           
-          {/* LEGENDA FLUTUANTE INFERIOR */}
           <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #cbd5e0', display: 'flex', gap: '15px', flexWrap: 'wrap', fontSize: '0.75rem' }}>
             <span style={{ fontWeight: 'bold', color: '#1a365d' }}>LEGENDA:</span>
             {Object.entries(SERVICOS_CORES).filter(([sigla]) => sigla !== '').map(([sigla, info]) => (
