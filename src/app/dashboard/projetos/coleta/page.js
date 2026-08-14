@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { supabase } from '../../../../lib/supabase';
 
-export default function ColetaDadosPage() {
+export default function ColetaDadosPage({ registerModalTriggers }) {
   const { lang } = useLanguage();
   
   const [projetosLista, setProjetosLista] = useState([]);
@@ -37,33 +37,25 @@ export default function ColetaDadosPage() {
     comboKey: '', servico: '', quantidade: ''
   });
 
-  // Conecta os botões da Header aos modais desta página quando ela for carregada
+  // Registra as funções de abertura de modal para a Header utilizar
   useEffect(() => {
-    const btnColeta = document.getElementById('btn-header-coleta');
-    const btnSetorizacao = document.getElementById('btn-header-setorizacao');
-
-    const handleOpenColeta = () => {
-      setEditColetaId(null);
-      setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
-      setShowModalColeta(true);
-    };
-
-    const handleOpenSetorizacao = () => {
-      setEditComboKey(null);
-      setNovoPavimentoInput('');
-      setNovaFaseInput('');
-      setFormDataSetorizacao({ projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: '' });
-      setShowModalSetorizacao(true);
-    };
-
-    if (btnColeta) btnColeta.addEventListener('click', handleOpenColeta);
-    if (btnSetorizacao) btnSetorizacao.addEventListener('click', handleOpenSetorizacao);
-
-    return () => {
-      if (btnColeta) btnColeta.removeEventListener('click', handleOpenColeta);
-      if (btnSetorizacao) btnSetorizacao.removeEventListener('click', handleOpenSetorizacao);
-    };
-  }, []);
+    if (registerModalTriggers) {
+      registerModalTriggers({
+        openColeta: () => {
+          setEditColetaId(null);
+          setFormDataColeta({ projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: '' });
+          setShowModalColeta(true);
+        },
+        openSetorizacao: () => {
+          setEditComboKey(null);
+          setNovoPavimentoInput('');
+          setNovaFaseInput('');
+          setFormDataSetorizacao({ projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: '' });
+          setShowModalSetorizacao(true);
+        }
+      });
+    }
+  }, [registerModalTriggers]);
 
   const fetchData = async () => {
     const { data: projData } = await supabase.from('projetos').select('id, nome_projeto, cliente');
