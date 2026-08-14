@@ -121,18 +121,22 @@ export default function DashboardLayout({ children }) {
               <span style={{ fontSize: '0.65rem', color: '#90cdf4' }}>{t.subtitle}</span>
             </div>
           </div>
-
-          {/* EXIBE O NOME DO MÓDULO E PÁGINA APENAS QUANDO O SIDEBAR ESTIVER FECHADO */}
-          {!isSidebarOpen && (
-            <div style={{ marginLeft: '20px', paddingLeft: '20px', borderLeft: '1px solid #2a4365', color: '#e2e8f0', fontSize: '0.9rem', fontWeight: '500', letterSpacing: '0.5px' }}>
-              {getBreadcrumb()}
-            </div>
-          )}
         </div>
 
-        <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', gap: '3px' }}>
-          <button onClick={() => changeLanguage('pt-BR')} style={{ background: lang === 'pt-BR' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🇧🇷 PT</button>
-          <button onClick={() => changeLanguage('en-US')} style={{ background: lang === 'en-US' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🇺🇸 EN</button>
+        {/* LADO DIREITO DA HEADER: INDICADOR DE MÓDULO/PÁGINA + SELETOR DE IDIOMA */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          
+          {/* NOME DO MÓDULO > PÁGINA */}
+          <div style={{ color: '#cbd5e0', fontSize: '0.85rem', fontWeight: '500', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: '#90cdf4' }}>📍</span> {getBreadcrumb()}
+          </div>
+
+          {/* SELETOR DE IDIOMA */}
+          <div style={{ display: 'flex', backgroundColor: '#102a43', padding: '3px', borderRadius: '8px', gap: '3px', border: '1px solid #2a4365' }}>
+            <button onClick={() => changeLanguage('pt-BR')} style={{ background: lang === 'pt-BR' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🇧🇷 PT</button>
+            <button onClick={() => changeLanguage('en-US')} style={{ background: lang === 'en-US' ? '#3182ce' : 'transparent', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🇺🇸 EN</button>
+          </div>
+
         </div>
       </header>
 
