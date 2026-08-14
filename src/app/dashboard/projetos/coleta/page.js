@@ -273,6 +273,8 @@ export default function ColetaDadosPage() {
   });
 
   const servicosUnicos = [...new Set(setorizacoesLista.map(s => s.servico))];
+  const divisoesUnicasQuadro2 = [...new Set(setorizacoesLista.map(s => s.pavimento).filter(Boolean))];
+  const zonasUnicasQuadro2 = [...new Set(setorizacoesLista.map(s => s.fase).filter(Boolean))];
 
   const obterCorPorSubdivisao = (fase) => {
     if (!fase) return '#ffffff';
@@ -562,7 +564,84 @@ export default function ColetaDadosPage() {
         </div>
       </div>
 
-      {/* QUADRO 2 - SETORIZAÇÃO E QUANTIFICAÇÃO */}
+      {/* QUADRO 2 - QUANTIFICAÇÃO DOS PACOTES POR LOCALIZAÇÃO (NOVO) */}
+      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '40px', padding: '20px' }}>
+        <h2 style={{ color: '#2a4365', marginBottom: '15px', fontSize: '1.1rem' }}>QUADRO 2 - QUANTIFICAÇÃO DOS PACOTES POR LOCALIZAÇÃO</h2>
+        <div style={{ maxHeight: '450px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
+            <tbody>
+              {divisoesUnicasQuadro2.length === 0 ? (
+                <tr>
+                  <td style={{ padding: '20px', color: '#718096' }}>Nenhum dado de setorização cadastrado para gerar o Quadro 2.</td>
+                </tr>
+              ) : (
+                divisoesUnicasQuadro2.map((divisao, dIdx) => {
+                  const zonasDaDivisao = [...new Set(
+                    setorizacoesLista.filter(s => s.pavimento === divisao).map(s => s.fase).filter(Boolean)
+                  )].sort();
+
+                  return (
+                    <table key={dIdx} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+                      {/* CABEÇALHO DA DIVISÃO (PAVIMENTO) */}
+                      <thead>
+                        <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
+                          <th style={{ padding: '10px', border: '1px solid #c05621', width: '35%', textAlign: 'left', fontWeight: 'bold' }}>
+                            {divisao}
+                          </th>
+                          <th colSpan={zonasUnicasQuadro2.length} style={{ padding: '10px', border: '1px solid #c05621', textAlign: 'center', fontWeight: 'bold', letterSpacing: '1px' }}>
+                            ZONAS
+                          </th>
+                        </tr>
+                        {/* SUB-CABEÇALHO COM AS ZONAS */}
+                        <tr style={{ backgroundColor: '#f6ad55', color: '#1a365d' }}>
+                          <th style={{ padding: '8px', border: '1px solid #c05621', textAlign: 'left', fontStyle: 'italic' }}>
+                            DESCRIÇÃO
+                          </th>
+                          {zonasUnicasQuadro2.map((zona, zIdx) => (
+                            <th key={zIdx} style={{ padding: '8px', border: '1px solid #c05621', fontWeight: 'bold' }}>
+                              {zona}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      {/* LINHAS DOS SERVIÇOS */}
+                      <tbody>
+                        {servicosUnicos.length === 0 ? (
+                          <tr>
+                            <td colSpan={zonasUnicasQuadro2.length + 1} style={{ padding: '10px', color: '#718096' }}>Nenhum serviço cadastrado.</td>
+                          </tr>
+                        ) : (
+                          servicosUnicos.map((servico, sIdx) => (
+                            <tr key={sIdx} style={{ backgroundColor: sIdx % 2 === 0 ? '#fff' : '#f7fafc', borderBottom: '1px solid #e2e8f0' }}>
+                              <td style={{ padding: '8px 12px', border: '1px solid #cbd5e0', textAlign: 'left', fontWeight: 'bold', color: '#2d3748' }}>
+                                {servico.toUpperCase()}
+                              </td>
+                              {zonasUnicasQuadro2.map((zona, zIdx) => {
+                                // Soma as quantidades para essa Divisão + Zona + Servico
+                                const somaQuantidades = setorizacoesLista
+                                  .filter(s => s.pavimento === divisao && s.fase === zona && s.servico === servico)
+                                  .reduce((acc, curr) => acc + (Number(curr.quantidade) || 0), 0);
+
+                                return (
+                                  <td key={zIdx} style={{ padding: '8px', border: '1px solid #cbd5e0', color: somaQuantidades > 0 ? '#000' : '#a0aec0' }}>
+                                    {somaQuantidades > 0 ? somaQuantidades.toLocaleString('pt-BR') : '0'}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* QUADRO 3 - SETORIZAÇÃO E QUANTIFICAÇÃO (ANTIGO QUADRO 1) */}
       <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
           <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
@@ -807,20 +886,9 @@ export default function ColetaDadosPage() {
                           <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold' }}>{amb}</td>
                           <td style={{ padding: '6px', border: '1px solid #ddd' }}>{tipoAmb}</td>
                           <td style={{ padding: '6px', border: '1px solid #ddd' }}>{pav}</td>
-                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{fas}</td>
-                          {servicosUnicos.map((serv, cIdx) => {
-                            const encontrado = setorizacoesLista.find(
-                              s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === serv
-                            );
-                            return (
-                              <td key={cIdx} style={{ padding: '6px', border: '1px solid #ddd' }}>
-                                {encontrado ? encontrado.quantidade : '-'}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
+                          <td style={{ padding: '6px', border: '1px solid #ddd' >>> id: 'output_generation' }
+                        );
+                      })}
                 </tbody>
               </table>
             </div>
