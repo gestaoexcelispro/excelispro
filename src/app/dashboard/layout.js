@@ -62,11 +62,11 @@ export default function DashboardLayout({ children }) {
   const t = translations[lang] || translations['pt-BR'];
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isDirectorateOpen, setIsDirectorateOpen] = useState(true);
   const [isCommercialOpen, setIsCommercialOpen] = useState(true);
   const [isProjectsOpen, setIsProjectsOpen] = useState(true);
   const [isFinancialOpen, setIsFinancialOpen] = useState(true);
   const [isLegalOpen, setIsLegalOpen] = useState(true);
-  const [isDirectorateOpen, setIsDirectorateOpen] = useState(true);
 
   const changeLanguage = (targetLang) => {
     if (setLang) setLang(targetLang);
@@ -76,7 +76,7 @@ export default function DashboardLayout({ children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', backgroundColor: '#f4f7f6', fontFamily: 'sans-serif' }}>
       
-      {/* HEADER FIXA */}
+      {/* HEADER FIXA NO TOPO */}
       <header style={{ 
         flexShrink: 0,
         backgroundColor: '#1a365d', color: 'white', 
@@ -84,11 +84,16 @@ export default function DashboardLayout({ children }) {
         boxShadow: '0 2px 5px rgba(0,0,0,0.15)', zIndex: 1200
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', borderRadius: '6px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 'bold' }}>
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', borderRadius: '6px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
             {isSidebarOpen ? '◀' : '▶'}
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ backgroundColor: '#3182ce', fontWeight: 'bold', width: '34px', height: '34px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>EP</div>
+            <div style={{ backgroundColor: '#3182ce', color: 'white', fontWeight: 'bold', width: '34px', height: '34px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              EP
+            </div>
             <div>
               <h2 style={{ margin: 0, fontSize: '1rem' }}>{t.company}</h2>
               <span style={{ fontSize: '0.65rem', color: '#90cdf4' }}>{t.subtitle}</span>
@@ -102,7 +107,7 @@ export default function DashboardLayout({ children }) {
         </div>
       </header>
 
-      {/* CORPO DO DASHBOARD - FLEX */}
+      {/* CORPO DO DASHBOARD */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
         {/* SIDEBAR FIXO COM SCROLL PRÓPRIO */}
@@ -110,27 +115,87 @@ export default function DashboardLayout({ children }) {
           width: isSidebarOpen ? '260px' : '0px', 
           backgroundColor: '#ffffff', 
           borderRight: isSidebarOpen ? '1px solid #e2e8f0' : 'none', 
-          display: 'flex', flexDirection: 'column',
-          overflowY: 'auto', transition: 'width 0.3s ease', flexShrink: 0
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+          overflowY: 'auto', transition: 'width 0.3s ease', flexShrink: 0,
+          whiteSpace: 'nowrap'
         }}>
+          
           <div style={{ width: '260px' }}>
-             {/* MÓDULOS DE MENU AQUI (Mesmo conteúdo anterior) */}
-             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#ebf8ff' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>📊</span> {t.directorateModule}</div>
-              <button onClick={() => setIsDirectorateOpen(!isDirectorateOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>{isDirectorateOpen ? '▲' : '▼'}</button>
+            
+            {/* MÓDULO DIRETORIA */}
+            <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#ebf8ff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>📊</span> <span style={{ fontSize: '0.75rem' }}>{t.directorateModule}</span></div>
+              <button onClick={() => setIsDirectorateOpen(!isDirectorateOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isDirectorateOpen ? '▲' : '▼'}</button>
             </div>
             {isDirectorateOpen && (
               <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
-                <a href="/dashboard/diretoria/mapa" style={{ textDecoration: 'none', color: '#4a5568', padding: '8px', fontSize: '0.85rem' }}>🗺️ {t.mapDashboard}</a>
+                <a href="/dashboard/diretoria/mapa" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🗺️</span> {t.mapDashboard}</a>
               </nav>
             )}
-            
-            {/* ... (Inserir os demais módulos conforme o código original) ... */}
-            
-            <div style={{ padding: '12px 10px', marginTop: 'auto' }}>
-              <a href="/" style={{ display: 'block', padding: '10px', textDecoration: 'none', color: '#e53e3e', backgroundColor: '#fff5f5', borderRadius: '6px', textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem' }}>🚪 {t.logout}</a>
+
+            {/* MÓDULO COMERCIAL */}
+            <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>🏢</span> <span style={{ fontSize: '0.75rem' }}>{t.commercialModule}</span></div>
+              <button onClick={() => setIsCommercialOpen(!isCommercialOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isCommercialOpen ? '▲' : '▼'}</button>
             </div>
+            {isCommercialOpen && (
+              <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
+                <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>⊞</span> {t.dashboard}</a>
+                <a href="/dashboard/orcamentos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📊</span> {t.budgets}</a>
+                <a href="/dashboard/propostas" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📄</span> {t.proposals}</a>
+                <a href="/dashboard/modelos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📚</span> {t.templates}</a>
+                <a href="/dashboard/servicos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🏷️</span> {t.services}</a>
+              </nav>
+            )}
+
+            {/* MÓDULO PROJETOS */}
+            <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>📋</span> <span style={{ fontSize: '0.75rem' }}>{t.projectsModule}</span></div>
+              <button onClick={() => setIsProjectsOpen(!isProjectsOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isProjectsOpen ? '▲' : '▼'}</button>
+            </div>
+            {isProjectsOpen && (
+              <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
+                <a href="/dashboard/projetos/lista" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📁</span> {t.projectList}</a>
+                <a href="/dashboard/projetos/coleta" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>✏️</span> {t.coletaDados}</a>
+                <a href="/dashboard/projetos/tap" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📜</span> {t.tap}</a>
+                <a href="/dashboard/projetos/plano" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📑</span> {t.managementPlan}</a>
+                <a href="/dashboard/projetos/raci" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>👥</span> {t.raci}</a>
+                <a href="/dashboard/projetos/riscos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>⚠️</span> {t.risks}</a>
+              </nav>
+            )}
+
+            {/* MÓDULO CONTROLADORIA */}
+            <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>💰</span> <span style={{ fontSize: '0.75rem' }}>{t.financialModule}</span></div>
+              <button onClick={() => setIsFinancialOpen(!isFinancialOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isFinancialOpen ? '▲' : '▼'}</button>
+            </div>
+            {isFinancialOpen && (
+              <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
+                <a href="/dashboard/controladoria/receber" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📥</span> {t.receivable}</a>
+                <a href="/dashboard/controladoria/pagar" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📤</span> {t.payable}</a>
+              </nav>
+            )}
+
+            {/* MÓDULO JURÍDICO */}
+            <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>⚖️</span> <span style={{ fontSize: '0.75rem' }}>{t.legalModule}</span></div>
+              <button onClick={() => setIsLegalOpen(!isLegalOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isLegalOpen ? '▲' : '▼'}</button>
+            </div>
+            {isLegalOpen && (
+              <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
+                <a href="/dashboard/juridico/contratos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📝</span> {t.contracts}</a>
+              </nav>
+            )}
+
           </div>
+
+          {/* BOTÃO SAIR */}
+          <div style={{ padding: '12px 10px', borderTop: '1px solid #e2e8f0', backgroundColor: 'white', width: '260px' }}>
+            <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#e53e3e', borderRadius: '6px', fontWeight: 'bold', backgroundColor: '#fff5f5', fontSize: '0.85rem' }}>
+              <span>🚪</span> {t.logout}
+            </a>
+          </div>
+
         </aside>
 
         {/* CONTEÚDO PRINCIPAL ROLÁVEL */}
@@ -138,6 +203,7 @@ export default function DashboardLayout({ children }) {
           {children}
         </main>
       </div>
+
     </div>
   );
 }
