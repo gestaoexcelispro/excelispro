@@ -15,9 +15,10 @@ export default function ColetaDadosPage() {
   const [showModalNovoServico, setShowModalNovoServico] = useState(false);
 
   // Estados dos Filtros e Ordenação
+  const [filtroTipoAmbiente, setFiltroTipoAmbiente] = useState('');
   const [filtroDivisao, setFiltroDivisao] = useState('');
   const [filtroSubdivisao, setFiltroSubdivisao] = useState('');
-  const [ordenacao, setOrdenacao] = useState('divisao_asc'); // Padrão de ordenação
+  const [ordenacao, setOrdenacao] = useState('divisao_asc');
 
   const [novoPavimentoInput, setNovoPavimentoInput] = useState('');
   const [novaFaseInput, setNovaFaseInput] = useState('');
@@ -29,8 +30,9 @@ export default function ColetaDadosPage() {
     projeto_id: '', pavimentos: '', areaTerreno: '', areaConstruida: '', tipoObra: ''
   });
 
+  // Adicionado tipo_ambiente com padrão 'Interno'
   const [formDataSetorizacao, setFormDataSetorizacao] = useState({
-    projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: ''
+    projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: ''
   });
 
   const [formNovoServicoLinha, setFormNovoServicoLinha] = useState({
@@ -52,10 +54,10 @@ export default function ColetaDadosPage() {
     fetchData();
   }, []);
 
-  const handleCellChange = async (amb, pav, fas, servico, novaQuantidade) => {
+  const handleCellChange = async (amb, tipoAmb, pav, fas, servico, novaQuantidade) => {
     const valorNumerico = novaQuantidade === '' ? null : parseFloat(novaQuantidade);
     const registroExistente = setorizacoesLista.find(
-      s => s.ambiente === amb && s.pavimento === pav && s.fase === fas && s.servico === servico
+      s => s.ambiente === amb && s.tipo_ambiente === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === servico
     );
 
     if (registroExistente) {
@@ -67,7 +69,7 @@ export default function ColetaDadosPage() {
     } else if (valorNumerico !== null && !isNaN(valorNumerico)) {
       const projetoRef = setorizacoesLista.find(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas)?.projeto_id || projetosLista[0]?.id || '';
       await supabase.from('setorizacao_obras').insert([{
-        projeto_id: projetoRef, ambiente: amb, pavimento: pav, fase: fas, servico: servico, quantidade: valorNumerico
+        projeto_id: projetoRef, ambiente: amb, tipo_ambiente: tipoAmb, pavimento: pav, fase: fas, servico: servico, quantidade: valorNumerico
       }]);
     }
     fetchData();
@@ -104,8 +106,8 @@ export default function ColetaDadosPage() {
     const faseFinal = formDataSetorizacao.fase === 'OUTRO' ? novaFaseInput : formDataSetorizacao.fase;
 
     if (editComboKey) {
-      const [oldAmb, oldPav, oldFas] = editComboKey.split('___');
-      await supabase.from('setorizacao_obras').delete().match({ ambiente: oldAmb, pavimento: oldPav, fase: oldFas });
+      const [oldAmb, oldTipo, oldPav, oldFas] = editComboKey.split('___');
+      await supabase.from('setorizacao_obras').delete().match({ ambiente: oldAmb, tipo_ambiente: oldTipo, pavimento: oldPav, fase: oldFas });
     }
 
     await supabase.from('setorizacao_obras').insert([{ ...formDataSetorizacao, pavimento: pavimentoFinal, fase: faseFinal }]);
@@ -113,18 +115,19 @@ export default function ColetaDadosPage() {
     setEditComboKey(null);
     setNovoPavimentoInput('');
     setNovaFaseInput('');
-    setFormDataSetorizacao({ projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: '' });
+    setFormDataSetorizacao({ projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: '' });
     fetchData();
   };
 
   const handleAddServicoNaLinha = async (e) => {
     e.preventDefault();
-    const [amb, pav, fas] = formNovoServicoLinha.comboKey.split('___');
-    const projetoRef = setorizacoesLista.find(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas)?.projeto_id || projetosLista[0]?.id || '';
+    const [amb, tipoAmb, pav, fas] = formNovoServicoLinha.comboKey.split('___');
+    const projetoRef = setorizacoesLista.find(s => s.ambiente === amb && s.tipo_ambiente === tipoAmb && s.pavimento === pav && s.fase === fas)?.projeto_id || projetosLista[0]?.id || '';
     
     await supabase.from('setorizacao_obras').insert([{
       projeto_id: projetoRef,
       ambiente: amb,
+      tipo_ambiente: tipoAmb,
       pavimento: pav,
       fase: fas,
       servico: formNovoServicoLinha.servico,
@@ -148,13 +151,14 @@ export default function ColetaDadosPage() {
     setShowModalColeta(true);
   };
 
-  const handleEditLinhaQuadro = (amb, pav, fas) => {
-    const itens = setorizacoesLista.filter(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas);
+  const handleEditLinhaQuadro = (amb, tipoAmb, pav, fas) => {
+    const itens = setorizacoesLista.filter(s => s.ambiente === amb && s.tipo_ambiente === tipoAmb && s.pavimento === pav && s.fase === fas);
     if (itens.length > 0) {
-      setEditComboKey(`${amb}___${pav}___${fas}`);
+      setEditComboKey(`${amb}___${tipoAmb}___${pav}___${fas}`);
       setFormDataSetorizacao({
         projeto_id: itens[0].projeto_id || '',
         ambiente: amb,
+        tipo_ambiente: tipoAmb || 'Interno',
         pavimento: pav,
         fase: fas,
         servico: itens[0].servico || '',
@@ -171,9 +175,9 @@ export default function ColetaDadosPage() {
     }
   };
 
-  const handleDeleteSetorizacao = async (amb, pav, fas) => {
-    if (window.confirm(`Tem certeza que deseja excluir toda a linha do ambiente "${amb}"?`)) {
-      const itens = setorizacoesLista.filter(s => s.ambiente === amb && s.pavimento === pav && s.fase === fas);
+  const handleDeleteSetorizacao = async (amb, tipoAmb, pav, fas) => {
+    if (window.confirm(`Tem certeza que deseja excluir toda a linha do ambiente "${amb}" (${tipoAmb})?`)) {
+      const itens = setorizacoesLista.filter(s => s.ambiente === amb && s.tipo_ambiente === tipoAmb && s.pavimento === pav && s.fase === fas);
       for (const item of itens) {
         await supabase.from('setorizacao_obras').delete().eq('id', item.id);
       }
@@ -187,18 +191,19 @@ export default function ColetaDadosPage() {
   const fasesPadrao = ['Z1', 'Z2', 'Z3', 'Z4', 'Bloco 1', 'Bloco 2', 'Bloco 3', 'Setor 1', 'Setor 2', 'Setor 3'];
   const subdivisoesExistentes = [...new Set([...fasesPadrao, ...setorizacoesLista.map(s => s.fase).filter(Boolean)])];
 
-  // 1. Filtragem e 2. Ordenação dinâmica dos ambientes
+  // Identificação única combinando Ambiente + Tipo + Divisão + Subdivisão
   const ambientesFiltradosEOrdenados = [...new Set(
     setorizacoesLista
       .filter(s => {
+        const matchTipo = filtroTipoAmbiente ? s.tipo_ambiente === filtroTipoAmbiente : true;
         const matchDivisao = filtroDivisao ? s.pavimento === filtroDivisao : true;
         const matchSubdivisao = filtroSubdivisao ? s.fase === filtroSubdivisao : true;
-        return matchDivisao && matchSubdivisao;
+        return matchTipo && matchDivisao && matchSubdivisao;
       })
-      .map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`)
+      .map(s => `${s.ambiente}___${s.tipo_ambiente || 'Interno'}___${s.pavimento}___${s.fase}`)
   )].sort((a, b) => {
-    const [ambA, pavA, fasA] = a.split('___');
-    const [ambB, pavB, fasB] = b.split('___');
+    const [ambA, tipoA, pavA, fasA] = a.split('___');
+    const [ambB, tipoB, pavB, fasB] = b.split('___');
 
     if (ordenacao === 'divisao_asc') {
       return pavA.localeCompare(pavB, 'pt', { numeric: true }) || fasA.localeCompare(fasB, 'pt', { numeric: true });
@@ -263,7 +268,7 @@ export default function ColetaDadosPage() {
             setEditComboKey(null);
             setNovoPavimentoInput('');
             setNovaFaseInput('');
-            setFormDataSetorizacao({ projeto_id: '', ambiente: '', pavimento: '', fase: '', servico: '', quantidade: '' });
+            setFormDataSetorizacao({ projeto_id: '', ambiente: '', tipo_ambiente: 'Interno', pavimento: '', fase: '', servico: '', quantidade: '' });
             setShowModalSetorizacao(true);
           }}
           style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
@@ -313,6 +318,20 @@ export default function ColetaDadosPage() {
               </select>
 
               <input type="text" placeholder="Ambiente (Ex: Garagem, Cozinha, Quarto)" required value={formDataSetorizacao.ambiente} onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, ambiente: e.target.value})} style={{ padding: '10px', borderRadius: '6px' }} />
+
+              {/* CAMPO NOVO: TIPO DE AMBIENTE (INTERNO / EXTERNO) */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Tipo de Ambiente</label>
+                <select 
+                  required 
+                  value={formDataSetorizacao.tipo_ambiente} 
+                  onChange={(e) => setFormDataSetorizacao({...formDataSetorizacao, tipo_ambiente: e.target.value})} 
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', backgroundColor: 'white' }}
+                >
+                  <option value="Interno">Interno</option>
+                  <option value="Externo">Externo</option>
+                </select>
+              </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Divisão</label>
@@ -375,9 +394,9 @@ export default function ColetaDadosPage() {
                   style={{ width: '100%', padding: '10px', borderRadius: '6px' }}
                 >
                   <option value="">-- Escolha o ambiente --</option>
-                  {[...new Set(setorizacoesLista.map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`))].map((combo, i) => {
-                    const [amb, pav, fas] = combo.split('___');
-                    return <option key={i} value={combo}>{amb} ({pav} / {fas})</option>;
+                  {[...new Set(setorizacoesLista.map(s => `${s.ambiente}___${s.tipo_ambiente || 'Interno'}___${s.pavimento}___${s.fase}`))].map((combo, i) => {
+                    const [amb, tipoAmb, pav, fas] = combo.split('___');
+                    return <option key={i} value={combo}>{amb} ({tipoAmb}) - {pav} / {fas}</option>;
                   })}
                 </select>
               </div>
@@ -459,7 +478,7 @@ export default function ColetaDadosPage() {
         </div>
       </div>
 
-      {/* QUADRO 2 - SETORIZAÇÃO E QUANTIFICAÇÃO (COM FILTROS E ORDENAÇÃO) */}
+      {/* QUADRO 2 - SETORIZAÇÃO E QUANTIFICAÇÃO */}
       <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
           <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
@@ -472,10 +491,24 @@ export default function ColetaDadosPage() {
           </button>
         </div>
 
-        {/* BARRA DE FILTROS E ORDENAÇÃO NA PARTE SUPERIOR DA TABELA */}
+        {/* BARRA DE FILTROS E ORDENAÇÃO */}
         <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', backgroundColor: '#f7fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: '200px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar por Divisão</label>
+          
+          <div style={{ flex: 1, minWidth: '150px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar Tipo</label>
+            <select 
+              value={filtroTipoAmbiente} 
+              onChange={(e) => setFiltroTipoAmbiente(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
+            >
+              <option value="">Todos (Int/Ext)</option>
+              <option value="Interno">Interno</option>
+              <option value="Externo">Externo</option>
+            </select>
+          </div>
+
+          <div style={{ flex: 1, minWidth: '150px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar Divisão</label>
             <select 
               value={filtroDivisao} 
               onChange={(e) => setFiltroDivisao(e.target.value)}
@@ -486,8 +519,8 @@ export default function ColetaDadosPage() {
             </select>
           </div>
 
-          <div style={{ flex: 1, minWidth: '200px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar por Subdivisão</label>
+          <div style={{ flex: 1, minWidth: '150px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar Subdivisão</label>
             <select 
               value={filtroSubdivisao} 
               onChange={(e) => setFiltroSubdivisao(e.target.value)}
@@ -498,7 +531,7 @@ export default function ColetaDadosPage() {
             </select>
           </div>
 
-          <div style={{ flex: 1, minWidth: '200px' }}>
+          <div style={{ flex: 1, minWidth: '180px' }}>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Ordenar por</label>
             <select 
               value={ordenacao} 
@@ -514,10 +547,10 @@ export default function ColetaDadosPage() {
             </select>
           </div>
 
-          {(filtroDivisao || filtroSubdivisao || ordenacao !== 'divisao_asc') && (
+          {(filtroTipoAmbiente || filtroDivisao || filtroSubdivisao || ordenacao !== 'divisao_asc') && (
             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
               <button 
-                onClick={() => { setFiltroDivisao(''); setFiltroSubdivisao(''); setOrdenacao('divisao_asc'); }}
+                onClick={() => { setFiltroTipoAmbiente(''); setFiltroDivisao(''); setFiltroSubdivisao(''); setOrdenacao('divisao_asc'); }}
                 style={{ padding: '8px 12px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', color: '#4a5568' }}
               >
                 Resetar Filtros
@@ -531,6 +564,7 @@ export default function ColetaDadosPage() {
             <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
               <tr style={{ backgroundColor: '#dd6b20', color: 'white' }}>
                 <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>LOCALIZAÇÃO</th>
+                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>TIPO</th>
                 <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>DIVISÃO</th>
                 <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>SUBDIVISÃO</th>
                 {servicosUnicos.map((serv, idx) => (
@@ -542,24 +576,29 @@ export default function ColetaDadosPage() {
             <tbody>
               {ambientesFiltradosEOrdenados.length === 0 ? (
                 <tr>
-                  <td colSpan={4 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
+                  <td colSpan={5 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
                     Nenhum registro encontrado com os filtros selecionados.
                   </td>
                 </tr>
               ) : (
                 ambientesFiltradosEOrdenados.map((combo, rowIdx) => {
-                  const [amb, pav, fas] = combo.split('___');
+                  const [amb, tipoAmb, pav, fas] = combo.split('___');
                   const corLinha = obterCorPorSubdivisao(fas);
 
                   return (
                     <tr key={rowIdx} style={{ backgroundColor: corLinha, borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold', textAlign: 'left' }}>{amb}</td>
+                      <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
+                        <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold', backgroundColor: tipoAmb === 'Externo' ? '#feebc8' : '#e2e8f0', color: tipoAmb === 'Externo' ? '#9c4221' : '#2d3748' }}>
+                          {tipoAmb || 'Interno'}
+                        </span>
+                      </td>
                       <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>{pav}</td>
                       <td style={{ padding: '8px', border: '1px solid #cbd5e0', fontWeight: 'bold' }}>{fas}</td>
                       
                       {servicosUnicos.map((serv, colIdx) => {
                         const encontrado = setorizacoesLista.find(
-                          s => s.ambiente === amb && s.pavimento === pav && s.fase === fas && s.servico === serv
+                          s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === serv
                         );
                         return (
                           <td key={colIdx} style={{ padding: '4px 6px', border: '1px solid #cbd5e0' }}>
@@ -567,8 +606,8 @@ export default function ColetaDadosPage() {
                               type="number"
                               step="0.01"
                               defaultValue={encontrado ? encontrado.quantidade : ''}
-                              key={encontrado ? `${encontrado.id}-${encontrado.quantidade}` : `${amb}-${serv}-empty`}
-                              onBlur={(e) => handleCellChange(amb, pav, fas, serv, e.target.value)}
+                              key={encontrado ? `${encontrado.id}-${encontrado.quantidade}` : `${amb}-${tipoAmb}-${serv}-empty`}
+                              onBlur={(e) => handleCellChange(amb, tipoAmb, pav, fas, serv, e.target.value)}
                               style={{ 
                                 width: '75px', 
                                 padding: '5px', 
@@ -590,13 +629,13 @@ export default function ColetaDadosPage() {
                       <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                           <button 
-                            onClick={() => handleEditLinhaQuadro(amb, pav, fas)}
+                            onClick={() => handleEditLinhaQuadro(amb, tipoAmb, pav, fas)}
                             style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
                           >
                             Editar
                           </button>
                           <button 
-                            onClick={() => handleDeleteSetorizacao(amb, pav, fas)}
+                            onClick={() => handleDeleteSetorizacao(amb, tipoAmb, pav, fas)}
                             style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
                           >
                             Excluir
