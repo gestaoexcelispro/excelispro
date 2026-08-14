@@ -274,7 +274,7 @@ export default function ColetaDadosPage() {
 
   const servicosUnicos = [...new Set(setorizacoesLista.map(s => s.servico))];
   const divisoesUnicasQuadro2 = [...new Set(setorizacoesLista.map(s => s.pavimento).filter(Boolean))];
-  const zonasUnicasQuadro2 = [...new Set(setorizacoesLista.map(s => s.fase).filter(Boolean))];
+  const zonasUnicasQuadro2 = [...new Set(setorizacoesLista.map(s => s.fase).filter(Boolean))].sort();
 
   const obterCorPorSubdivisao = (fase) => {
     if (!fase) return '#ffffff';
@@ -644,7 +644,7 @@ export default function ColetaDadosPage() {
       {/* QUADRO 3 - SETORIZAÇÃO E QUANTIFICAÇÃO (ANTIGO QUADRO 1) */}
       <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
-          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
+          <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 3 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
           
           <button 
             onClick={() => setShowModalNovoServico(true)}
@@ -886,9 +886,20 @@ export default function ColetaDadosPage() {
                           <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold' }}>{amb}</td>
                           <td style={{ padding: '6px', border: '1px solid #ddd' }}>{tipoAmb}</td>
                           <td style={{ padding: '6px', border: '1px solid #ddd' }}>{pav}</td>
-                          <td style={{ padding: '6px', border: '1px solid #ddd' >>> id: 'output_generation' }
-                        );
-                      })}
+                          <td style={{ padding: '6px', border: '1px solid #ddd' }}>{fas}</td>
+                          {servicosUnicos.map((serv, cIdx) => {
+                            const encontrado = setorizacoesLista.find(
+                              s => s.ambiente === amb && (s.tipo_ambiente || 'Interno') === tipoAmb && s.pavimento === pav && s.fase === fas && s.servico === serv
+                            );
+                            return (
+                              <td key={cIdx} style={{ padding: '6px', border: '1px solid #ddd' }}>
+                                {encontrado ? encontrado.quantidade : '-'}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
