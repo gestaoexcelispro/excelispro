@@ -14,6 +14,10 @@ export default function ColetaDadosPage() {
   const [showModalSetorizacao, setShowModalSetorizacao] = useState(false);
   const [showModalNovoServico, setShowModalNovoServico] = useState(false);
 
+  // Estados dos Filtros do Quadro
+  const [filtroDivisao, setFiltroDivisao] = useState('');
+  const [filtroSubdivisao, setFiltroSubdivisao] = useState('');
+
   const [novoPavimentoInput, setNovoPavimentoInput] = useState('');
   const [novaFaseInput, setNovaFaseInput] = useState('');
 
@@ -182,7 +186,17 @@ export default function ColetaDadosPage() {
   const fasesPadrao = ['Z1', 'Z2', 'Z3', 'Z4', 'Bloco 1', 'Bloco 2', 'Bloco 3', 'Setor 1', 'Setor 2', 'Setor 3'];
   const subdivisoesExistentes = [...new Set([...fasesPadrao, ...setorizacoesLista.map(s => s.fase).filter(Boolean)])];
 
-  const ambientesUnicos = [...new Set(setorizacoesLista.map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`))];
+  // Filtragem dos ambientes conforme os filtros selecionados no topo
+  const ambientesUnicosFiltrados = [...new Set(
+    setorizacoesLista
+      .filter(s => {
+        const matchDivisao = filtroDivisao ? s.pavimento === filtroDivisao : true;
+        const matchSubdivisao = filtroSubdivisao ? s.fase === filtroSubdivisao : true;
+        return matchDivisao && matchSubdivisao;
+      })
+      .map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`)
+  )];
+
   const servicosUnicos = [...new Set(setorizacoesLista.map(s => s.servico))];
 
   const obterCorPorSubdivisao = (fase) => {
@@ -337,7 +351,7 @@ export default function ColetaDadosPage() {
                   style={{ width: '100%', padding: '10px', borderRadius: '6px' }}
                 >
                   <option value="">-- Escolha o ambiente --</option>
-                  {ambientesUnicos.map((combo, i) => {
+                  {[...new Set(setorizacoesLista.map(s => `${s.ambiente}___${s.pavimento}___${s.fase}`))].map((combo, i) => {
                     const [amb, pav, fas] = combo.split('___');
                     return <option key={i} value={combo}>{amb} ({pav} / {fas})</option>;
                   })}
@@ -421,9 +435,9 @@ export default function ColetaDadosPage() {
         </div>
       </div>
 
-      {/* QUADRO 2 - SETORIZAÇÃO E QUANTIFICAÇÃO */}
+      {/* QUADRO 2 - SETORIZAÇÃO E QUANTIFICAÇÃO (COM FILTROS NO TOPO E INPUTS COMPACTOS) */}
       <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
           <h2 style={{ color: '#2a4365', margin: 0, fontSize: '1.1rem' }}>QUADRO 1 - SETORIZAÇÃO E QUANTIFICAÇÃO DE SERVIÇOS</h2>
           
           <button 
@@ -432,6 +446,44 @@ export default function ColetaDadosPage() {
           >
             + Novo Serviço (Coluna)
           </button>
+        </div>
+
+        {/* BARRA DE FILTROS NA PARTE SUPERIOR DA TABELA */}
+        <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', backgroundColor: '#f7fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar por Divisão</label>
+            <select 
+              value={filtroDivisao} 
+              onChange={(e) => setFiltroDivisao(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
+            >
+              <option value="">Todas as Divisões</option>
+              {divisoesExistentes.map((div, i) => <option key={i} value={div}>{div}</option>)}
+            </select>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Filtrar por Subdivisão</label>
+            <select 
+              value={filtroSubdivisao} 
+              onChange={(e) => setFiltroSubdivisao(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: 'white' }}
+            >
+              <option value="">Todas as Subdivisões</option>
+              {subdivisoesExistentes.map((fas, i) => <option key={i} value={fas}>{fas}</option>)}
+            </select>
+          </div>
+
+          {(filtroDivisao || filtroSubdivisao) && (
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button 
+                onClick={() => { setFiltroDivisao(''); setFiltroSubdivisao(''); }}
+                style={{ padding: '8px 12px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', color: '#4a5568' }}
+              >
+                Limpar Filtros
+              </button>
+            </div>
+          )}
         </div>
         
         <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
@@ -442,20 +494,20 @@ export default function ColetaDadosPage() {
                 <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>DIVISÃO</th>
                 <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>SUBDIVISÃO</th>
                 {servicosUnicos.map((serv, idx) => (
-                  <th key={idx} style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>{serv.toUpperCase()}</th>
+                  <th key={idx} style={{ padding: '10px', borderBottom: '2px solid #c05621', width: '110px' }}>{serv.toUpperCase()}</th>
                 ))}
-                <th style={{ padding: '10px', borderBottom: '2px solid #c05621' }}>AÇÕES</th>
+                <th style={{ padding: '10px', borderBottom: '2px solid #c05621', width: '130px' }}>AÇÕES</th>
               </tr>
             </thead>
             <tbody>
-              {ambientesUnicos.length === 0 ? (
+              {ambientesUnicosFiltrados.length === 0 ? (
                 <tr>
                   <td colSpan={4 + servicosUnicos.length} style={{ padding: '20px', color: '#718096' }}>
-                    Nenhum dado de setorização cadastrado ainda. Clique em "+ Nova Quantificação e Classificação" acima.
+                    Nenhum registro encontrado com os filtros selecionados.
                   </td>
                 </tr>
               ) : (
-                ambientesUnicos.map((combo, rowIdx) => {
+                ambientesUnicosFiltrados.map((combo, rowIdx) => {
                   const [amb, pav, fas] = combo.split('___');
                   const corLinha = obterCorPorSubdivisao(fas);
 
@@ -470,7 +522,8 @@ export default function ColetaDadosPage() {
                           s => s.ambiente === amb && s.pavimento === pav && s.fase === fas && s.servico === serv
                         );
                         return (
-                          <td key={colIdx} style={{ padding: '4px 8px', border: '1px solid #cbd5e0' }}>
+                          <td key={colIdx} style={{ padding: '4px 6px', border: '1px solid #cbd5e0' }}>
+                            {/* INPUT COMPACTO E DIRETAMENTE EDITÁVEL */}
                             <input 
                               type="number"
                               step="0.01"
@@ -478,34 +531,38 @@ export default function ColetaDadosPage() {
                               key={encontrado ? `${encontrado.id}-${encontrado.quantidade}` : `${amb}-${serv}-empty`}
                               onBlur={(e) => handleCellChange(amb, pav, fas, serv, e.target.value)}
                               style={{ 
-                                width: '100%', 
-                                padding: '6px', 
+                                width: '75px', 
+                                padding: '5px', 
                                 textAlign: 'center', 
                                 border: '1px solid #cbd5e0', 
                                 backgroundColor: 'white',
                                 borderRadius: '4px',
                                 outline: 'none',
                                 fontWeight: '500',
-                                fontSize: '0.85rem'
+                                fontSize: '0.85rem',
+                                margin: '0 auto',
+                                display: 'block'
                               }}
                             />
                           </td>
                         );
                       })}
 
-                      <td style={{ padding: '8px', border: '1px solid #cbd5e0', display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                        <button 
-                          onClick={() => handleEditLinhaQuadro(amb, pav, fas)}
-                          style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
-                        >
-                          Editar
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteSetorizacao(amb, pav, fas)}
-                          style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
-                        >
-                          Excluir
-                        </button>
+                      <td style={{ padding: '8px', border: '1px solid #cbd5e0' }}>
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                          <button 
+                            onClick={() => handleEditLinhaQuadro(amb, pav, fas)}
+                            style={{ backgroundColor: '#e2e8f0', color: '#2d3748', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                          >
+                            Editar
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteSetorizacao(amb, pav, fas)}
+                            style={{ backgroundColor: '#fed7d7', color: '#c53030', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                          >
+                            Excluir
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
