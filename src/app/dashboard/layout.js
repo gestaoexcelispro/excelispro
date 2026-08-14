@@ -1,5 +1,5 @@
 'use client';
-import { useState, cloneElement } from 'react';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -70,9 +70,6 @@ export default function DashboardLayout({ children }) {
   const [isFinancialOpen, setIsFinancialOpen] = useState(true);
   const [isLegalOpen, setIsLegalOpen] = useState(true);
 
-  // Referências para disparar as funções da página filha
-  const [modalTriggers, setModalTriggers] = useState({ openColeta: null, openSetorizacao: null });
-
   const changeLanguage = (targetLang) => {
     if (setLang) setLang(targetLang);
     if (toggleLanguage && lang !== targetLang) toggleLanguage();
@@ -140,13 +137,13 @@ export default function DashboardLayout({ children }) {
           {isColetaPage && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
-                onClick={() => modalTriggers.openColeta && modalTriggers.openColeta()}
+                onClick={() => window.dispatchEvent(new CustomEvent('abrir-modal-coleta'))}
                 style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
               >
                 {lang === 'en-US' ? '+ Initial Collection' : '+ Cadastrar Coleta Inicial'}
               </button>
               <button 
-                onClick={() => modalTriggers.openSetorizacao && modalTriggers.openSetorizacao()}
+                onClick={() => window.dispatchEvent(new CustomEvent('abrir-modal-setorizacao'))}
                 style={{ backgroundColor: '#2b6cb0', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
               >
                 {lang === 'en-US' ? '+ Quantification' : '+ Nova Quantificação e Classificação'}
@@ -243,8 +240,7 @@ export default function DashboardLayout({ children }) {
         </aside>
 
         <main style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          {/* Passa a função para registrar os gatilhos dos modais para a página filha */}
-          {cloneElement(children, { registerModalTriggers: (triggers) => setModalTriggers(triggers) })}
+          {children}
         </main>
       </div>
 
