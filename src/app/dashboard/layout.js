@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, cloneElement } from 'react';
 import { usePathname } from 'next/navigation';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -17,6 +17,7 @@ const translations = {
     projectsModule: 'MÓDULO PROJETOS (PMBOK)',
     projectList: 'Cadastrar / Listar Projetos',
     coletaDados: 'Coleta de Dados',
+    masterPlan: 'Master Plan (Linha de Balanço)',
     tap: 'Termo de Abertura (TAP)',
     managementPlan: 'Plano de Gerenciamento',
     raci: 'Matriz RACI',
@@ -43,6 +44,7 @@ const translations = {
     projectsModule: 'PROJECTS MODULE (PMBOK)',
     projectList: 'Register / List Projects',
     coletaDados: 'Data Collection',
+    masterPlan: 'Master Plan (Line of Balance)',
     tap: 'Project Charter (TAP)',
     managementPlan: 'Management Plan',
     raci: 'RACI Matrix',
@@ -70,6 +72,9 @@ export default function DashboardLayout({ children }) {
   const [isFinancialOpen, setIsFinancialOpen] = useState(true);
   const [isLegalOpen, setIsLegalOpen] = useState(true);
 
+  // Referências para disparar as funções da página filha (usado na coleta de dados)
+  const [modalTriggers, setModalTriggers] = useState({ openColeta: null, openSetorizacao: null });
+
   const changeLanguage = (targetLang) => {
     if (setLang) setLang(targetLang);
     if (toggleLanguage && lang !== targetLang) toggleLanguage();
@@ -79,6 +84,7 @@ export default function DashboardLayout({ children }) {
     if (pathname.includes('/diretoria/mapa')) return `${t.directorateModule} > ${t.mapDashboard}`;
     if (pathname.includes('/projetos/lista')) return `${t.projectsModule} > ${t.projectList}`;
     if (pathname.includes('/projetos/coleta')) return `${t.projectsModule} > ${t.coletaDados}`;
+    if (pathname.includes('/projetos/masterplan')) return `${t.projectsModule} > ${t.masterPlan}`;
     if (pathname.includes('/projetos/tap')) return `${t.projectsModule} > ${t.tap}`;
     if (pathname.includes('/projetos/plano')) return `${t.projectsModule} > ${t.managementPlan}`;
     if (pathname.includes('/projetos/raci')) return `${t.projectsModule} > ${t.raci}`;
@@ -203,6 +209,10 @@ export default function DashboardLayout({ children }) {
               <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
                 <a href="/dashboard/projetos/lista" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📁</span> {t.projectList}</a>
                 <a href="/dashboard/projetos/coleta" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>✏️</span> {t.coletaDados}</a>
+                
+                {/* NOVO MENU MASTER PLAN */}
+                <a href="/dashboard/projetos/masterplan" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📈</span> {t.masterPlan}</a>
+                
                 <a href="/dashboard/projetos/tap" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📜</span> {t.tap}</a>
                 <a href="/dashboard/projetos/plano" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📑</span> {t.managementPlan}</a>
                 <a href="/dashboard/projetos/raci" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>👥</span> {t.raci}</a>
@@ -240,7 +250,8 @@ export default function DashboardLayout({ children }) {
         </aside>
 
         <main style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          {children}
+          {/* Passa a função para registrar os gatilhos dos modais para a página filha */}
+          {cloneElement(children, { registerModalTriggers: (triggers) => setModalTriggers(triggers) })}
         </main>
       </div>
 
