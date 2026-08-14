@@ -17,8 +17,8 @@ const SERVICOS_CORES = {
   'VIN': { label: 'Piso Vinílico', color: '#ff9900', text: '#fff' },
   'FOR': { label: 'Forro', color: '#336600', text: '#fff' },
   'PIN': { label: 'Pintura', color: '#808000', text: '#fff' },
-  'OFF': { label: 'Fim de Semana', color: '#a0aec0', text: '#fff' }, // OFF para Finais de Semana
-  'FER': { label: 'Feriado', color: '#e53e3e', text: '#fff' },       // FER (Vermelho) para Feriados
+  'OFF': { label: 'Fim de Semana', color: '#a0aec0', text: '#fff' },
+  'FER': { label: 'Feriado', color: '#e53e3e', text: '#fff' },
 };
 
 export default function MasterPlanPage() {
@@ -33,7 +33,7 @@ export default function MasterPlanPage() {
 
   // Estados para o Modal de Feriados
   const [showFeriadosModal, setShowFeriadosModal] = useState(false);
-  const [feriados, setFeriados] = useState([]); // Array de objetos { data: 'YYYY-MM-DD', descricao: 'Independência' }
+  const [feriados, setFeriados] = useState([]);
   const [novoFeriadoData, setNovoFeriadoData] = useState('');
   const [novoFeriadoDesc, setNovoFeriadoDesc] = useState('');
 
@@ -91,7 +91,7 @@ export default function MasterPlanPage() {
     fetchZonas();
   }, []);
 
-  // Recalcula e gera as colunas de datas com controle exato de timezone e identificação de FERIADOS
+  // Recalcula e gera as colunas de datas com controle exato de timezone
   useEffect(() => {
     const gerarDatas = () => {
       if (!dataInicio || !dataFim) return;
@@ -120,7 +120,6 @@ export default function MasterPlanPage() {
         const ano = dataClonada.getFullYear();
         const diaSemanaIndex = dataClonada.getDay();
         
-        // Formato para comparar com a lista de feriados (YYYY-MM-DD)
         const dataIso = `${ano}-${mes}-${dia}`;
         const isFeriado = feriados.some(f => f.data === dataIso);
 
@@ -139,10 +138,27 @@ export default function MasterPlanPage() {
     };
 
     gerarDatas();
-  }, [dataInicio, dataFim, feriados]); // Recalcula sempre que as datas ou a lista de feriados mudar
+  }, [dataInicio, dataFim, feriados]);
 
-  // Filtra as datas visíveis (ocultando fins de semana se o botão estiver ativo)
   const datasVisiveis = datasPlanilha.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true);
+
+  // --- INTELIGÊNCIA: CÁLCULO DE TAMANHO DE PAPEL IDEAL ---
+  const calcularPapelSugerido = () => {
+    const colunasDeData = datasVisiveis.length;
+    // Largura ID (40) + Largura Descrição (280) = 320px
+    // Cada coluna de data tem ~45px
+    const larguraEstimadaPx = 320 + (colunasDeData * 45);
+
+    // Conversão baseada em Paisagem (Landscape) subtraindo margens (10mm de cada lado = ~75px)
+    if (larguraEstimadaPx <= 1047) return 'A4';
+    if (larguraEstimadaPx <= 1512) return 'A3';
+    if (larguraEstimadaPx <= 2170) return 'A2';
+    if (larguraEstimadaPx <= 3103) return 'A1';
+    if (larguraEstimadaPx <= 4418) return 'A0';
+    return 'Ajuste Perfeito (Contínua)';
+  };
+
+  const papelIdeal = calcularPapelSugerido();
 
   const handleCellChange = (linhaId, dataLabel, valor) => {
     setDadosCelulas(prev => ({ ...prev, [`${linhaId}___${dataLabel}`]: valor }));
@@ -152,7 +168,6 @@ export default function MasterPlanPage() {
   const handleAdicionarFeriado = (e) => {
     e.preventDefault();
     if (novoFeriadoData && novoFeriadoDesc) {
-      // Impede duplicidade de data
       if (feriados.find(f => f.data === novoFeriadoData)) {
         alert('Já existe um feriado cadastrado para esta data!');
         return;
@@ -255,7 +270,7 @@ export default function MasterPlanPage() {
         {zonasColeta.map((zona, idx) => <option key={idx} value={zona} />)}
       </datalist>
 
-      {/* CABEÇALHO DA PÁGINA COM SELETORES DE DATA E BOTÕES */}
+      {/* CABEÇALHO DA PÁGINA */}
       <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
         <h1 style={{ color: '#2A4365', margin: 0, fontStyle: 'italic', fontSize: '1.5rem' }}>
           {lang === 'en-US' ? 'PHYSICAL SCHEDULE - LINE OF BALANCE' : 'CRONOGRAMA FÍSICO - LINHA DE BALANÇO'}
@@ -280,7 +295,6 @@ export default function MasterPlanPage() {
             {ocultarFinaisDeSemana ? 'Mostrar Finais de Semana' : 'Ocultar Finais de Semana'}
           </button>
 
-          {/* BOTÃO CADASTRAR FERIADOS */}
           <button 
             onClick={() => setShowFeriadosModal(true)}
             style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
@@ -289,13 +303,17 @@ export default function MasterPlanPage() {
           </button>
 
           <button 
-            onClick={() => setShowPdfModal(true)}
+            onClick={() => {
+              // Ao abrir o modal, seta a configuração padrão com a sugestão do sistema (se possível)
+              const fmtSugerido = papelIdeal.split(' ')[0].toLowerCase();
+              setPdfConfig(prev => ({ ...prev, formato: ['a4','a3','a2','a1','a0'].includes(fmtSugerido) ? fmtSugerido : 'unica' }));
+              setShowPdfModal(true);
+            }}
             style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
           >
             📊 Exportar PDF
           </button>
 
-          {/* INPUTS DE RANGE DE DATAS */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#f7fafc', padding: '8px 15px', borderRadius: '8px', border: '1px solid #cbd5e0' }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Início Previsto</label>
@@ -391,23 +409,34 @@ export default function MasterPlanPage() {
       {/* MODAL CONFIGURAÇÃO DO PDF */}
       {showPdfModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '450px', fontFamily: 'sans-serif' }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '480px', fontFamily: 'sans-serif' }}>
             <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Configuração de Impressão (PDF)</h2>
             
+            {/* NOVO: AVISO DE SUGESTÃO DE PAPEL */}
+            <div style={{ backgroundColor: '#ebf8ff', padding: '12px', borderRadius: '6px', border: '1px solid #90cdf4', marginBottom: '20px' }}>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#2b6cb0', lineHeight: '1.4' }}>
+                💡 <strong>Sugestão do Sistema:</strong> Com base na largura atual do seu cronograma ({datasVisiveis.length} colunas), recomendamos utilizar o papel <strong>{papelIdeal.toUpperCase()}</strong>. Isso garante que a fonte seja mantida no tamanho original (12pt) sem distorcer.
+              </p>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Tamanho da Folha</label>
                 <select 
                   value={pdfConfig.formato} 
                   onChange={(e) => setPdfConfig({...pdfConfig, formato: e.target.value})}
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}
                 >
                   <option value="a4">A4 (Padrão)</option>
                   <option value="a3">A3 (Recomendado)</option>
                   <option value="a2">A2 (Grande)</option>
                   <option value="a1">A1 (Gigante)</option>
+                  <option value="a0">A0 (Extremo)</option>
                   <option value="unica">Ajuste Perfeito (Página Única Contínua)</option>
                 </select>
+                <p style={{ fontSize: '0.7rem', color: '#718096', marginTop: '5px' }}>
+                  * A opção "Ajuste Perfeito" evita cortes na tabela, gerando uma folha digital de tamanho infinito.
+                </p>
               </div>
 
               <div>
@@ -415,7 +444,7 @@ export default function MasterPlanPage() {
                 <select 
                   value={pdfConfig.orientacao} 
                   onChange={(e) => setPdfConfig({...pdfConfig, orientacao: e.target.value})}
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}
                   disabled={pdfConfig.formato === 'unica'}
                 >
                   <option value="landscape">Paisagem (Horizontal)</option>
@@ -438,7 +467,6 @@ export default function MasterPlanPage() {
           
           <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%' }}>
             
-            {/* HEADER DA TABELA */}
             <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#e2e8f0' }}>
               <tr>
                 <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px', borderRight: '1px solid #4a5568', width: '40px' }}>ID</th>
@@ -458,7 +486,6 @@ export default function MasterPlanPage() {
               </tr>
             </thead>
 
-            {/* CORPO DA TABELA */}
             <tbody>
               {secoes.map((secao) => (
                 <React.Fragment key={secao.id}>
@@ -502,12 +529,11 @@ export default function MasterPlanPage() {
                           </div>
                         </td>
                         
-                        {/* CÉLULAS DE DATAS (O SELECT) */}
+                        {/* CÉLULAS DE DATAS */}
                         {datasVisiveis.map((d) => {
                           const cellKey = `${linha.id}___${d.labelData}`;
                           const valorSalvo = dadosCelulas[cellKey];
                           
-                          // Lógica de preenchimento automático:
                           let defaultValor = '';
                           if (d.isFeriado) defaultValor = 'FER';
                           else if (d.isFimDeSemana) defaultValor = 'OFF';
@@ -515,14 +541,13 @@ export default function MasterPlanPage() {
                           const valorEfetivo = valorSalvo !== undefined ? valorSalvo : defaultValor;
                           const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
 
-                          // Cor de fundo padrao da célula se não houver serviço selecionado
                           let bgColor = 'transparent';
                           if (configCor.color !== 'transparent') {
                             bgColor = configCor.color;
                           } else if (d.isFeriado) {
-                            bgColor = '#fed7d7'; // Vermelho claro para coluna inteira de feriado
+                            bgColor = '#fed7d7';
                           } else if (d.isFimDeSemana) {
-                            bgColor = '#e2e8f0'; // Cinza claro para coluna inteira de fds
+                            bgColor = '#e2e8f0';
                           }
 
                           return (
