@@ -1,5 +1,5 @@
 'use client';
-import { useLanguage } from '../contexts/LanguageContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const translations = {
   'pt-BR': {
