@@ -496,13 +496,29 @@ export default function MasterPlanPage() {
                             const inputBloqueado = isRealizado ? false : linhaDeBaseCongelada;
 
                             return (
-                              <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: bgColor, textAlign: 'center', minWidth: '45px' }}>
-                                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                              <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: bgColor, textAlign: 'center', minWidth: '45px', height: '26px' }}>
+                                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <select
                                     value={valorEfetivo}
                                     onChange={(e) => isRealizado ? handleCellRealizadoChange(linha.id, d.labelData, e.target.value) : handleCellChange(linha.id, d.labelData, e.target.value)}
                                     disabled={inputBloqueado}
-                                    style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: inputBloqueado ? 'default' : 'pointer', borderRadius: '2px', opacity: (modoControle && !isRealizado && valorEfetivo) ? 0.6 : 1 }}
+                                    style={{ 
+                                      width: '100%', 
+                                      height: '100%',
+                                      backgroundColor: configCor.color, 
+                                      color: configCor.text, 
+                                      border: 'none', 
+                                      outline: 'none', 
+                                      fontSize: '0.7rem', 
+                                      fontWeight: 'bold', 
+                                      textAlign: 'center', 
+                                      textAlignLast: 'center',
+                                      appearance: 'none', 
+                                      cursor: inputBloqueado ? 'default' : 'pointer', 
+                                      borderRadius: '2px', 
+                                      opacity: (modoControle && !isRealizado && valorEfetivo) ? 0.6 : 1,
+                                      padding: '0 4px'
+                                    }}
                                   >
                                     <option value=""></option>
                                     {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
@@ -510,7 +526,7 @@ export default function MasterPlanPage() {
                                     ))}
                                   </select>
                                   {!inputBloqueado && (
-                                    <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
+                                    <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.45rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
                                   )}
                                 </div>
                               </td>
