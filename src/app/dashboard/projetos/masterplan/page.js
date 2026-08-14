@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
+import { supabase } from '../../../../lib/supabase';
 
 // Dicionário de serviços e suas cores equivalentes ao padrão visual da imagem
 const SERVICOS_CORES = {
@@ -19,32 +20,47 @@ const SERVICOS_CORES = {
   'FER': { label: 'Feriado / FDS', color: '#999999', text: '#fff' },
 };
 
-// Estrutura inicial das linhas simulando a imagem
-const LINHAS_INICIAIS = [
-  { id: 'g1', tipo: 'grupo', descricao: 'SERVIÇOS INTERNOS' },
-  { id: 1, tipo: 'linha', descricao: 'PV2 ZONA 3' },
-  { id: 2, tipo: 'linha', descricao: 'PV2 ZONA 2' },
-  { id: 3, tipo: 'linha', descricao: 'PV2 ZONA 1' },
-  { id: 4, tipo: 'linha', descricao: 'PV1 ZONA 3' },
-  { id: 5, tipo: 'linha', descricao: 'PV1 ZONA 2' },
-  { id: 6, tipo: 'linha', descricao: 'PV1 ZONA 1' },
-  { id: 'g2', tipo: 'grupo', descricao: 'SERVIÇOS EXTERNOS' },
-  { id: 7, tipo: 'linha', descricao: 'ESQUADRIAS' },
-  { id: 8, tipo: 'linha', descricao: 'VEDAÇÕES EXTERNAS PV 2' },
-  { id: 9, tipo: 'linha', descricao: 'VEDAÇÕES EXTERNAS PV 1' },
-  { id: 10, tipo: 'linha', descricao: 'COBERTURA' },
-  { id: 11, tipo: 'linha', descricao: 'ESTRUTURA PV2' },
-  { id: 12, tipo: 'linha', descricao: 'ESTRUTURA PV1' },
-  { id: 13, tipo: 'linha', descricao: 'PAINELIZAÇÃO AÇO' },
-  { id: 14, tipo: 'linha', descricao: 'FUNDAÇÃO' },
-  { id: 15, tipo: 'linha', descricao: 'LIMPEZA FINAL E OUTROS' },
-];
-
 export default function MasterPlanPage() {
   const { lang } = useLanguage();
   
   const [datasPlanilha, setDatasPlanilha] = useState([]);
   const [dadosCelulas, setDadosCelulas] = useState({});
+  const [zonasColeta, setZonasColeta] = useState([]);
+
+  // Listas de linhas editáveis
+  const [linhasInternas, setLinhasInternas] = useState([
+    { id: 'i1', descricao: 'PV2 ZONA 3' },
+    { id: 'i2', descricao: 'PV2 ZONA 2' },
+    { id: 'i3', descricao: 'PV2 ZONA 1' },
+    { id: 'i4', descricao: 'PV1 ZONA 3' },
+    { id: 'i5', descricao: 'PV1 ZONA 2' },
+    { id: 'i6', descricao: 'PV1 ZONA 1' },
+  ]);
+
+  const [linhasExternas, setLinhasExternas] = useState([
+    { id: 'e1', descricao: 'ESQUADRIAS' },
+    { id: 'e2', descricao: 'VEDAÇÕES EXTERNAS PV 2' },
+    { id: 'e3', descricao: 'VEDAÇÕES EXTERNAS PV 1' },
+    { id: 'e4', descricao: 'COBERTURA' },
+    { id: 'e5', descricao: 'ESTRUTURA PV2' },
+    { id: 'e6', descricao: 'ESTRUTURA PV1' },
+    { id: 'e7', descricao: 'PAINELIZAÇÃO AÇO' },
+    { id: 'e8', descricao: 'FUNDAÇÃO' },
+    { id: 'e9', descricao: 'LIMPEZA FINAL E OUTROS' },
+  ]);
+
+  // Busca as Divisões e Subdivisões do banco de dados (Coleta)
+  useEffect(() => {
+    const fetchZonas = async () => {
+      const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase');
+      if (data) {
+        // Cria combinações únicas "Pavimento Fase" (Ex: "PV1 ZONA 1")
+        const unicas = [...new Set(data.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
+        setZonasColeta(unicas);
+      }
+    };
+    fetchZonas();
+  }, []);
 
   // Gerar colunas de datas a partir de uma data inicial (ex: 10/08/2026)
   useEffect(() => {
@@ -75,16 +91,60 @@ export default function MasterPlanPage() {
     gerarDatas();
   }, []);
 
+  // Funções para manipular a matriz de cores
   const handleCellChange = (linhaId, dataLabel, valor) => {
-    setDadosCelulas(prev => ({
-      ...prev,
-      [`${linhaId}___${dataLabel}`]: valor
-    }));
+    setDadosCelulas(prev => ({ ...prev, [`${linhaId}___${dataLabel}`]: valor }));
+  };
+
+  // Funções para manipular as Linhas Internas
+  const adicionarLinhaInterna = () => {
+    setLinhasInternas([...linhasInternas, { id: `int_${Date.now()}`, descricao: '' }]);
+  };
+  const atualizarLinhaInterna = (id, valor) => {
+    setLinhasInternas(linhasInternas.map(l => l.id === id ? { ...l, descricao: valor } : l));
+  };
+  const removerLinhaInterna = (id) => {
+    setLinhasInternas(linhasInternas.filter(l => l.id !== id));
+  };
+
+  // Funções para manipular as Linhas Externas
+  const adicionarLinhaExterna = () => {
+    setLinhasExternas([...linhasExternas, { id: `ext_${Date.now()}`, descricao: '' }]);
+  };
+  const atualizarLinhaExterna = (id, valor) => {
+    setLinhasExternas(linhasExternas.map(l => l.id === id ? { ...l, descricao: valor } : l));
+  };
+  const removerLinhaExterna = (id) => {
+    setLinhasExternas(linhasExternas.filter(l => l.id !== id));
+  };
+
+  // Contador global para manter a sequência do ID independentemente dos grupos
+  let globalIdCounter = 1;
+
+  // Estilo padronizado para os botões de adicionar linha
+  const btnAdicionarStyle = {
+    backgroundColor: '#ebf8ff',
+    color: '#2b6cb0',
+    border: '1px dashed #3182ce',
+    padding: '4px 10px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '0.75rem',
+    display: 'inline-block',
+    marginTop: '5px'
   };
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
       
+      {/* DATALIST INVISÍVEL (Alimenta as sugestões das Linhas Internas) */}
+      <datalist id="lista-zonas-coleta">
+        {zonasColeta.map((zona, idx) => (
+          <option key={idx} value={zona} />
+        ))}
+      </datalist>
+
       {/* CABEÇALHO DA PÁGINA */}
       <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>
         <h1 style={{ color: '#2A4365', margin: 0, fontStyle: 'italic' }}>
@@ -110,7 +170,7 @@ export default function MasterPlanPage() {
               <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px', borderRight: '1px solid #fff', width: '40px' }}>
                 ID
               </th>
-              <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px 15px', borderRight: '1px solid #ccc', textAlign: 'left', minWidth: '250px' }}>
+              <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px 15px', borderRight: '1px solid #ccc', textAlign: 'left', minWidth: '280px' }}>
                 DESCRIÇÃO
               </th>
               {datasPlanilha.map((d, i) => (
@@ -131,85 +191,59 @@ export default function MasterPlanPage() {
 
           {/* CORPO DA TABELA */}
           <tbody>
-            {LINHAS_INICIAIS.map((linha, idx) => {
-              if (linha.tipo === 'grupo') {
-                return (
-                  <tr key={linha.id} style={{ backgroundColor: '#f7fafc' }}>
-                    <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#f7fafc', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600' }}>
-                      {linha.descricao}
-                    </td>
-                    {datasPlanilha.map((d, i) => (
-                      <td key={`g-${i}`} style={{ borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#f7fafc' }}></td>
-                    ))}
-                  </tr>
-                );
-              }
 
+            {/* GRUPO 1: SERVIÇOS INTERNOS */}
+            <tr style={{ backgroundColor: '#f7fafc' }}>
+              <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#f7fafc', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600' }}>
+                SERVIÇOS INTERNOS
+              </td>
+              {datasPlanilha.map((d, i) => (
+                <td key={`g1-${i}`} style={{ borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#f7fafc' }}></td>
+              ))}
+            </tr>
+
+            {linhasInternas.map((linha) => {
+              const currentId = globalIdCounter++;
               return (
                 <tr key={linha.id} style={{ borderBottom: '1px dotted #cbd5e0' }}>
                   <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0' }}>
-                    {linha.id}
+                    {currentId}
                   </td>
-                  <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 15px', color: '#2d3748', borderRight: '2px solid #cbd5e0' }}>
-                    {linha.descricao}
+                  <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <input 
+                        type="text" 
+                        value={linha.descricao} 
+                        onChange={(e) => atualizarLinhaInterna(linha.id, e.target.value)} 
+                        list="lista-zonas-coleta"
+                        placeholder="Selecione ou digite a etapa..."
+                        style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
+                      />
+                      <button onClick={() => removerLinhaInterna(linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                    </div>
                   </td>
                   
                   {/* CÉLULAS DE DATAS (Linha de Balanço) */}
                   {datasPlanilha.map((d, i) => {
                     const cellKey = `${linha.id}___${d.labelData}`;
-                    // Se for fim de semana e não tiver valor, pré-prenchê visualmente como FER
                     const valorSalvo = dadosCelulas[cellKey];
                     const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (d.isFimDeSemana ? 'FER' : '');
                     const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
 
                     return (
-                      <td 
-                        key={cellKey} 
-                        style={{ 
-                          borderRight: '1px dotted #cbd5e0', 
-                          padding: '1px',
-                          backgroundColor: configCor.color === 'transparent' && d.isFimDeSemana ? '#e2e8f0' : 'transparent',
-                          textAlign: 'center',
-                          minWidth: '45px'
-                        }}
-                      >
+                      <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: configCor.color === 'transparent' && d.isFimDeSemana ? '#e2e8f0' : 'transparent', textAlign: 'center', minWidth: '45px' }}>
                         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
                           <select
                             value={valorEfetivo}
                             onChange={(e) => handleCellChange(linha.id, d.labelData, e.target.value)}
-                            style={{
-                              width: '100%',
-                              padding: '2px 0px',
-                              backgroundColor: configCor.color,
-                              color: configCor.text,
-                              border: 'none',
-                              outline: 'none',
-                              fontSize: '0.65rem',
-                              fontWeight: 'bold',
-                              textAlign: 'center',
-                              appearance: 'none', // Remove a seta nativa
-                              cursor: 'pointer',
-                              borderRadius: '2px'
-                            }}
+                            style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: 'pointer', borderRadius: '2px' }}
                           >
                             <option value=""></option>
                             {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
                               <option key={sigla} value={sigla}>{sigla}</option>
                             ))}
                           </select>
-                          
-                          {/* Seta customizada indicando o dropdown, igual à imagem */}
-                          <div style={{ 
-                            position: 'absolute', 
-                            right: '2px', 
-                            top: '50%', 
-                            transform: 'translateY(-50%)', 
-                            pointerEvents: 'none',
-                            fontSize: '0.5rem',
-                            color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)'
-                          }}>
-                            ▼
-                          </div>
+                          <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
                         </div>
                       </td>
                     );
@@ -217,6 +251,87 @@ export default function MasterPlanPage() {
                 </tr>
               );
             })}
+            
+            {/* BOTÃO ADICIONAR LINHA INTERNA */}
+            <tr>
+              <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
+                <button onClick={adicionarLinhaInterna} style={btnAdicionarStyle}>+ Adicionar Linha Interna</button>
+              </td>
+              {datasPlanilha.map((d, i) => (
+                <td key={`add-int-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : 'white' }}></td>
+              ))}
+            </tr>
+
+
+            {/* GRUPO 2: SERVIÇOS EXTERNOS */}
+            <tr style={{ backgroundColor: '#f7fafc' }}>
+              <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#f7fafc', padding: '6px 15px', fontWeight: 'bold', fontStyle: 'italic', borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600' }}>
+                SERVIÇOS EXTERNOS
+              </td>
+              {datasPlanilha.map((d, i) => (
+                <td key={`g2-${i}`} style={{ borderBottom: '1px solid #ff6600', borderTop: '1px solid #ff6600', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : '#f7fafc' }}></td>
+              ))}
+            </tr>
+
+            {linhasExternas.map((linha) => {
+              const currentId = globalIdCounter++;
+              return (
+                <tr key={linha.id} style={{ borderBottom: '1px dotted #cbd5e0' }}>
+                  <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0' }}>
+                    {currentId}
+                  </td>
+                  <td style={{ position: 'sticky', left: '40px', zIndex: 5, backgroundColor: 'white', padding: '4px 10px', borderRight: '2px solid #cbd5e0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <input 
+                        type="text" 
+                        value={linha.descricao} 
+                        onChange={(e) => atualizarLinhaExterna(linha.id, e.target.value)} 
+                        placeholder="Digite a etapa externa..."
+                        style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
+                      />
+                      <button onClick={() => removerLinhaExterna(linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                    </div>
+                  </td>
+                  
+                  {/* CÉLULAS DE DATAS (Linha de Balanço) */}
+                  {datasPlanilha.map((d, i) => {
+                    const cellKey = `${linha.id}___${d.labelData}`;
+                    const valorSalvo = dadosCelulas[cellKey];
+                    const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (d.isFimDeSemana ? 'FER' : '');
+                    const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
+
+                    return (
+                      <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: configCor.color === 'transparent' && d.isFimDeSemana ? '#e2e8f0' : 'transparent', textAlign: 'center', minWidth: '45px' }}>
+                        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                          <select
+                            value={valorEfetivo}
+                            onChange={(e) => handleCellChange(linha.id, d.labelData, e.target.value)}
+                            style={{ width: '100%', padding: '2px 0px', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.65rem', fontWeight: 'bold', textAlign: 'center', appearance: 'none', cursor: 'pointer', borderRadius: '2px' }}
+                          >
+                            <option value=""></option>
+                            {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
+                              <option key={sigla} value={sigla}>{sigla}</option>
+                            ))}
+                          </select>
+                          <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: configCor.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+
+            {/* BOTÃO ADICIONAR LINHA EXTERNA */}
+            <tr>
+              <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
+                <button onClick={adicionarLinhaExterna} style={btnAdicionarStyle}>+ Adicionar Linha Externa</button>
+              </td>
+              {datasPlanilha.map((d, i) => (
+                <td key={`add-ext-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFimDeSemana ? '#e2e8f0' : 'white' }}></td>
+              ))}
+            </tr>
+
           </tbody>
         </table>
       </div>
