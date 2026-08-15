@@ -87,7 +87,11 @@ export default function DashboardLayout({ children }) {
   };
 
   const getBreadcrumb = () => {
+    // Diretoria
+    if (pathname === '/dashboard' || pathname === '/dashboard/') return `${t.directorateModule} > ${t.dashboard}`;
     if (pathname.includes('/diretoria/mapa')) return `${t.directorateModule} > ${t.mapDashboard}`;
+    
+    // Projetos
     if (pathname.includes('/projetos/lista')) return `${t.projectsModule} > ${t.projectList}`;
     if (pathname.includes('/projetos/coleta')) return `${t.projectsModule} > ${t.coletaDados}`;
     if (pathname.includes('/projetos/masterplan')) return `${t.projectsModule} > ${t.masterPlan}`;
@@ -98,14 +102,21 @@ export default function DashboardLayout({ children }) {
     if (pathname.includes('/projetos/plano')) return `${t.projectsModule} > ${t.managementPlan}`;
     if (pathname.includes('/projetos/raci')) return `${t.projectsModule} > ${t.raci}`;
     if (pathname.includes('/projetos/riscos')) return `${t.projectsModule} > ${t.risks}`;
+    
+    // Comercial
     if (pathname.includes('/orcamentos')) return `${t.commercialModule} > ${t.budgets}`;
     if (pathname.includes('/propostas')) return `${t.commercialModule} > ${t.proposals}`;
     if (pathname.includes('/modelos')) return `${t.commercialModule} > ${t.templates}`;
     if (pathname.includes('/servicos')) return `${t.commercialModule} > ${t.services}`;
+    
+    // Controladoria
     if (pathname.includes('/controladoria/receber')) return `${t.financialModule} > ${t.receivable}`;
     if (pathname.includes('/controladoria/pagar')) return `${t.financialModule} > ${t.payable}`;
+    
+    // Jurídico
     if (pathname.includes('/juridico/contratos')) return `${t.legalModule} > ${t.contracts}`;
-    return `${t.commercialModule} > ${t.dashboard}`;
+    
+    return `${t.directorateModule} > ${t.dashboard}`;
   };
 
   const isColetaPage = pathname === '/dashboard/projetos/coleta';
@@ -186,23 +197,26 @@ export default function DashboardLayout({ children }) {
           whiteSpace: 'nowrap'
         }}>
           <div style={{ width: '260px' }}>
+            
+            {/* MÓDULO DIRETORIA */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#ebf8ff' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>📊</span> <span style={{ fontSize: '0.75rem' }}>{t.directorateModule}</span></div>
               <button onClick={() => setIsDirectorateOpen(!isDirectorateOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isDirectorateOpen ? '▲' : '▼'}</button>
             </div>
             {isDirectorateOpen && (
               <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
+                <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>⊞</span> {t.dashboard}</a>
                 <a href="/dashboard/diretoria/mapa" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🗺️</span> {t.mapDashboard}</a>
               </nav>
             )}
 
+            {/* MÓDULO COMERCIAL */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>🏢</span> <span style={{ fontSize: '0.75rem' }}>{t.commercialModule}</span></div>
               <button onClick={() => setIsCommercialOpen(!isCommercialOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isCommercialOpen ? '▲' : '▼'}</button>
             </div>
             {isCommercialOpen && (
               <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
-                <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>⊞</span> {t.dashboard}</a>
                 <a href="/dashboard/orcamentos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📊</span> {t.budgets}</a>
                 <a href="/dashboard/propostas" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📄</span> {t.proposals}</a>
                 <a href="/dashboard/modelos" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📚</span> {t.templates}</a>
@@ -210,6 +224,7 @@ export default function DashboardLayout({ children }) {
               </nav>
             )}
 
+            {/* MÓDULO PROJETOS */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>📋</span> <span style={{ fontSize: '0.75rem' }}>{t.projectsModule}</span></div>
               <button onClick={() => setIsProjectsOpen(!isProjectsOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isProjectsOpen ? '▲' : '▼'}</button>
@@ -231,6 +246,7 @@ export default function DashboardLayout({ children }) {
               </nav>
             )}
 
+            {/* MÓDULO CONTROLADORIA */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>💰</span> <span style={{ fontSize: '0.75rem' }}>{t.financialModule}</span></div>
               <button onClick={() => setIsFinancialOpen(!isFinancialOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isFinancialOpen ? '▲' : '▼'}</button>
@@ -242,6 +258,7 @@ export default function DashboardLayout({ children }) {
               </nav>
             )}
 
+            {/* MÓDULO JURÍDICO */}
             <div style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#1a365d', fontWeight: 'bold', backgroundColor: '#f8fafc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>⚖️</span> <span style={{ fontSize: '0.75rem' }}>{t.legalModule}</span></div>
               <button onClick={() => setIsLegalOpen(!isLegalOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1a365d', fontSize: '0.75rem' }}>{isLegalOpen ? '▲' : '▼'}</button>
