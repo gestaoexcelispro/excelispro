@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { supabase } from '../../../../lib/supabase';
 
-// Dicionário de serviços e suas cores equivalentes ao padrão visual
 const SERVICOS_CORES = {
   '': { label: '', color: 'transparent', text: '#000' },
   'FUN': { label: 'Fundação', color: '#ff00ff', text: '#fff' },
@@ -24,26 +23,21 @@ const SERVICOS_CORES = {
 export default function MasterPlanPage() {
   const { lang } = useLanguage();
   
-  // --- ESTADOS DE PROJETO E ENGENHARIA ---
   const [projetosLista, setProjetosLista] = useState([]);
   const [projetoSelecionado, setProjetoSelecionado] = useState('');
 
-  // Estados de Controle / Linha de Base
   const [linhaDeBaseCongelada, setLinhaDeBaseCongelada] = useState(false);
-  const [modoControle, setModoControle] = useState(false); // false = Planejamento, true = Controle
+  const [modoControle, setModoControle] = useState(false);
 
-  // Estados para gerenciar o range de datas
   const [dataInicio, setDataInicio] = useState('2026-08-03');
   const [dataFim, setDataFim] = useState('2026-10-31');
   const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(false);
 
-  // Estados para o Modal de Feriados
   const [showFeriadosModal, setShowFeriadosModal] = useState(false);
   const [feriados, setFeriados] = useState([]);
   const [novoFeriadoData, setNovoFeriadoData] = useState('');
   const [novoFeriadoDesc, setNovoFeriadoDesc] = useState('');
 
-  // Estados para o Modal de PDF
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfConfig, setPdfConfig] = useState({
     formato: 'a3',
@@ -51,11 +45,10 @@ export default function MasterPlanPage() {
   });
 
   const [datasPlanilha, setDatasPlanilha] = useState([]);
-  const [dadosCelulas, setDadosCelulas] = useState({});     // Dados do PREVISTO
-  const [dadosRealizado, setDadosRealizado] = useState({}); // Dados do REALIZADO
+  const [dadosCelulas, setDadosCelulas] = useState({});
+  const [dadosRealizado, setDadosRealizado] = useState({});
   const [zonasColeta, setZonasColeta] = useState([]);
 
-  // Estrutura Dinâmica de Seções
   const [secoes, setSecoes] = useState([
     {
       id: 'sec_1',
@@ -86,7 +79,6 @@ export default function MasterPlanPage() {
     }
   ]);
 
-  // Busca os projetos cadastrados
   useEffect(() => {
     const fetchProjetos = async () => {
       const { data } = await supabase.from('projetos').select('id, nome_projeto').order('id', { ascending: false });
@@ -95,7 +87,6 @@ export default function MasterPlanPage() {
     fetchProjetos();
   }, []);
 
-  // Busca as Zonas do projeto selecionado
   useEffect(() => {
     const fetchZonasDoProjeto = async () => {
       if (!projetoSelecionado) { setZonasColeta([]); return; }
@@ -108,7 +99,6 @@ export default function MasterPlanPage() {
     fetchZonasDoProjeto();
   }, [projetoSelecionado]);
 
-  // Recalcula e gera as colunas de datas
   useEffect(() => {
     const gerarDatas = () => {
       if (!dataInicio || !dataFim || !projetoSelecionado) return;
@@ -191,7 +181,6 @@ export default function MasterPlanPage() {
     }
   };
 
-  // Funções de Feriados
   const handleAdicionarFeriado = (e) => {
     e.preventDefault();
     if (novoFeriadoData && novoFeriadoDesc) {
@@ -202,7 +191,6 @@ export default function MasterPlanPage() {
   };
   const handleRemoverFeriado = (data) => setFeriados(feriados.filter(f => f.data !== data));
 
-  // Funções de Seções e Linhas
   const handleAdicionarSecao = () => setSecoes([...secoes, { id: `sec_${Date.now()}`, titulo: 'NOVA SEÇÃO DE SERVIÇOS', linhas: [] }]);
   const handleAtualizarTituloSecao = (secId, novoTitulo) => setSecoes(secoes.map(s => s.id === secId ? { ...s, titulo: novoTitulo } : s));
   const handleRemoverSecao = (secId) => { if(window.confirm('Deseja excluir a seção?')) setSecoes(secoes.filter(s => s.id !== secId)); };
@@ -211,7 +199,6 @@ export default function MasterPlanPage() {
   const handleAtualizarLinha = (secId, linhaId, valor) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.map(l => l.id === linhaId ? { ...l, descricao: valor } : l) } : s));
   const handleRemoverLinha = (secId, linhaId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.filter(l => l.id !== linhaId) } : s));
 
-  // Função de PDF
   const gerarPDF = () => {
     import('html2pdf.js').then((html2pdf) => {
       const elemento = document.getElementById('conteudo-masterplan-pdf');
@@ -262,7 +249,6 @@ export default function MasterPlanPage() {
               </select>
             </div>
 
-            {/* CONTROLES DE ENGENHARIA (CONGELAR/MODOS) */}
             {projetoSelecionado && (
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '2px solid #e2e8f0', paddingLeft: '15px' }}>
                 {!linhaDeBaseCongelada ? (
@@ -295,7 +281,6 @@ export default function MasterPlanPage() {
           </div>
         </div>
 
-        {/* CONTROLES DE DATA E FERIADOS/PDF */}
         {projetoSelecionado && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)} style={{ backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', color: ocultarFinaisDeSemana ? 'white' : '#4a5568', border: '1px solid #cbd5e0', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
@@ -322,7 +307,6 @@ export default function MasterPlanPage() {
         )}
       </div>
 
-      {/* TELA DE AVISO QUANDO NENHUM PROJETO ESTÁ SELECIONADO */}
       {!projetoSelecionado && (
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7fafc', borderRadius: '8px', border: '2px dashed #cbd5e0' }}>
           <div style={{ textAlign: 'center', color: '#718096' }}>
@@ -333,7 +317,6 @@ export default function MasterPlanPage() {
         </div>
       )}
 
-      {/* MODAL CADASTRAR FERIADOS */}
       {showFeriadosModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px', fontFamily: 'sans-serif' }}>
@@ -379,7 +362,6 @@ export default function MasterPlanPage() {
         </div>
       )}
 
-      {/* MODAL CONFIGURAÇÃO DO PDF */}
       {showPdfModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '480px', fontFamily: 'sans-serif' }}>
@@ -421,26 +403,27 @@ export default function MasterPlanPage() {
         </div>
       )}
 
-      {/* CONTAINER PRINCIPAL DO CRONOGRAMA COM LINHAS DUPLAS */}
       {projetoSelecionado && (
         <>
           <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
             <div id="conteudo-masterplan-pdf" style={{ minWidth: 'max-content', paddingBottom: '20px' }}>
               
               <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%' }}>
-                <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#e2e8f0' }}>
+                
+                {/* CABEÇALHO AZUL ESCURO CORRIGIDO */}
+                <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#1a365d' }}>
                   <tr>
-                    <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px', borderRight: '1px solid #4a5568', width: '40px' }}>ID</th>
-                    <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#2a4365', color: 'white', padding: '8px 15px', borderRight: '1px solid #cbd5e0', textAlign: 'left', minWidth: '320px' }}>DESCRIÇÃO</th>
+                    <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#1a365d', color: 'white', padding: '8px', borderRight: '1px solid #2a4365', width: '40px' }}>ID</th>
+                    <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#1a365d', color: 'white', padding: '8px 15px', borderRight: '1px solid #2a4365', textAlign: 'left', minWidth: '320px' }}>DESCRIÇÃO</th>
                     {datasVisiveis.map((d, i) => (
-                      <th key={`data-${i}`} style={{ backgroundColor: '#edf2f7', borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d', textAlign: 'center' }}>
+                      <th key={`data-${i}`} style={{ backgroundColor: '#1a365d', borderRight: '1px solid #2a4365', borderBottom: '1px solid #2a4365', padding: '4px 2px', fontSize: '0.8rem', color: 'white', textAlign: 'center' }}>
                         {d.labelData}
                       </th>
                     ))}
                   </tr>
                   <tr>
                     {datasVisiveis.map((d, i) => (
-                      <th key={`sem-${i}`} style={{ backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#cbd5e0' : '#f7fafc'), borderRight: '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.75rem', color: d.isFeriado ? '#c53030' : '#4a5568', fontWeight: (d.isFimDeSemana || d.isFeriado) ? 'bold' : 'normal', textAlign: 'center' }}>
+                      <th key={`sem-${i}`} style={{ backgroundColor: d.isFeriado ? '#c53030' : (d.isFimDeSemana ? '#718096' : '#edf2f7'), borderRight: '1px solid #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.75rem', color: (d.isFeriado || d.isFimDeSemana) ? 'white' : '#1a365d', fontWeight: 'bold', textAlign: 'center' }}>
                         {d.labelSemana}
                       </th>
                     ))}
@@ -450,7 +433,6 @@ export default function MasterPlanPage() {
                 <tbody>
                   {secoes.map((secao) => (
                     <React.Fragment key={secao.id}>
-                      {/* CABEÇALHO DA SEÇÃO */}
                       <tr style={{ backgroundColor: '#edf2f7' }}>
                         <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#edf2f7', padding: '6px 15px', borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -471,7 +453,6 @@ export default function MasterPlanPage() {
                         ))}
                       </tr>
 
-                      {/* RENDERIZAÇÃO DAS LINHAS DUPLAS (PREVISTO / REALIZADO) */}
                       {secao.linhas.map((linha) => {
                         const currentId = globalIdCounter++;
                         
@@ -502,23 +483,7 @@ export default function MasterPlanPage() {
                                     value={valorEfetivo}
                                     onChange={(e) => isRealizado ? handleCellRealizadoChange(linha.id, d.labelData, e.target.value) : handleCellChange(linha.id, d.labelData, e.target.value)}
                                     disabled={inputBloqueado}
-                                    style={{ 
-                                      width: '100%', 
-                                      height: '100%',
-                                      backgroundColor: configCor.color, 
-                                      color: configCor.text, 
-                                      border: 'none', 
-                                      outline: 'none', 
-                                      fontSize: '0.7rem', 
-                                      fontWeight: 'bold', 
-                                      textAlign: 'center', 
-                                      textAlignLast: 'center',
-                                      appearance: 'none', 
-                                      cursor: inputBloqueado ? 'default' : 'pointer', 
-                                      borderRadius: '2px', 
-                                      opacity: (modoControle && !isRealizado && valorEfetivo) ? 0.6 : 1,
-                                      padding: '0 4px'
-                                    }}
+                                    style={{ width: '100%', height: '100%', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.7rem', fontWeight: 'bold', textAlign: 'center', textAlignLast: 'center', appearance: 'none', cursor: inputBloqueado ? 'default' : 'pointer', borderRadius: '2px', opacity: (modoControle && !isRealizado && valorEfetivo) ? 0.6 : 1, padding: '0 4px' }}
                                   >
                                     <option value=""></option>
                                     {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
@@ -536,7 +501,6 @@ export default function MasterPlanPage() {
 
                         return (
                           <React.Fragment key={linha.id}>
-                            {/* LINHA PREVISTA */}
                             <tr style={{ borderBottom: modoControle ? 'none' : '1px dotted #cbd5e0', backgroundColor: modoControle ? '#f7fafc' : 'white' }}>
                               <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: modoControle ? '#f7fafc' : 'white', padding: '4px', textAlign: 'center', color: '#4a5568', borderRight: '1px solid #e2e8f0', fontWeight: '500' }}>
                                 {currentId}
@@ -563,7 +527,6 @@ export default function MasterPlanPage() {
                               {renderizarCelulas(false)}
                             </tr>
 
-                            {/* LINHA REALIZADA (Ativa no modo controle) */}
                             {modoControle && (
                               <tr style={{ borderBottom: '1px dotted #cbd5e0', backgroundColor: 'white' }}>
                                 <td style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '4px', borderRight: '1px solid #e2e8f0', color: 'transparent' }}>
@@ -584,7 +547,6 @@ export default function MasterPlanPage() {
                         );
                       })}
                       
-                      {/* BOTAO DE ADICIONAR LINHA NA SEÇÃO */}
                       {!linhaDeBaseCongelada && (
                         <tr>
                           <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
@@ -598,7 +560,6 @@ export default function MasterPlanPage() {
                     </React.Fragment>
                   ))}
 
-                  {/* LINHA FINAL PARA ADICIONAR NOVA SEÇÃO */}
                   {!linhaDeBaseCongelada && (
                     <tr>
                       <td colSpan={2 + datasVisiveis.length} style={{ padding: '20px', backgroundColor: '#f4f7f6', textAlign: 'left' }}>
@@ -610,7 +571,6 @@ export default function MasterPlanPage() {
                   )}
                 </tbody>
               </table>
-
             </div>
           </div>
           
