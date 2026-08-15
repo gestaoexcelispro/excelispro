@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { supabase } from '../../../../lib/supabase';
 
-// Dicionário de serviços e cores
 const SERVICOS_CORES = {
   '': { label: '', color: 'transparent', text: '#000' },
   'FUN': { label: 'Fundação', color: '#ff00ff', text: '#fff' },
@@ -29,14 +28,10 @@ const COLUNAS_KOSKELA = [
 export default function LookaheadPage() {
   const { lang } = useLanguage();
   
-  // --- ESTADOS DE PROJETO ---
   const [projetosLista, setProjetosLista] = useState([]);
   const [projetoSelecionado, setProjetoSelecionado] = useState('');
+  const [abaAtiva, setAbaAtiva] = useState('planilha');
 
-  // --- NAVEGAÇÃO DE ABAS ---
-  const [abaAtiva, setAbaAtiva] = useState('planilha'); // 'planilha' ou 'restricoes'
-
-  // --- ESTADOS DO LOOKAHEAD ---
   const [dataInicio, setDataInicio] = useState('2026-08-10');
   const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(true);
   
@@ -44,21 +39,13 @@ export default function LookaheadPage() {
   const [dadosCelulas, setDadosCelulas] = useState({});
   const [dadosKoskela, setDadosKoskela] = useState({});
   const [zonasColeta, setZonasColeta] = useState([]);
-
-  // --- ESTADO DAS RESTRIÇÕES ---
   const [restricoes, setRestricoes] = useState([]);
 
+  // NOVO: Estado para armazenar as tarefas puxadas do Master Plan
+  const [masterPlanTarefas, setMasterPlanTarefas] = useState([]);
+
   const [linhas, setLinhas] = useState([
-    { id: 'l1', descricao: 'FUNDAÇÃO' },
-    { id: 'l2', descricao: 'PAINELIZAÇÃO AÇO' },
-    { id: 'l3', descricao: 'ESTRUTURA PV1' },
-    { id: 'l4', descricao: 'ESTRUTURA PV2' },
-    { id: 'l5', descricao: 'COBERTURA' },
-    { id: 'l6', descricao: 'VEDAÇÕES EXTERNAS PV 2' },
-    { id: 'l7', descricao: 'VEDAÇÕES EXTERNAS PV 1' },
-    { id: 'l8', descricao: 'PV2 ZONA 1' },
-    { id: 'l9', descricao: 'PV2 ZONA 2' },
-    { id: 'l10', descricao: 'PV2 ZONA 3' },
+    { id: 'l1', descricao: '' }, // Começa com uma linha vazia para instigar a busca
   ]);
 
   useEffect(() => {
@@ -69,16 +56,49 @@ export default function LookaheadPage() {
     fetchProjetos();
   }, []);
 
+  // Busca Zonas da Coleta e TAREFAS DO MASTER PLAN
   useEffect(() => {
-    const fetchZonasDoProjeto = async () => {
-      if (!projetoSelecionado) { setZonasColeta([]); return; }
-      const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase').eq('projeto_id', projetoSelecionado);
-      if (data) {
-        const unicas = [...new Set(data.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
+    const fetchDadosDoProjeto = async () => {
+      if (!projetoSelecionado) { 
+        setZonasColeta([]); 
+        setMasterPlanTarefas([]);
+        return; 
+      }
+      
+      // 1. Busca Zonas Normais
+      const { data: zonas } = await supabase.from('setorizacao_obras').select('pavimento, fase').eq('projeto_id', projetoSelecionado);
+      if (zonas) {
+        const unicas = [...new Set(zonas.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
         setZonasColeta(unicas);
       }
+
+      // 2. Busca Master Plan (Para a Importação Mágica)
+      // Nota: Esta tabela precisa ser criada no Supabase ('projetos_masterplan')
+      const { data: mpData, error } = await supabase
+        .from('projetos_masterplan')
+        .select('dados_linhas, dados_celulas')
+        .eq('projeto_id', projetoSelecionado)
+        .single();
+
+      if (mpData && mpData.dados_linhas && mpData.dados_celulas) {
+        // Formata as tarefas para facilitar a cópia das datas depois
+        const tarefasMapeadas = mpData.dados_linhas.flatMap(secao => 
+          secao.linhas.map(linha => {
+            const celulasDaLinha = {};
+            // Filtra do Master Plan apenas as datas que pertencem a esta linha específica
+            Object.keys(mpData.dados_celulas).forEach(key => {
+              if (key.startsWith(`${linha.id}___`)) {
+                const dataLabel = key.split('___')[1]; // Pega o "DD/MM"
+                celulasDaLinha[dataLabel] = mpData.dados_celulas[key];
+              }
+            });
+            return { id: linha.id, descricao: linha.descricao, celulas: celulasDaLinha };
+          })
+        );
+        setMasterPlanTarefas(tarefasMapeadas);
+      }
     };
-    fetchZonasDoProjeto();
+    fetchDadosDoProjeto();
   }, [projetoSelecionado]);
 
   useEffect(() => {
@@ -116,20 +136,16 @@ export default function LookaheadPage() {
     setDadosCelulas(prev => ({ ...prev, [`${linhaId}___${dataLabel}`]: valor }));
   };
 
-  // --- INTELIGÊNCIA: KOSKELA GERA RESTRIÇÃO ---
   const handleKoskelaChange = (linhaId, colunaKoskela, valor) => {
     setDadosKoskela(prev => ({ ...prev, [`${linhaId}___${colunaKoskela}`]: valor }));
 
-    // Se marcou "Não", cadastra a restrição automaticamente
     if (valor === 'Não') {
       setRestricoes(prev => {
-        // Evita duplicar se já existir uma restrição para a mesma linha e coluna Koskela
         const jaExiste = prev.find(r => r.linhaId === linhaId && r.restricao === colunaKoskela);
         if (jaExiste) return prev;
 
         const linhaReferencia = linhas.find(l => l.id === linhaId);
         
-        // Tenta descobrir o código da tarefa (ex: VTS) olhando as células preenchidas daquela linha
         let codigoSugerido = '';
         for (const key in dadosCelulas) {
           if (key.startsWith(`${linhaId}___`) && dadosCelulas[key] && !['OFF', 'FER', 'SUP'].includes(dadosCelulas[key])) {
@@ -147,7 +163,7 @@ export default function LookaheadPage() {
           motivo: '',
           acao: '',
           responsavel: '',
-          dataStatus: new Date().toISOString().split('T')[0], // Data de hoje
+          dataStatus: new Date().toISOString().split('T')[0],
           status: 'NÃO RESOLVIDO'
         };
 
@@ -156,33 +172,42 @@ export default function LookaheadPage() {
     }
   };
 
-  // --- FUNÇÕES DA ABA RESTRIÇÕES ---
-  const atualizarRestricao = (id, campo, valor) => {
-    setRestricoes(prev => prev.map(r => r.id === id ? { ...r, [campo]: valor } : r));
-  };
+  // --- MÁGICA: ATUALIZA LINHA E COPIA DADOS DO MASTER PLAN ---
+  const atualizarLinha = (id, valorDigitado) => {
+    setLinhas(linhas.map(l => l.id === id ? { ...l, descricao: valorDigitado } : l));
 
-  const removerRestricao = (id) => {
-    if (window.confirm('Tem certeza que deseja remover esta restrição?')) {
-      setRestricoes(prev => prev.filter(r => r.id !== id));
+    // Procura se o valor digitado/selecionado bate com alguma tarefa do Master Plan
+    const tarefaMPEncontrada = masterPlanTarefas.find(t => t.descricao === valorDigitado);
+    
+    if (tarefaMPEncontrada) {
+      // Se encontrou, preenche as células do Lookahead automaticamente
+      setDadosCelulas(prev => {
+        const novosDados = { ...prev };
+        Object.keys(tarefaMPEncontrada.celulas).forEach(dataLabel => {
+          if (tarefaMPEncontrada.celulas[dataLabel]) {
+            novosDados[`${id}___${dataLabel}`] = tarefaMPEncontrada.celulas[dataLabel];
+          }
+        });
+        return novosDados;
+      });
     }
   };
 
-  // Funções de manipulação de linhas do Lookahead
   const adicionarLinha = () => setLinhas([...linhas, { id: `l_${Date.now()}`, descricao: '' }]);
-  const atualizarLinha = (id, valor) => setLinhas(linhas.map(l => l.id === id ? { ...l, descricao: valor } : l));
   const removerLinha = (id) => setLinhas(linhas.filter(l => l.id !== id));
+
+  const atualizarRestricao = (id, campo, valor) => setRestricoes(prev => prev.map(r => r.id === id ? { ...r, [campo]: valor } : r));
+  const removerRestricao = (id) => { if (window.confirm('Tem certeza que deseja remover esta restrição?')) setRestricoes(prev => prev.filter(r => r.id !== id)); };
 
   const semanasRenderizadas = semanasPlanilha.map(semana => ({
     ...semana,
     diasVisiveis: semana.dias.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true)
   }));
-
   const totalDiasVisiveis = semanasRenderizadas.reduce((total, semana) => total + semana.diasVisiveis.length, 0);
 
   let globalIdCounter = 1;
   let restricaoIdCounter = 1;
 
-  // --- FUNÇÃO AUXILIAR PARA COR DO STATUS DA RESTRIÇÃO ---
   const getStatusStyle = (status) => {
     if (status === 'EM ANDAMENTO') return { backgroundColor: '#fefcbf', color: '#975a16' };
     if (status === 'NÃO RESOLVIDO') return { backgroundColor: '#9b2c2c', color: '#fff' };
@@ -193,8 +218,12 @@ export default function LookaheadPage() {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
       
+      {/* DATALIST: Agora mistura as Zonas de Coleta com as Tarefas Reais do Master Plan */}
       <datalist id="lista-zonas-lookahead">
-        {zonasColeta.map((zona, idx) => <option key={idx} value={zona} />)}
+        {masterPlanTarefas.length > 0 && (
+          masterPlanTarefas.map((t, idx) => <option key={`mp-${idx}`} value={t.descricao}>Importar do Master Plan</option>)
+        )}
+        {zonasColeta.map((zona, idx) => <option key={`z-${idx}`} value={zona}>Coleta de Dados</option>)}
       </datalist>
 
       {/* CABEÇALHO DA PÁGINA */}
@@ -217,6 +246,13 @@ export default function LookaheadPage() {
                 ))}
               </select>
             </div>
+            
+            {/* Aviso UI de Importação */}
+            {projetoSelecionado && masterPlanTarefas.length > 0 && (
+              <span style={{ fontSize: '0.75rem', backgroundColor: '#ebf8ff', color: '#2b6cb0', padding: '6px 10px', borderRadius: '4px', border: '1px solid #90cdf4', fontWeight: 'bold' }}>
+                🔗 Integração com Master Plan Ativa
+              </span>
+            )}
           </div>
         </div>
 
@@ -266,9 +302,7 @@ export default function LookaheadPage() {
             </button>
           </div>
 
-          {/* ============================================================== */}
-          {/* ABA 1: PLANILHA LOOKAHEAD E KOSKELA                            */}
-          {/* ============================================================== */}
+          {/* ABA 1: PLANILHA LOOKAHEAD E KOSKELA */}
           {abaAtiva === 'planilha' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               
@@ -280,7 +314,6 @@ export default function LookaheadPage() {
 
               <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                 <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%' }}>
-                  
                   <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#e2e8f0' }}>
                     <tr>
                       <th colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: 'white', borderRight: '1px solid #cbd5e0', padding: '4px', textAlign: 'left', fontStyle: 'italic', color: '#1a365d' }}>
@@ -297,24 +330,20 @@ export default function LookaheadPage() {
                         MATRIZ DE FLUXO DE KOSKELA
                       </th>
                     </tr>
-
                     <tr>
                       <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px', borderRight: '1px solid #fff', borderTop: '2px solid #fff', width: '40px' }}>ID</th>
                       <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px 15px', borderRight: '1px solid #cbd5e0', borderTop: '2px solid #fff', textAlign: 'left', minWidth: '280px' }}>DESCRIÇÃO</th>
-                      
                       {semanasRenderizadas.map(s => s.diasVisiveis.map((d, i) => (
                         <th key={`data-${s.numero}-${i}`} style={{ backgroundColor: '#edf2f7', borderRight: i === s.diasVisiveis.length - 1 ? '2px solid #2a4365' : '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', borderTop: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d', textAlign: 'center' }}>
                           {d.labelData}
                         </th>
                       )))}
-
                       {COLUNAS_KOSKELA.map((col, idx) => (
                         <th key={`k-${idx}`} rowSpan={2} style={{ backgroundColor: '#f6ad55', color: '#1a365d', borderRight: '1px solid #dd6b20', borderTop: '1px solid #dd6b20', padding: '4px 10px', fontSize: '0.7rem', width: '100px', whiteSpace: 'normal', lineHeight: '1.2' }}>
                           {col}
                         </th>
                       ))}
                     </tr>
-
                     <tr>
                       {semanasRenderizadas.map(s => s.diasVisiveis.map((d, i) => (
                         <th key={`sem-${s.numero}-${i}`} style={{ backgroundColor: d.isFimDeSemana ? '#cbd5e0' : '#f7fafc', borderRight: i === s.diasVisiveis.length - 1 ? '2px solid #2a4365' : '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.75rem', color: '#4a5568', fontWeight: d.isFimDeSemana ? 'bold' : 'normal', textAlign: 'center' }}>
@@ -339,7 +368,7 @@ export default function LookaheadPage() {
                                 value={linha.descricao} 
                                 onChange={(e) => atualizarLinha(linha.id, e.target.value)} 
                                 list="lista-zonas-lookahead"
-                                placeholder="Selecione ou digite a etapa..."
+                                placeholder="Selecione do Master Plan ou digite..."
                                 style={{ width: '90%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
                               />
                               <button onClick={() => removerLinha(linha.id)} title="Excluir linha" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
@@ -414,7 +443,6 @@ export default function LookaheadPage() {
                 </table>
               </div>
               
-              {/* LEGENDA */}
               <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #cbd5e0', display: 'flex', gap: '15px', flexWrap: 'wrap', fontSize: '0.75rem' }}>
                 <span style={{ fontWeight: 'bold', color: '#1a365d' }}>LEGENDA (KOSKELA):</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '12px', height: '12px', backgroundColor: '#c6f6d5', borderRadius: '2px', border: '1px solid #22543d' }}></div><span style={{ color: '#22543d' }}><b>Sim</b> - Liberado</span></div>
@@ -431,14 +459,11 @@ export default function LookaheadPage() {
             </div>
           )}
 
-          {/* ============================================================== */}
-          {/* ABA 2: DETALHAMENTO DAS RESTRIÇÕES                             */}
-          {/* ============================================================== */}
+          {/* ABA 2: DETALHAMENTO DAS RESTRIÇÕES */}
           {abaAtiva === 'restricoes' && (
             <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
               <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%', minWidth: '1200px' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-                  {/* CABEÇALHO */}
                   <tr>
                     <th colSpan={10} style={{ backgroundColor: 'white', padding: '10px 15px', textAlign: 'left', fontStyle: 'italic', color: '#1a365d', borderBottom: '2px solid #ed8936', fontSize: '1.2rem' }}>
                       DETALHAMENTO DAS RESTRIÇÕES
@@ -472,9 +497,7 @@ export default function LookaheadPage() {
 
                       return (
                         <tr key={rest.id} style={{ borderBottom: '1px dotted #cbd5e0', backgroundColor: rest.status === 'RESOLVIDO' ? '#f0fff4' : 'white' }}>
-                          <td style={{ padding: '8px', textAlign: 'center', borderRight: '1px solid #e2e8f0', color: '#4a5568', fontWeight: 'bold' }}>
-                            {idNum}
-                          </td>
+                          <td style={{ padding: '8px', textAlign: 'center', borderRight: '1px solid #e2e8f0', color: '#4a5568', fontWeight: 'bold' }}>{idNum}</td>
                           <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0' }}>
                             <input 
                               type="text" 
@@ -491,11 +514,8 @@ export default function LookaheadPage() {
                                 style={{ width: '100%', padding: '6px', backgroundColor: 'transparent', color: corCodigo.text, border: 'none', outline: 'none', fontSize: '0.8rem', fontWeight: 'bold', textAlign: 'center', textAlignLast: 'center', appearance: 'none', cursor: 'pointer' }}
                               >
                                 <option value=""></option>
-                                {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
-                                  <option key={sigla} value={sigla}>{sigla}</option>
-                                ))}
+                                {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => <option key={sigla} value={sigla}>{sigla}</option>)}
                               </select>
-                              <div style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: corCodigo.text === '#fff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}>▼</div>
                             </div>
                           </td>
                           <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0' }}>
@@ -508,43 +528,19 @@ export default function LookaheadPage() {
                                 <option value=""></option>
                                 {COLUNAS_KOSKELA.map(k => <option key={k} value={k}>{k}</option>)}
                               </select>
-                              <div style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: '#a0aec0' }}>▼</div>
                             </div>
                           </td>
                           <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0' }}>
-                            <input 
-                              type="text" 
-                              value={rest.motivo} 
-                              onChange={(e) => atualizarRestricao(rest.id, 'motivo', e.target.value)}
-                              placeholder="Ex: Fundação em andamento"
-                              style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
-                            />
+                            <input type="text" value={rest.motivo} onChange={(e) => atualizarRestricao(rest.id, 'motivo', e.target.value)} placeholder="Ex: Fundação não concluída" style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }} />
                           </td>
                           <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0' }}>
-                            <input 
-                              type="text" 
-                              value={rest.acao} 
-                              onChange={(e) => atualizarRestricao(rest.id, 'acao', e.target.value)}
-                              placeholder="Ex: Concluir predecessoras"
-                              style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
-                            />
+                            <input type="text" value={rest.acao} onChange={(e) => atualizarRestricao(rest.id, 'acao', e.target.value)} placeholder="Ex: Concluir predecessoras" style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }} />
                           </td>
                           <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0' }}>
-                            <input 
-                              type="text" 
-                              value={rest.responsavel} 
-                              onChange={(e) => atualizarRestricao(rest.id, 'responsavel', e.target.value)}
-                              placeholder="Ex: João Silva"
-                              style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', textAlign: 'center' }}
-                            />
+                            <input type="text" value={rest.responsavel} onChange={(e) => atualizarRestricao(rest.id, 'responsavel', e.target.value)} placeholder="Ex: Engenheiro" style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', textAlign: 'center' }} />
                           </td>
                           <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0', textAlign: 'center' }}>
-                            <input 
-                              type="date" 
-                              value={rest.dataStatus} 
-                              onChange={(e) => atualizarRestricao(rest.id, 'dataStatus', e.target.value)}
-                              style={{ border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', cursor: 'pointer' }}
-                            />
+                            <input type="date" value={rest.dataStatus} onChange={(e) => atualizarRestricao(rest.id, 'dataStatus', e.target.value)} style={{ border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', cursor: 'pointer' }} />
                           </td>
                           <td style={{ padding: '2px', borderRight: '1px solid #e2e8f0', backgroundColor: statusStyle.backgroundColor }}>
                             <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
@@ -557,7 +553,6 @@ export default function LookaheadPage() {
                                 <option value="NÃO RESOLVIDO">NÃO RESOLVIDO</option>
                                 <option value="RESOLVIDO">RESOLVIDO</option>
                               </select>
-                              <div style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.5rem', color: statusStyle.color }}>▼</div>
                             </div>
                           </td>
                           <td style={{ padding: '8px', textAlign: 'center' }}>
@@ -567,7 +562,6 @@ export default function LookaheadPage() {
                       );
                     })
                   )}
-                  {/* Linha extra para adicionar manualmente se quiser */}
                   <tr>
                     <td colSpan={10} style={{ padding: '15px', backgroundColor: '#f7fafc', textAlign: 'left', borderTop: '1px solid #cbd5e0' }}>
                       <button 
