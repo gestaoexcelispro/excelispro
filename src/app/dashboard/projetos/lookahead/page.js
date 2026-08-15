@@ -69,7 +69,7 @@ export default function LookaheadPage() {
   useEffect(() => {
     const fetchZonasDoProjeto = async () => {
       if (!projetoSelecionado) { setZonasColeta([]); return; }
-      const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase, servico').eq('projeto_id', projetoSelecionado);
+      const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase').eq('projeto_id', projetoSelecionado);
       if (data) {
         const unicas = [...new Set(data.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
         setZonasColeta(unicas);
@@ -143,6 +143,9 @@ export default function LookaheadPage() {
       diasVisiveis: semana.dias.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true)
     };
   });
+
+  // CORREÇÃO: Calcula o total exato de colunas de dias para preencher a linha final da tabela sem quebrar
+  const totalDiasVisiveis = semanasRenderizadas.reduce((total, semana) => total + semana.diasVisiveis.length, 0);
 
   let globalIdCounter = 1;
 
@@ -357,8 +360,8 @@ export default function LookaheadPage() {
                       + Adicionar Nova Linha
                     </button>
                   </td>
-                  {/* Preenchimento vazio para o resto da tabela */}
-                  <td colSpan={datasVisiveis.length + COLUNAS_KOSKELA.length} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: 'white' }}></td>
+                  {/* CORREÇÃO DO COLSPAN AQUI: Usando totalDiasVisiveis */}
+                  <td colSpan={totalDiasVisiveis + COLUNAS_KOSKELA.length} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: 'white' }}></td>
                 </tr>
               </tbody>
             </table>
