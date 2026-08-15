@@ -38,14 +38,12 @@ export default function LookaheadPage() {
   const [semanasPlanilha, setSemanasPlanilha] = useState([]);
   const [dadosCelulas, setDadosCelulas] = useState({});
   const [dadosKoskela, setDadosKoskela] = useState({});
-  const [zonasColeta, setZonasColeta] = useState([]);
   const [restricoes, setRestricoes] = useState([]);
 
-  // NOVO: Estado para armazenar as tarefas puxadas do Master Plan
   const [masterPlanTarefas, setMasterPlanTarefas] = useState([]);
 
   const [linhas, setLinhas] = useState([
-    { id: 'l1', descricao: '' }, // Começa com uma linha vazia para instigar a busca
+    { id: 'l1', descricao: '' }
   ]);
 
   useEffect(() => {
@@ -56,42 +54,31 @@ export default function LookaheadPage() {
     fetchProjetos();
   }, []);
 
-  // Busca Zonas da Coleta e TAREFAS DO MASTER PLAN
   useEffect(() => {
     const fetchDadosDoProjeto = async () => {
       if (!projetoSelecionado) { 
-        setZonasColeta([]); 
         setMasterPlanTarefas([]);
         return; 
       }
       
-      // 1. Busca Zonas Normais
-      const { data: zonas } = await supabase.from('setorizacao_obras').select('pavimento, fase').eq('projeto_id', projetoSelecionado);
-      if (zonas) {
-        const unicas = [...new Set(zonas.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
-        setZonasColeta(unicas);
-      }
-
-      // 2. Busca Master Plan (Para a Importação Mágica)
-      // Nota: Esta tabela precisa ser criada no Supabase ('projetos_masterplan')
       const { data: mpData, error } = await supabase
         .from('projetos_masterplan')
         .select('dados_linhas, dados_celulas')
         .eq('projeto_id', projetoSelecionado)
         .single();
 
-      if (mpData && mpData.dados_linhas && mpData.dados_celulas) {
-        // Formata as tarefas para facilitar a cópia das datas depois
+      if (mpData && mpData.dados_linhas) {
         const tarefasMapeadas = mpData.dados_linhas.flatMap(secao => 
           secao.linhas.map(linha => {
             const celulasDaLinha = {};
-            // Filtra do Master Plan apenas as datas que pertencem a esta linha específica
-            Object.keys(mpData.dados_celulas).forEach(key => {
-              if (key.startsWith(`${linha.id}___`)) {
-                const dataLabel = key.split('___')[1]; // Pega o "DD/MM"
-                celulasDaLinha[dataLabel] = mpData.dados_celulas[key];
-              }
-            });
+            if (mpData.dados_celulas) {
+              Object.keys(mpData.dados_celulas).forEach(key => {
+                if (key.startsWith(`${linha.id}___`)) {
+                  const dataLabel = key.split('___')[1];
+                  celulasDaLinha[dataLabel] = mpData.dados_celulas[key];
+                }
+              });
+            }
             return { id: linha.id, descricao: linha.descricao, celulas: celulasDaLinha };
           })
         );
@@ -172,15 +159,11 @@ export default function LookaheadPage() {
     }
   };
 
-  // --- MÁGICA: ATUALIZA LINHA E COPIA DADOS DO MASTER PLAN ---
   const atualizarLinha = (id, valorDigitado) => {
     setLinhas(linhas.map(l => l.id === id ? { ...l, descricao: valorDigitado } : l));
 
-    // Procura se o valor digitado/selecionado bate com alguma tarefa do Master Plan
     const tarefaMPEncontrada = masterPlanTarefas.find(t => t.descricao === valorDigitado);
-    
     if (tarefaMPEncontrada) {
-      // Se encontrou, preenche as células do Lookahead automaticamente
       setDadosCelulas(prev => {
         const novosDados = { ...prev };
         Object.keys(tarefaMPEncontrada.celulas).forEach(dataLabel => {
@@ -218,12 +201,10 @@ export default function LookaheadPage() {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
       
-      {/* DATALIST: Agora mistura as Zonas de Coleta com as Tarefas Reais do Master Plan */}
       <datalist id="lista-zonas-lookahead">
         {masterPlanTarefas.length > 0 && (
-          masterPlanTarefas.map((t, idx) => <option key={`mp-${idx}`} value={t.descricao}>Importar do Master Plan</option>)
+          masterPlanTarefas.map((t, idx) => <option key={`mp-${idx}`} value={t.descricao} />)
         )}
-        {zonasColeta.map((zona, idx) => <option key={`z-${idx}`} value={zona}>Coleta de Dados</option>)}
       </datalist>
 
       {/* CABEÇALHO DA PÁGINA */}
@@ -247,7 +228,6 @@ export default function LookaheadPage() {
               </select>
             </div>
             
-            {/* Aviso UI de Importação */}
             {projetoSelecionado && masterPlanTarefas.length > 0 && (
               <span style={{ fontSize: '0.75rem', backgroundColor: '#ebf8ff', color: '#2b6cb0', padding: '6px 10px', borderRadius: '4px', border: '1px solid #90cdf4', fontWeight: 'bold' }}>
                 🔗 Integração com Master Plan Ativa
@@ -305,7 +285,6 @@ export default function LookaheadPage() {
           {/* ABA 1: PLANILHA LOOKAHEAD E KOSKELA */}
           {abaAtiva === 'planilha' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              
               <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'flex-end' }}>
                 <button onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)} style={{ backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', color: ocultarFinaisDeSemana ? 'white' : '#4a5568', border: '1px solid #cbd5e0', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}>
                   {ocultarFinaisDeSemana ? 'Mostrar Finais de Semana' : 'Ocultar Finais de Semana'}
@@ -331,10 +310,10 @@ export default function LookaheadPage() {
                       </th>
                     </tr>
                     <tr>
-                      <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px', borderRight: '1px solid #fff', borderTop: '2px solid #fff', width: '40px' }}>ID</th>
-                      <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#ff6600', color: 'white', padding: '8px 15px', borderRight: '1px solid #cbd5e0', borderTop: '2px solid #fff', textAlign: 'left', minWidth: '280px' }}>DESCRIÇÃO</th>
+                      <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#1a365d', color: 'white', padding: '8px', borderRight: '1px solid #2a4365', width: '40px' }}>ID</th>
+                      <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#1a365d', color: 'white', padding: '8px 15px', borderRight: '1px solid #2a4365', textAlign: 'left', minWidth: '280px' }}>DESCRIÇÃO</th>
                       {semanasRenderizadas.map(s => s.diasVisiveis.map((d, i) => (
-                        <th key={`data-${s.numero}-${i}`} style={{ backgroundColor: '#edf2f7', borderRight: i === s.diasVisiveis.length - 1 ? '2px solid #2a4365' : '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', borderTop: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.8rem', color: '#1a365d', textAlign: 'center' }}>
+                        <th key={`data-${s.numero}-${i}`} style={{ backgroundColor: '#1a365d', borderRight: i === s.diasVisiveis.length - 1 ? '2px solid #2a4365' : '1px solid #2a4365', borderBottom: '1px solid #2a4365', padding: '4px 2px', fontSize: '0.8rem', color: 'white', textAlign: 'center' }}>
                           {d.labelData}
                         </th>
                       )))}
@@ -346,7 +325,7 @@ export default function LookaheadPage() {
                     </tr>
                     <tr>
                       {semanasRenderizadas.map(s => s.diasVisiveis.map((d, i) => (
-                        <th key={`sem-${s.numero}-${i}`} style={{ backgroundColor: d.isFimDeSemana ? '#cbd5e0' : '#f7fafc', borderRight: i === s.diasVisiveis.length - 1 ? '2px solid #2a4365' : '1px dotted #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.75rem', color: '#4a5568', fontWeight: d.isFimDeSemana ? 'bold' : 'normal', textAlign: 'center' }}>
+                        <th key={`sem-${s.numero}-${i}`} style={{ backgroundColor: d.isFimDeSemana ? '#718096' : '#edf2f7', borderRight: i === s.diasVisiveis.length - 1 ? '2px solid #2a4365' : '1px solid #cbd5e0', borderBottom: '1px solid #cbd5e0', padding: '4px 2px', fontSize: '0.75rem', color: d.isFimDeSemana ? 'white' : '#1a365d', fontWeight: 'bold', textAlign: 'center' }}>
                           {d.labelSemana}
                         </th>
                       )))}
@@ -461,7 +440,7 @@ export default function LookaheadPage() {
 
           {/* ABA 2: DETALHAMENTO DAS RESTRIÇÕES */}
           {abaAtiva === 'restricoes' && (
-            <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+             <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
               <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%', minWidth: '1200px' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                   <tr>
@@ -574,7 +553,7 @@ export default function LookaheadPage() {
                   </tr>
                 </tbody>
               </table>
-            </div>
+             </div>
           )}
         </>
       )}
