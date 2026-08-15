@@ -20,6 +20,7 @@ const translations = {
     masterPlan: 'Master Plan (Linha de Balanço)',
     lookahead: 'Lookahead (Curto Prazo)',
     weeklyPlan: 'Planejamento Semanal (PPC)',
+    statusMatrix: 'Matriz de Status',
     tap: 'Termo de Abertura (TAP)',
     managementPlan: 'Plano de Gerenciamento',
     raci: 'Matriz RACI',
@@ -49,6 +50,7 @@ const translations = {
     masterPlan: 'Master Plan (Line of Balance)',
     lookahead: 'Lookahead (Short Term)',
     weeklyPlan: 'Weekly Plan (PPC)',
+    statusMatrix: 'Status Matrix',
     tap: 'Project Charter (TAP)',
     managementPlan: 'Management Plan',
     raci: 'RACI Matrix',
@@ -91,6 +93,7 @@ export default function DashboardLayout({ children }) {
     if (pathname.includes('/projetos/masterplan')) return `${t.projectsModule} > ${t.masterPlan}`;
     if (pathname.includes('/projetos/lookahead')) return `${t.projectsModule} > ${t.lookahead}`;
     if (pathname.includes('/projetos/semanal')) return `${t.projectsModule} > ${t.weeklyPlan}`;
+    if (pathname.includes('/projetos/matriz-status')) return `${t.projectsModule} > ${t.statusMatrix}`;
     if (pathname.includes('/projetos/tap')) return `${t.projectsModule} > ${t.tap}`;
     if (pathname.includes('/projetos/plano')) return `${t.projectsModule} > ${t.managementPlan}`;
     if (pathname.includes('/projetos/raci')) return `${t.projectsModule} > ${t.raci}`;
@@ -219,6 +222,7 @@ export default function DashboardLayout({ children }) {
                 <a href="/dashboard/projetos/masterplan" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📈</span> {t.masterPlan}</a>
                 <a href="/dashboard/projetos/lookahead" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>👁️</span> {t.lookahead}</a>
                 <a href="/dashboard/projetos/semanal" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🎯</span> {t.weeklyPlan}</a>
+                <a href="/dashboard/projetos/matriz-status" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🚥</span> {t.statusMatrix}</a>
                 
                 <a href="/dashboard/projetos/tap" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📜</span> {t.tap}</a>
                 <a href="/dashboard/projetos/plano" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📑</span> {t.managementPlan}</a>
