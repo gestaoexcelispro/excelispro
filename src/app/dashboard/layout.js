@@ -32,6 +32,7 @@ const translations = {
     contracts: 'Fluxo de Contratos',
     directorateModule: 'MÓDULO DIRETORIA',
     mapDashboard: 'Mapa de Obras & Gestão',
+    strategicPlan: 'Planejamento Estratégico',
     logout: 'Sair'
   },
   'en-US': {
@@ -62,6 +63,7 @@ const translations = {
     contracts: 'Contract Workflows',
     directorateModule: 'DIRECTORATE MODULE',
     mapDashboard: 'Works Map & Management',
+    strategicPlan: 'Strategic Planning',
     logout: 'Logout'
   }
 };
@@ -87,11 +89,10 @@ export default function DashboardLayout({ children }) {
   };
 
   const getBreadcrumb = () => {
-    // Diretoria
     if (pathname === '/dashboard' || pathname === '/dashboard/') return `${t.directorateModule} > ${t.dashboard}`;
     if (pathname.includes('/diretoria/mapa')) return `${t.directorateModule} > ${t.mapDashboard}`;
+    if (pathname.includes('/diretoria/planejamento')) return `${t.directorateModule} > ${t.strategicPlan}`;
     
-    // Projetos
     if (pathname.includes('/projetos/lista')) return `${t.projectsModule} > ${t.projectList}`;
     if (pathname.includes('/projetos/coleta')) return `${t.projectsModule} > ${t.coletaDados}`;
     if (pathname.includes('/projetos/masterplan')) return `${t.projectsModule} > ${t.masterPlan}`;
@@ -103,17 +104,14 @@ export default function DashboardLayout({ children }) {
     if (pathname.includes('/projetos/raci')) return `${t.projectsModule} > ${t.raci}`;
     if (pathname.includes('/projetos/riscos')) return `${t.projectsModule} > ${t.risks}`;
     
-    // Comercial
     if (pathname.includes('/orcamentos')) return `${t.commercialModule} > ${t.budgets}`;
     if (pathname.includes('/propostas')) return `${t.commercialModule} > ${t.proposals}`;
     if (pathname.includes('/modelos')) return `${t.commercialModule} > ${t.templates}`;
     if (pathname.includes('/servicos')) return `${t.commercialModule} > ${t.services}`;
     
-    // Controladoria
     if (pathname.includes('/controladoria/receber')) return `${t.financialModule} > ${t.receivable}`;
     if (pathname.includes('/controladoria/pagar')) return `${t.financialModule} > ${t.payable}`;
     
-    // Jurídico
     if (pathname.includes('/juridico/contratos')) return `${t.legalModule} > ${t.contracts}`;
     
     return `${t.directorateModule} > ${t.dashboard}`;
@@ -207,6 +205,7 @@ export default function DashboardLayout({ children }) {
               <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
                 <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>⊞</span> {t.dashboard}</a>
                 <a href="/dashboard/diretoria/mapa" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🗺️</span> {t.mapDashboard}</a>
+                <a href="/dashboard/diretoria/planejamento" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🎯</span> {t.strategicPlan}</a>
               </nav>
             )}
 
@@ -233,12 +232,10 @@ export default function DashboardLayout({ children }) {
               <nav style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', borderBottom: '1px solid #e2e8f0' }}>
                 <a href="/dashboard/projetos/lista" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📁</span> {t.projectList}</a>
                 <a href="/dashboard/projetos/coleta" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>✏️</span> {t.coletaDados}</a>
-                
                 <a href="/dashboard/projetos/masterplan" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📈</span> {t.masterPlan}</a>
                 <a href="/dashboard/projetos/lookahead" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>👁️</span> {t.lookahead}</a>
                 <a href="/dashboard/projetos/semanal" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🎯</span> {t.weeklyPlan}</a>
                 <a href="/dashboard/projetos/matriz-status" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>🚥</span> {t.statusMatrix}</a>
-                
                 <a href="/dashboard/projetos/tap" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📜</span> {t.tap}</a>
                 <a href="/dashboard/projetos/plano" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>📑</span> {t.managementPlan}</a>
                 <a href="/dashboard/projetos/raci" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', textDecoration: 'none', color: '#4a5568', borderRadius: '6px', fontSize: '0.85rem' }}><span>👥</span> {t.raci}</a>
@@ -278,7 +275,6 @@ export default function DashboardLayout({ children }) {
         </aside>
 
         <main style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          {/* Passa a função para registrar os gatilhos dos modais para a página filha */}
           {cloneElement(children, { registerModalTriggers: (triggers) => setModalTriggers(triggers) })}
         </main>
       </div>
