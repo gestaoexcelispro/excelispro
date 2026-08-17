@@ -44,8 +44,12 @@ export default function MasterPlanPage() {
     orientacao: 'landscape'
   });
 
+  // SISTEMA DE VERSÕES / CENÁRIOS (LAST PLANNER)
+  const [versoes, setVersoes] = useState([]);
+  const [versaoAtivaId, setVersaoAtivaId] = useState(null);
+
   // ESTADOS DO MOTOR DE AGENDAMENTO (SCHEDULING ENGINE)
-  const [pacotesLancados, setPacotesLancados] = useState([]); // Memória dos pacotes
+  const [pacotesLancados, setPacotesLancados] = useState([]); 
   const [showPacoteModal, setShowPacoteModal] = useState(false);
   const [tipoInicio, setTipoInicio] = useState('data'); 
   const [pacotePredecessora, setPacotePredecessora] = useState('');
@@ -157,12 +161,11 @@ export default function MasterPlanPage() {
   const datasVisiveis = datasPlanilha.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true);
 
   // MOTOR DE RECÁLCULO AUTOMÁTICO
-  // Vigia os feriados e os pacotes. Se um feriado é removido, recalcula tudo em milissegundos.
   useEffect(() => {
-    if (datasPlanilha.length === 0 || pacotesLancados.length === 0) return;
+    if (datasPlanilha.length === 0) return;
 
     let novaGrade = {};
-    let trackerFimPacote = {}; // Guarda o último dia de cada pacote para as predecessoras
+    let trackerFimPacote = {}; 
 
     pacotesLancados.forEach(pacote => {
       let startIndex = -1;
@@ -172,7 +175,7 @@ export default function MasterPlanPage() {
       } else if (pacote.tipoInicio === 'predecessora') {
         const indexFimPredecessora = trackerFimPacote[pacote.predecessoraId];
         if (indexFimPredecessora !== undefined) {
-          startIndex = indexFimPredecessora + 1; // Próximo dia na grade
+          startIndex = indexFimPredecessora + 1; 
         }
       }
 
@@ -183,7 +186,6 @@ export default function MasterPlanPage() {
         for (let i = startIndex; i < datasPlanilha.length && diasAlocados < pacote.duracao; i++) {
           const dia = datasPlanilha[i];
           
-          // O PULSO DO MOTOR: Só avança o dia útil se não for feriado nem fim de semana
           if (!dia.isFimDeSemana && !dia.isFeriado) {
             const cellKey = `${pacote.linhaId}___${dia.labelData}`;
             novaGrade[cellKey] = pacote.atividade;
@@ -191,11 +193,10 @@ export default function MasterPlanPage() {
             lastIndex = i;
           }
         }
-        trackerFimPacote[pacote.id] = lastIndex; // Salva para a próxima tarefa encadear
+        trackerFimPacote[pacote.id] = lastIndex; 
       }
     });
 
-    // Atualiza a grade inteira de uma vez!
     setDadosCelulas(novaGrade);
     
   }, [pacotesLancados, datasPlanilha]);
@@ -236,6 +237,43 @@ export default function MasterPlanPage() {
     }
   };
 
+  // FUNÇÕES DE GERENCIAMENTO DE VERSÕES
+  const handleSalvarVersao = () => {
+    const nomeCenario = prompt('Digite um nome para este Cenário/Versão (ex: Cenário A - Aceleração Fachada):');
+    if (!nomeCenario) return;
+
+    const novaVersao = {
+      id: `v_${Date.now()}`,
+      nome: nomeCenario,
+      data: new Date().toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      pacotes: [...pacotesLancados],
+      feriadosSalvos: [...feriados]
+    };
+
+    setVersoes([...versoes, novaVersao]);
+    setVersaoAtivaId(novaVersao.id);
+    alert('Cenário salvo com sucesso! Você pode alternar entre os cenários no menu superior.');
+  };
+
+  const handleCarregarVersao = (versaoId) => {
+    if (!versaoId) {
+      if (window.confirm('Deseja limpar o planejamento atual para criar um cenário em branco?')) {
+        setPacotesLancados([]);
+        setVersaoAtivaId(null);
+      }
+      return;
+    }
+
+    if (window.confirm('Isso carregará o cenário selecionado e substituirá a grade atual. Deseja continuar?')) {
+      const versao = versoes.find(v => v.id === versaoId);
+      if (versao) {
+        setPacotesLancados(versao.pacotes);
+        setFeriados(versao.feriadosSalvos);
+        setVersaoAtivaId(versao.id);
+      }
+    }
+  };
+
   const handleAdicionarFeriado = (e) => {
     e.preventDefault();
     if (novoFeriadoData && novoFeriadoDesc) {
@@ -254,7 +292,6 @@ export default function MasterPlanPage() {
   const handleAtualizarLinha = (secId, linhaId, valor) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.map(l => l.id === linhaId ? { ...l, descricao: valor } : l) } : s));
   const handleRemoverLinha = (secId, linhaId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.filter(l => l.id !== linhaId) } : s));
 
-  // Prepara os pacotes já lançados para o select de Predecessoras
   const pacotesExistentes = pacotesLancados.map(p => {
     let desc = p.linhaId;
     secoes.forEach(sec => sec.linhas.forEach(l => { if(l.id === p.linhaId) desc = l.descricao; }));
@@ -265,7 +302,6 @@ export default function MasterPlanPage() {
     };
   });
 
-  // Salva o Pacote na Memória (O useEffect acima fará o trabalho duro de desenhar na grade)
   const handleInserirPacoteAutomacao = (e) => {
     e.preventDefault();
     if (!pacoteAtividade || !pacoteLinhaId || pacoteDuracao < 1) {
@@ -292,6 +328,9 @@ export default function MasterPlanPage() {
     setPacoteDataInicio('');
     setPacotePredecessora('');
     setPacoteDuracao(1);
+    
+    // Se estivesse visualizando uma versão salva e fizesse uma alteração, ele desmarca a versão indicando que é um "Rascunho" novo
+    setVersaoAtivaId(null); 
   };
 
   const gerarPDF = () => {
@@ -345,33 +384,60 @@ export default function MasterPlanPage() {
             </div>
 
             {projetoSelecionado && (
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '2px solid #e2e8f0', paddingLeft: '15px' }}>
-                {!linhaDeBaseCongelada ? (
-                  <button onClick={handleCongelarLinhaDeBase} style={{ backgroundColor: '#1a365d', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                    🔒 Congelar Linha de Base
-                  </button>
-                ) : (
-                  <>
-                    <button onClick={handleDescongelar} style={{ backgroundColor: '#e2e8f0', color: '#4a5568', border: '1px solid #cbd5e0', padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                      🔓 Editar Base
-                    </button>
-                    <div style={{ display: 'flex', backgroundColor: '#edf2f7', borderRadius: '6px', border: '1px solid #cbd5e0', overflow: 'hidden' }}>
-                      <button 
-                        onClick={() => setModoControle(false)} 
-                        style={{ backgroundColor: !modoControle ? '#3182ce' : 'transparent', color: !modoControle ? 'white' : '#4a5568', border: 'none', padding: '8px 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+              <>
+                {/* BLOCO DE GERENCIAMENTO DE VERSÕES (CENÁRIOS) */}
+                {!linhaDeBaseCongelada && (
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '2px solid #e2e8f0', paddingLeft: '15px', borderRight: '2px solid #e2e8f0', paddingRight: '15px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#718096', marginBottom: '2px', textTransform: 'uppercase' }}>Cenário / Versão (Last Planner)</label>
+                      <select
+                        value={versaoAtivaId || ''}
+                        onChange={(e) => handleCarregarVersao(e.target.value)}
+                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e0', fontSize: '0.85rem', outline: 'none', minWidth: '200px', backgroundColor: versaoAtivaId ? '#ebf8ff' : '#fff' }}
                       >
-                        📋 Planejamento
-                      </button>
-                      <button 
-                        onClick={() => setModoControle(true)} 
-                        style={{ backgroundColor: modoControle ? '#dd6b20' : 'transparent', color: modoControle ? 'white' : '#4a5568', border: 'none', padding: '8px 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
-                      >
-                        ⚙️ Controle (Realizado)
-                      </button>
+                        <option value="">{versaoAtivaId === null && pacotesLancados.length > 0 ? '* Edição não salva...' : 'Novo Cenário em Branco'}</option>
+                        {versoes.map(v => <option key={v.id} value={v.id}>{v.nome} ({v.data})</option>)}
+                      </select>
                     </div>
-                  </>
+                    <button 
+                      onClick={handleSalvarVersao} 
+                      disabled={pacotesLancados.length === 0}
+                      style={{ backgroundColor: '#4a5568', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: pacotesLancados.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.8rem', opacity: pacotesLancados.length === 0 ? 0.5 : 1, marginTop: '14px' }}
+                      title="Salvar configuração atual como um novo cenário"
+                    >
+                      💾 Salvar Cenário
+                    </button>
+                  </div>
                 )}
-              </div>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  {!linhaDeBaseCongelada ? (
+                    <button onClick={handleCongelarLinhaDeBase} style={{ backgroundColor: '#1a365d', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', marginTop: '14px' }}>
+                      🔒 Congelar Linha de Base
+                    </button>
+                  ) : (
+                    <>
+                      <button onClick={handleDescongelar} style={{ backgroundColor: '#e2e8f0', color: '#4a5568', border: '1px solid #cbd5e0', padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                        🔓 Editar Base
+                      </button>
+                      <div style={{ display: 'flex', backgroundColor: '#edf2f7', borderRadius: '6px', border: '1px solid #cbd5e0', overflow: 'hidden' }}>
+                        <button 
+                          onClick={() => setModoControle(false)} 
+                          style={{ backgroundColor: !modoControle ? '#3182ce' : 'transparent', color: !modoControle ? 'white' : '#4a5568', border: 'none', padding: '8px 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+                        >
+                          📋 Planejamento
+                        </button>
+                        <button 
+                          onClick={() => setModoControle(true)} 
+                          style={{ backgroundColor: modoControle ? '#dd6b20' : 'transparent', color: modoControle ? 'white' : '#4a5568', border: 'none', padding: '8px 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+                        >
+                          ⚙️ Controle (Realizado)
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -415,7 +481,6 @@ export default function MasterPlanPage() {
         </div>
       )}
 
-      {/* MODAL: INSERIR PACOTE DE TRABALHO */}
       {showPacoteModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '550px', fontFamily: 'sans-serif' }}>
@@ -451,7 +516,6 @@ export default function MasterPlanPage() {
                 </div>
               </div>
 
-              {/* OPÇÕES DE INÍCIO: DATA OU PREDECESSORA */}
               <div style={{ backgroundColor: '#f7fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', color: '#2d3748', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -499,7 +563,6 @@ export default function MasterPlanPage() {
         </div>
       )}
 
-      {/* RESTANTE DOS MODAIS E DA GRADE INTACTOS */}
       {showFeriadosModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px', fontFamily: 'sans-serif' }}>
