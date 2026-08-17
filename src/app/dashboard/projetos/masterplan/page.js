@@ -3,26 +3,116 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { supabase } from '../../../../lib/supabase';
 
+// Cores e Labels com suporte a 2 idiomas
 const SERVICOS_CORES = {
-  '': { label: '', color: 'transparent', text: '#000' },
-  'FUN': { label: 'Fundação', color: '#ff00ff', text: '#fff' },
-  'PNS': { label: 'Painelização Aço', color: '#9900cc', text: '#fff' },
-  'VTS': { label: 'Estrutura', color: '#0000ff', text: '#fff' },
-  'BUF': { label: 'Buffer', color: '#000000', text: '#fff' },
-  'VEX': { label: 'Vedações Externas', color: '#00ffff', text: '#000' },
-  'COB': { label: 'Cobertura', color: '#993333', text: '#fff' },
-  'INS': { label: 'Instalações', color: '#3366cc', text: '#fff' },
-  'LMI': { label: 'Limpeza e Miudezas', color: '#00cc00', text: '#fff' },
-  'VIN': { label: 'Piso Vinílico', color: '#ff9900', text: '#fff' },
-  'FOR': { label: 'Forro', color: '#336600', text: '#fff' },
-  'PIN': { label: 'Pintura', color: '#808000', text: '#fff' },
-  'OFF': { label: 'Fim de Semana', color: '#a0aec0', text: '#fff' },
-  'FER': { label: 'Feriado', color: '#e53e3e', text: '#fff' },
+  '': { labelPt: '', labelEn: '', color: 'transparent', text: '#000' },
+  'FUN': { labelPt: 'Fundação', labelEn: 'Foundation', color: '#ff00ff', text: '#fff' },
+  'PNS': { labelPt: 'Painelização Aço', labelEn: 'Steel Paneling', color: '#9900cc', text: '#fff' },
+  'VTS': { labelPt: 'Estrutura', labelEn: 'Structure', color: '#0000ff', text: '#fff' },
+  'BUF': { labelPt: 'Buffer', labelEn: 'Buffer', color: '#000000', text: '#fff' },
+  'VEX': { labelPt: 'Vedações Externas', labelEn: 'Exterior Enclosures', color: '#00ffff', text: '#000' },
+  'COB': { labelPt: 'Cobertura', labelEn: 'Roofing', color: '#993333', text: '#fff' },
+  'INS': { labelPt: 'Instalações', labelEn: 'Installations', color: '#3366cc', text: '#fff' },
+  'LMI': { labelPt: 'Limpeza e Miudezas', labelEn: 'Cleaning & Misc', color: '#00cc00', text: '#fff' },
+  'VIN': { labelPt: 'Piso Vinílico', labelEn: 'Vinyl Flooring', color: '#ff9900', text: '#fff' },
+  'FOR': { labelPt: 'Forro', labelEn: 'Ceiling', color: '#336600', text: '#fff' },
+  'PIN': { labelPt: 'Pintura', labelEn: 'Painting', color: '#808000', text: '#fff' },
+  'OFF': { labelPt: 'Fim de Semana', labelEn: 'Weekend', color: '#a0aec0', text: '#fff' },
+  'FER': { labelPt: 'Feriado', labelEn: 'Holiday', color: '#e53e3e', text: '#fff' },
 };
 
 export default function MasterPlanPage() {
   const { lang } = useLanguage();
-  
+  const isEn = lang === 'en-US';
+
+  // Dicionário Completo de Tradução Dinâmica
+  const t = {
+    title: isEn ? 'PHYSICAL SCHEDULE - LINE OF BALANCE' : 'CRONOGRAMA FÍSICO - LINHA DE BALANÇO',
+    selectProject: isEn ? '-- Select a Project --' : '-- Selecione uma Obra --',
+    scenarioLabel: isEn ? 'Scenario / Version (Last Planner)' : 'Cenário / Versão (Last Planner)',
+    unsavedEdit: isEn ? '* Unsaved edit...' : '* Edição não salva...',
+    newBlank: isEn ? 'New Blank Scenario' : 'Novo Cenário em Branco',
+    saveScenario: isEn ? '💾 Save Scenario' : '💾 Salvar Cenário',
+    freezeBase: isEn ? '🔒 Freeze Baseline' : '🔒 Congelar Linha de Base',
+    editBase: isEn ? '🔓 Edit Baseline' : '🔓 Editar Base',
+    planning: isEn ? '📋 Planning' : '📋 Planejamento',
+    control: isEn ? '⚙️ Control (Actual)' : '⚙️ Controle (Realizado)',
+    insertPackage: isEn ? '⚡ Insert Package' : '⚡ Inserir Pacote',
+    showWeekends: isEn ? 'Show Weekends' : 'Mostrar Finais de Semana',
+    hideWeekends: isEn ? 'Hide Weekends' : 'Ocultar Finais de Semana',
+    holidaysBtn: isEn ? '📅 Holidays' : '📅 Feriados',
+    exportPdf: isEn ? '📊 Export PDF' : '📊 Exportar PDF',
+    startPrev: isEn ? 'Expected Start' : 'Início Previsto',
+    endPrev: isEn ? 'Expected Finish' : 'Término Previsto',
+    noProject: isEn ? 'No Project Selected' : 'Nenhuma Obra Selecionada',
+    noProjectDesc: isEn ? 'Select a project from the menu above to create or view the Master Plan.' : 'Selecione um projeto no menu acima para criar ou visualizar o Master Plan.',
+    descHeader: isEn ? 'DESCRIPTION' : 'DESCRIÇÃO',
+    plannedBadge: isEn ? 'PLANNED' : 'PREVISTO',
+    actualBadge: isEn ? 'ACTUAL' : 'REALIZADO',
+    addRow: isEn ? '+ Add Row' : '+ Adicionar Linha',
+    addSection: isEn ? '+ Add New Schedule Section' : '+ Adicionar Nova Seção de Cronograma',
+    newSecTitle: isEn ? 'NEW WORK SECTION' : 'NOVA SEÇÃO DE SERVIÇOS',
+    intWork: isEn ? 'INTERIOR WORK PACKAGES' : 'SERVIÇOS INTERNOS',
+    extWork: isEn ? 'EXTERIOR WORK PACKAGES' : 'SERVIÇOS EXTERNOS',
+    legend: isEn ? 'LEGEND:' : 'LEGENDA:',
+    selectOrType: isEn ? 'Select or type the step...' : 'Selecione ou digite a etapa...',
+    
+    // Alertas e Confirmações
+    confirmFreeze: isEn ? 'Are you sure you want to freeze the current schedule? This will create the official project Baseline.' : 'Tem certeza que deseja congelar o planejamento atual? Isso criará a Linha de Base oficial do projeto.',
+    confirmUnfreeze: isEn ? 'WARNING: Unfreezing the baseline will allow changes to the Planned schedule. Do you want to continue?' : 'ATENÇÃO: Descongelar a linha de base permitirá alterações no Previsto. Deseja continuar?',
+    promptScenario: isEn ? 'Enter a name for this Scenario/Version (e.g., Scenario A - Fast Track):' : 'Digite um nome para este Cenário/Versão (ex: Cenário A - Aceleração Fachada):',
+    scenarioSaved: isEn ? 'Scenario saved successfully! You can switch between scenarios in the top menu.' : 'Cenário salvo com sucesso! Você pode alternar entre os cenários no menu superior.',
+    confirmClear: isEn ? 'Do you want to clear the current schedule to create a blank scenario?' : 'Deseja limpar o planejamento atual para criar um cenário em branco?',
+    confirmLoad: isEn ? 'This will load the selected scenario and replace the current grid. Do you want to continue?' : 'Isso carregará o cenário selecionado e substituirá a grade atual. Deseja continuar?',
+    errHolidayExists: isEn ? 'A holiday is already registered for this date!' : 'Já existe um feriado cadastrado para esta data!',
+    confirmDelSection: isEn ? 'Do you want to delete this section?' : 'Deseja excluir a seção?',
+    errFillFields: isEn ? 'Fill in Activity, Location, and Duration.' : 'Preencha Atividade, Linha e Duração.',
+    errSelectDate: isEn ? 'Select the start date.' : 'Selecione a data de início.',
+    errSelectPred: isEn ? 'Select a predecessor package.' : 'Selecione um pacote predecessor.',
+    errOutOfRange: isEn ? 'The chosen date is outside the schedule range.' : 'A data escolhida está fora do intervalo do cronograma.',
+    warnEndEarly: (dias, dur) => isEn ? `Warning: The schedule ended before all days were allocated. ${dias} of ${dur} working days were allocated.` : `Atenção: O cronograma acabou antes de alocar todos os dias. Foram alocados ${dias} de ${dur} dias úteis.`,
+    
+    // Textos dos Modais
+    mPkgTitle: isEn ? 'Insert Work Package' : 'Inserir Pacote de Trabalho',
+    mPkgService: isEn ? 'Service / Activity' : 'Serviço / Atividade',
+    mPkgSelect: isEn ? '-- Select --' : '-- Selecione --',
+    mPkgZone: isEn ? 'Location / Zone' : 'Localização / Zona',
+    mPkgRadioDate: isEn ? '📅 Start on Specific Date' : '📅 Iniciar em Data Específica',
+    mPkgRadioPred: isEn ? '🔗 Start after Predecessor' : '🔗 Iniciar após Predecessora',
+    mPkgStartDate: isEn ? 'Start Date' : 'Data de Início',
+    mPkgLinkPred: isEn ? 'Link to Finish of:' : 'Vincular ao Término de:',
+    mPkgSelectPred: isEn ? '-- Select Completed Package --' : '-- Selecione o Pacote Concluído --',
+    mPkgNoPred: isEn ? 'No package added yet. Use Specific Date first.' : 'Nenhum pacote lançado ainda. Use a Data Específica primeiro.',
+    mPkgDuration: isEn ? 'Duration (Working Days)' : 'Duração (Dias Úteis)',
+    mPkgCancel: isEn ? 'Cancel' : 'Cancelar',
+    mPkgAddGrid: isEn ? 'Add to Grid' : 'Lançar na Grade',
+    
+    mHolTitle: isEn ? 'Register Holidays (Local/State/Federal)' : 'Cadastrar Feriados (Mun/Est/Fed)',
+    mHolDescPlace: isEn ? 'Description (e.g., National Holiday)' : 'Descrição (ex: Padroeira)',
+    mHolAdd: isEn ? 'Add' : 'Adicionar',
+    mHolDateCol: isEn ? 'Date' : 'Data',
+    mHolDescCol: isEn ? 'Description' : 'Descrição',
+    mHolActionCol: isEn ? 'Action' : 'Ação',
+    mHolEmpty: isEn ? 'No holidays registered.' : 'Nenhum feriado cadastrado.',
+    mHolDel: isEn ? 'Delete' : 'Excluir',
+    mHolDone: isEn ? 'Done' : 'Concluir',
+    
+    mPdfTitle: isEn ? 'Print Configuration (PDF)' : 'Configuração de Impressão (PDF)',
+    mPdfSugest: isEn ? 'System Suggestion:' : 'Sugestão do Sistema:',
+    mPdfSugestText: (len) => isEn ? `Based on your current schedule width (${len} columns), we recommend using paper size` : `Com base na largura atual do seu cronograma (${len} colunas), recomendamos utilizar o papel`,
+    mPdfSize: isEn ? 'Paper Size' : 'Tamanho da Folha',
+    mPdf_a4: isEn ? 'A4 (Standard)' : 'A4 (Padrão)',
+    mPdf_a3: isEn ? 'A3 (Recommended)' : 'A3 (Recomendado)',
+    mPdf_a2: isEn ? 'A2 (Large)' : 'A2 (Grande)',
+    mPdf_a1: isEn ? 'A1 (Giant)' : 'A1 (Gigante)',
+    mPdf_a0: isEn ? 'A0 (Extreme)' : 'A0 (Extremo)',
+    mPdf_unica: isEn ? 'Perfect Fit (Single Continuous Page)' : 'Ajuste Perfeito (Página Única Contínua)',
+    mPdfOrient: isEn ? 'Orientation' : 'Orientação',
+    mPdfLand: isEn ? 'Landscape (Horizontal)' : 'Paisagem (Horizontal)',
+    mPdfPort: isEn ? 'Portrait (Vertical)' : 'Retrato (Vertical)',
+    mPdfConfirm: isEn ? 'Confirm and Download PDF' : 'Confirmar e Baixar PDF',
+  };
+
   const [projetosLista, setProjetosLista] = useState([]);
   const [projetoSelecionado, setProjetoSelecionado] = useState('');
 
@@ -39,16 +129,13 @@ export default function MasterPlanPage() {
   const [novoFeriadoDesc, setNovoFeriadoDesc] = useState('');
 
   const [showPdfModal, setShowPdfModal] = useState(false);
-  const [pdfConfig, setPdfConfig] = useState({
-    formato: 'a3',
-    orientacao: 'landscape'
-  });
+  const [pdfConfig, setPdfConfig] = useState({ formato: 'a3', orientacao: 'landscape' });
 
-  // SISTEMA DE VERSÕES / CENÁRIOS (LAST PLANNER)
+  // SISTEMA DE VERSÕES (LAST PLANNER)
   const [versoes, setVersoes] = useState([]);
   const [versaoAtivaId, setVersaoAtivaId] = useState(null);
 
-  // ESTADOS DO MOTOR DE AGENDAMENTO (SCHEDULING ENGINE)
+  // MOTOR DE AGENDAMENTO (SCHEDULING ENGINE)
   const [pacotesLancados, setPacotesLancados] = useState([]); 
   const [showPacoteModal, setShowPacoteModal] = useState(false);
   const [tipoInicio, setTipoInicio] = useState('data'); 
@@ -113,7 +200,7 @@ export default function MasterPlanPage() {
     fetchZonasDoProjeto();
   }, [projetoSelecionado]);
 
-  // GERAÇÃO DO CALENDÁRIO BASE
+  // GERAÇÃO DO CALENDÁRIO COM DATAS INTERNACIONAIS
   useEffect(() => {
     const gerarDatas = () => {
       if (!dataInicio || !dataFim || !projetoSelecionado) return;
@@ -130,7 +217,10 @@ export default function MasterPlanPage() {
 
       const datas = [];
       let dataAtual = new Date(inicio);
-      const diasSemana = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
+      
+      const diasSemanaPt = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
+      const diasSemanaEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const diasSemana = isEn ? diasSemanaEn : diasSemanaPt;
 
       while (dataAtual <= fim) {
         const dataClonada = new Date(dataAtual);
@@ -144,11 +234,11 @@ export default function MasterPlanPage() {
 
         datas.push({
           dataCompleta: dataClonada,
-          labelData: `${dia}/${mes}`,
+          labelData: isEn ? `${mes}/${dia}` : `${dia}/${mes}`, // MM/DD ou DD/MM para Visualização
           labelSemana: diasSemana[diaSemanaIndex],
           isFimDeSemana: diaSemanaIndex === 0 || diaSemanaIndex === 6,
           isFeriado: isFeriado,
-          dataIso: dataIso
+          dataIso: dataIso // CHAVE INVARIANTE USADA NO BANCO DE DADOS/MEMÓRIA
         });
         
         dataAtual.setDate(dataAtual.getDate() + 1);
@@ -156,11 +246,11 @@ export default function MasterPlanPage() {
       setDatasPlanilha(datas);
     };
     gerarDatas();
-  }, [dataInicio, dataFim, feriados, projetoSelecionado]);
+  }, [dataInicio, dataFim, feriados, projetoSelecionado, isEn]);
 
   const datasVisiveis = datasPlanilha.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true);
 
-  // MOTOR DE RECÁLCULO AUTOMÁTICO
+  // MOTOR DE RECÁLCULO AUTOMÁTICO (Utiliza dataIso para nunca quebrar na tradução)
   useEffect(() => {
     if (datasPlanilha.length === 0) return;
 
@@ -185,9 +275,9 @@ export default function MasterPlanPage() {
 
         for (let i = startIndex; i < datasPlanilha.length && diasAlocados < pacote.duracao; i++) {
           const dia = datasPlanilha[i];
-          
           if (!dia.isFimDeSemana && !dia.isFeriado) {
-            const cellKey = `${pacote.linhaId}___${dia.labelData}`;
+            // Usa dataIso como chave oficial da célula
+            const cellKey = `${pacote.linhaId}___${dia.dataIso}`;
             novaGrade[cellKey] = pacote.atividade;
             diasAlocados++;
             lastIndex = i;
@@ -198,40 +288,39 @@ export default function MasterPlanPage() {
     });
 
     setDadosCelulas(novaGrade);
-    
   }, [pacotesLancados, datasPlanilha]);
 
   const calcularPapelSugerido = () => {
     const colunasDeData = datasVisiveis.length;
     const larguraEstimadaPx = 320 + (colunasDeData * 45);
 
-    if (larguraEstimadaPx <= 1047) return 'A4';
-    if (larguraEstimadaPx <= 1512) return 'A3';
-    if (larguraEstimadaPx <= 2170) return 'A2';
-    if (larguraEstimadaPx <= 3103) return 'A1';
-    if (larguraEstimadaPx <= 4418) return 'A0';
-    return 'Ajuste Perfeito (Contínua)';
+    if (larguraEstimadaPx <= 1047) return 'a4';
+    if (larguraEstimadaPx <= 1512) return 'a3';
+    if (larguraEstimadaPx <= 2170) return 'a2';
+    if (larguraEstimadaPx <= 3103) return 'a1';
+    if (larguraEstimadaPx <= 4418) return 'a0';
+    return 'unica';
+  };
+  
+  const formatoIdealCode = calcularPapelSugerido();
+
+  const handleCellChange = (linhaId, dataIso, valor) => {
+    setDadosCelulas(prev => ({ ...prev, [`${linhaId}___${dataIso}`]: valor }));
   };
 
-  const papelIdeal = calcularPapelSugerido();
-
-  const handleCellChange = (linhaId, dataLabel, valor) => {
-    setDadosCelulas(prev => ({ ...prev, [`${linhaId}___${dataLabel}`]: valor }));
-  };
-
-  const handleCellRealizadoChange = (linhaId, dataLabel, valor) => {
-    setDadosRealizado(prev => ({ ...prev, [`${linhaId}___${dataLabel}`]: valor }));
+  const handleCellRealizadoChange = (linhaId, dataIso, valor) => {
+    setDadosRealizado(prev => ({ ...prev, [`${linhaId}___${dataIso}`]: valor }));
   };
 
   const handleCongelarLinhaDeBase = () => {
-    if (window.confirm('Tem certeza que deseja congelar o planejamento atual? Isso criará a Linha de Base oficial do projeto.')) {
+    if (window.confirm(t.confirmFreeze)) {
       setLinhaDeBaseCongelada(true);
       setModoControle(true);
     }
   };
 
   const handleDescongelar = () => {
-    if (window.confirm('ATENÇÃO: Descongelar a linha de base permitirá alterações no Previsto. Deseja continuar?')) {
+    if (window.confirm(t.confirmUnfreeze)) {
       setLinhaDeBaseCongelada(false);
       setModoControle(false);
     }
@@ -239,32 +328,33 @@ export default function MasterPlanPage() {
 
   // FUNÇÕES DE GERENCIAMENTO DE VERSÕES
   const handleSalvarVersao = () => {
-    const nomeCenario = prompt('Digite um nome para este Cenário/Versão (ex: Cenário A - Aceleração Fachada):');
+    const nomeCenario = prompt(t.promptScenario);
     if (!nomeCenario) return;
 
+    const dataFormatada = new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR', { hour: '2-digit', minute: '2-digit' });
     const novaVersao = {
       id: `v_${Date.now()}`,
       nome: nomeCenario,
-      data: new Date().toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      data: dataFormatada,
       pacotes: [...pacotesLancados],
       feriadosSalvos: [...feriados]
     };
 
     setVersoes([...versoes, novaVersao]);
     setVersaoAtivaId(novaVersao.id);
-    alert('Cenário salvo com sucesso! Você pode alternar entre os cenários no menu superior.');
+    alert(t.scenarioSaved);
   };
 
   const handleCarregarVersao = (versaoId) => {
     if (!versaoId) {
-      if (window.confirm('Deseja limpar o planejamento atual para criar um cenário em branco?')) {
+      if (window.confirm(t.confirmClear)) {
         setPacotesLancados([]);
         setVersaoAtivaId(null);
       }
       return;
     }
 
-    if (window.confirm('Isso carregará o cenário selecionado e substituirá a grade atual. Deseja continuar?')) {
+    if (window.confirm(t.confirmLoad)) {
       const versao = versoes.find(v => v.id === versaoId);
       if (versao) {
         setPacotesLancados(versao.pacotes);
@@ -277,16 +367,18 @@ export default function MasterPlanPage() {
   const handleAdicionarFeriado = (e) => {
     e.preventDefault();
     if (novoFeriadoData && novoFeriadoDesc) {
-      if (feriados.find(f => f.data === novoFeriadoData)) return alert('Já existe um feriado cadastrado para esta data!');
+      if (feriados.find(f => f.data === novoFeriadoData)) return alert(t.errHolidayExists);
       setFeriados([...feriados, { data: novoFeriadoData, descricao: novoFeriadoDesc }]);
-      setNovoFeriadoData(''); setNovoFeriadoDesc('');
+      setNovoFeriadoData(''); 
+      setNovoFeriadoDesc('');
     }
   };
+  
   const handleRemoverFeriado = (data) => setFeriados(feriados.filter(f => f.data !== data));
 
-  const handleAdicionarSecao = () => setSecoes([...secoes, { id: `sec_${Date.now()}`, titulo: 'NOVA SEÇÃO DE SERVIÇOS', linhas: [] }]);
+  const handleAdicionarSecao = () => setSecoes([...secoes, { id: `sec_${Date.now()}`, titulo: t.newSecTitle, linhas: [] }]);
   const handleAtualizarTituloSecao = (secId, novoTitulo) => setSecoes(secoes.map(s => s.id === secId ? { ...s, titulo: novoTitulo } : s));
-  const handleRemoverSecao = (secId) => { if(window.confirm('Deseja excluir a seção?')) setSecoes(secoes.filter(s => s.id !== secId)); };
+  const handleRemoverSecao = (secId) => { if(window.confirm(t.confirmDelSection)) setSecoes(secoes.filter(s => s.id !== secId)); };
   
   const handleAdicionarLinha = (secId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: [...s.linhas, { id: `l_${Date.now()}`, descricao: '' }] } : s));
   const handleAtualizarLinha = (secId, linhaId, valor) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.map(l => l.id === linhaId ? { ...l, descricao: valor } : l) } : s));
@@ -295,7 +387,7 @@ export default function MasterPlanPage() {
   const pacotesExistentes = pacotesLancados.map(p => {
     let desc = p.linhaId;
     secoes.forEach(sec => sec.linhas.forEach(l => { if(l.id === p.linhaId) desc = l.descricao; }));
-    const sName = SERVICOS_CORES[p.atividade]?.label || p.atividade;
+    const sName = isEn ? (SERVICOS_CORES[p.atividade]?.labelEn || p.atividade) : (SERVICOS_CORES[p.atividade]?.labelPt || p.atividade);
     return {
       id: p.id,
       label: `${desc} - ${sName}`
@@ -305,12 +397,12 @@ export default function MasterPlanPage() {
   const handleInserirPacoteAutomacao = (e) => {
     e.preventDefault();
     if (!pacoteAtividade || !pacoteLinhaId || pacoteDuracao < 1) {
-      alert("Preencha Atividade, Linha e Duração.");
+      alert(t.errFillFields);
       return;
     }
 
-    if (tipoInicio === 'data' && !pacoteDataInicio) return alert("Selecione a data de início.");
-    if (tipoInicio === 'predecessora' && !pacotePredecessora) return alert("Selecione um pacote predecessor.");
+    if (tipoInicio === 'data' && !pacoteDataInicio) return alert(t.errSelectDate);
+    if (tipoInicio === 'predecessora' && !pacotePredecessora) return alert(t.errSelectPred);
 
     const novoPacote = {
       id: `pct_${Date.now()}`,
@@ -329,7 +421,6 @@ export default function MasterPlanPage() {
     setPacotePredecessora('');
     setPacoteDuracao(1);
     
-    // Se estivesse visualizando uma versão salva e fizesse uma alteração, ele desmarca a versão indicando que é um "Rascunho" novo
     setVersaoAtivaId(null); 
   };
 
@@ -366,7 +457,7 @@ export default function MasterPlanPage() {
       <div style={{ marginBottom: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h1 style={{ color: '#2A4365', margin: 0, fontStyle: 'italic', fontSize: '1.5rem', marginBottom: '10px' }}>
-            {lang === 'en-US' ? 'PHYSICAL SCHEDULE - LINE OF BALANCE' : 'CRONOGRAMA FÍSICO - LINHA DE BALANÇO'}
+            {t.title}
           </h1>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
@@ -376,7 +467,7 @@ export default function MasterPlanPage() {
                 onChange={(e) => setProjetoSelecionado(e.target.value)}
                 style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e0', minWidth: '300px', fontSize: '0.9rem', outline: 'none' }}
               >
-                <option value="">-- Selecione uma Obra --</option>
+                <option value="">{t.selectProject}</option>
                 {projetosLista.map(p => (
                   <option key={p.id} value={p.id}>#{p.id} - {p.nome_projeto}</option>
                 ))}
@@ -389,13 +480,13 @@ export default function MasterPlanPage() {
                 {!linhaDeBaseCongelada && (
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '2px solid #e2e8f0', paddingLeft: '15px', borderRight: '2px solid #e2e8f0', paddingRight: '15px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <label style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#718096', marginBottom: '2px', textTransform: 'uppercase' }}>Cenário / Versão (Last Planner)</label>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#718096', marginBottom: '2px', textTransform: 'uppercase' }}>{t.scenarioLabel}</label>
                       <select
                         value={versaoAtivaId || ''}
                         onChange={(e) => handleCarregarVersao(e.target.value)}
                         style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e0', fontSize: '0.85rem', outline: 'none', minWidth: '200px', backgroundColor: versaoAtivaId ? '#ebf8ff' : '#fff' }}
                       >
-                        <option value="">{versaoAtivaId === null && pacotesLancados.length > 0 ? '* Edição não salva...' : 'Novo Cenário em Branco'}</option>
+                        <option value="">{versaoAtivaId === null && pacotesLancados.length > 0 ? t.unsavedEdit : t.newBlank}</option>
                         {versoes.map(v => <option key={v.id} value={v.id}>{v.nome} ({v.data})</option>)}
                       </select>
                     </div>
@@ -403,9 +494,8 @@ export default function MasterPlanPage() {
                       onClick={handleSalvarVersao} 
                       disabled={pacotesLancados.length === 0}
                       style={{ backgroundColor: '#4a5568', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: pacotesLancados.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.8rem', opacity: pacotesLancados.length === 0 ? 0.5 : 1, marginTop: '14px' }}
-                      title="Salvar configuração atual como um novo cenário"
                     >
-                      💾 Salvar Cenário
+                      {t.saveScenario}
                     </button>
                   </div>
                 )}
@@ -413,25 +503,25 @@ export default function MasterPlanPage() {
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   {!linhaDeBaseCongelada ? (
                     <button onClick={handleCongelarLinhaDeBase} style={{ backgroundColor: '#1a365d', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', marginTop: '14px' }}>
-                      🔒 Congelar Linha de Base
+                      {t.freezeBase}
                     </button>
                   ) : (
                     <>
                       <button onClick={handleDescongelar} style={{ backgroundColor: '#e2e8f0', color: '#4a5568', border: '1px solid #cbd5e0', padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                        🔓 Editar Base
+                        {t.editBase}
                       </button>
                       <div style={{ display: 'flex', backgroundColor: '#edf2f7', borderRadius: '6px', border: '1px solid #cbd5e0', overflow: 'hidden' }}>
                         <button 
                           onClick={() => setModoControle(false)} 
                           style={{ backgroundColor: !modoControle ? '#3182ce' : 'transparent', color: !modoControle ? 'white' : '#4a5568', border: 'none', padding: '8px 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
                         >
-                          📋 Planejamento
+                          {t.planning}
                         </button>
                         <button 
                           onClick={() => setModoControle(true)} 
                           style={{ backgroundColor: modoControle ? '#dd6b20' : 'transparent', color: modoControle ? 'white' : '#4a5568', border: 'none', padding: '8px 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
                         >
-                          ⚙️ Controle (Realizado)
+                          {t.control}
                         </button>
                       </div>
                     </>
@@ -445,25 +535,25 @@ export default function MasterPlanPage() {
         {projetoSelecionado && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => setShowPacoteModal(true)} disabled={linhaDeBaseCongelada} style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: linhaDeBaseCongelada ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.85rem', opacity: linhaDeBaseCongelada ? 0.6 : 1 }}>
-              ⚡ Inserir Pacote
+              {t.insertPackage}
             </button>
             <button onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)} style={{ backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', color: ocultarFinaisDeSemana ? 'white' : '#4a5568', border: '1px solid #cbd5e0', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-              {ocultarFinaisDeSemana ? 'Mostrar Finais de Semana' : 'Ocultar Finais de Semana'}
+              {ocultarFinaisDeSemana ? t.showWeekends : t.hideWeekends}
             </button>
             <button onClick={() => setShowFeriadosModal(true)} style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-              📅 Feriados
+              {t.holidaysBtn}
             </button>
-            <button onClick={() => { const fmtSugerido = papelIdeal.split(' ')[0].toLowerCase(); setPdfConfig(prev => ({ ...prev, formato: ['a4','a3','a2','a1','a0'].includes(fmtSugerido) ? fmtSugerido : 'unica' })); setShowPdfModal(true); }} style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-              📊 Exportar PDF
+            <button onClick={() => { setPdfConfig(prev => ({ ...prev, formato: formatoIdealCode })); setShowPdfModal(true); }} style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+              {t.exportPdf}
             </button>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#f7fafc', padding: '8px 15px', borderRadius: '8px', border: '1px solid #cbd5e0' }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Início Previsto</label>
+                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>{t.startPrev}</label>
                 <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} disabled={linhaDeBaseCongelada} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: linhaDeBaseCongelada ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: linhaDeBaseCongelada ? 0.7 : 1 }} />
               </div>
               <span style={{ color: '#a0aec0', fontWeight: 'bold', marginTop: '12px' }}>➞</span>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>Término Previsto</label>
+                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>{t.endPrev}</label>
                 <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} disabled={linhaDeBaseCongelada} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: linhaDeBaseCongelada ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: linhaDeBaseCongelada ? 0.7 : 1 }} />
               </div>
             </div>
@@ -475,8 +565,8 @@ export default function MasterPlanPage() {
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f7fafc', borderRadius: '8px', border: '2px dashed #cbd5e0' }}>
           <div style={{ textAlign: 'center', color: '#718096' }}>
             <span style={{ fontSize: '3rem', display: 'block', marginBottom: '10px' }}>🏗️</span>
-            <h2>Nenhuma Obra Selecionada</h2>
-            <p>Selecione um projeto no menu acima para criar ou visualizar o Master Plan.</p>
+            <h2>{t.noProject}</h2>
+            <p>{t.noProjectDesc}</p>
           </div>
         </div>
       )}
@@ -484,29 +574,29 @@ export default function MasterPlanPage() {
       {showPacoteModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '550px', fontFamily: 'sans-serif' }}>
-            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Inserir Pacote de Trabalho</h2>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>{t.mPkgTitle}</h2>
             
             <form onSubmit={handleInserirPacoteAutomacao} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               
               <div style={{ display: 'flex', gap: '15px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Serviço / Atividade</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mPkgService}</label>
                   <select required value={pacoteAtividade} onChange={(e) => setPacoteAtividade(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
-                    <option value="">-- Selecione --</option>
+                    <option value="">{t.mPkgSelect}</option>
                     {Object.entries(SERVICOS_CORES)
                       .filter(([sigla]) => sigla !== '' && sigla !== 'OFF' && sigla !== 'FER')
                       .map(([sigla, info]) => (
-                        <option key={sigla} value={sigla}>{info.label} ({sigla})</option>
+                        <option key={sigla} value={sigla}>{isEn ? info.labelEn : info.labelPt} ({sigla})</option>
                     ))}
                   </select>
                 </div>
 
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Localização / Zona</label>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mPkgZone}</label>
                   <select required value={pacoteLinhaId} onChange={(e) => setPacoteLinhaId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
-                    <option value="">-- Selecione --</option>
+                    <option value="">{t.mPkgSelect}</option>
                     {secoes.map(sec => (
-                      <optgroup key={sec.id} label={sec.titulo}>
+                      <optgroup key={sec.id} label={sec.titulo === 'SERVIÇOS INTERNOS' && isEn ? t.intWork : (sec.titulo === 'SERVIÇOS EXTERNOS' && isEn ? t.extWork : sec.titulo)}>
                         {sec.linhas.map(linha => (
                           <option key={linha.id} value={linha.id}>{linha.descricao || `Linha ID: ${linha.id}`}</option>
                         ))}
@@ -520,43 +610,43 @@ export default function MasterPlanPage() {
                 <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', color: '#2d3748', cursor: 'pointer', fontWeight: 'bold' }}>
                     <input type="radio" name="tipoInicio" value="data" checked={tipoInicio === 'data'} onChange={() => setTipoInicio('data')} />
-                    📅 Iniciar em Data Específica
+                    {t.mPkgRadioDate}
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', color: '#2d3748', cursor: 'pointer', fontWeight: 'bold' }}>
                     <input type="radio" name="tipoInicio" value="predecessora" checked={tipoInicio === 'predecessora'} onChange={() => setTipoInicio('predecessora')} />
-                    🔗 Iniciar após Predecessora
+                    {t.mPkgRadioPred}
                   </label>
                 </div>
 
                 {tipoInicio === 'data' ? (
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Data de Início</label>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mPkgStartDate}</label>
                     <input type="date" required={tipoInicio === 'data'} value={pacoteDataInicio} onChange={(e) => setPacoteDataInicio(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
                   </div>
                 ) : (
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Vincular ao Término de:</label>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mPkgLinkPred}</label>
                     <select required={tipoInicio === 'predecessora'} value={pacotePredecessora} onChange={(e) => setPacotePredecessora(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
-                      <option value="">-- Selecione o Pacote Concluído --</option>
+                      <option value="">{t.mPkgSelectPred}</option>
                       {pacotesExistentes.map(p => (
                         <option key={p.id} value={p.id}>{p.label}</option>
                       ))}
                     </select>
                     {pacotesExistentes.length === 0 && (
-                      <p style={{ fontSize: '0.75rem', color: '#e53e3e', marginTop: '5px' }}>Nenhum pacote lançado ainda. Use a Data Específica primeiro.</p>
+                      <p style={{ fontSize: '0.75rem', color: '#e53e3e', marginTop: '5px' }}>{t.mPkgNoPred}</p>
                     )}
                   </div>
                 )}
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Duração (Dias Úteis)</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mPkgDuration}</label>
                 <input type="number" required min="1" value={pacoteDuracao} onChange={(e) => setPacoteDuracao(Number(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' }}>
-                <button type="button" onClick={() => setShowPacoteModal(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', color: '#4a5568', fontWeight: 'bold' }}>Cancelar</button>
-                <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Lançar na Grade</button>
+                <button type="button" onClick={() => setShowPacoteModal(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', color: '#4a5568', fontWeight: 'bold' }}>{t.mPkgCancel}</button>
+                <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.mPkgAddGrid}</button>
               </div>
             </form>
           </div>
@@ -566,43 +656,47 @@ export default function MasterPlanPage() {
       {showFeriadosModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px', fontFamily: 'sans-serif' }}>
-            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Cadastrar Feriados (Mun/Est/Fed)</h2>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>{t.mHolTitle}</h2>
             
             <form onSubmit={handleAdicionarFeriado} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
               <input type="date" required value={novoFeriadoData} onChange={(e) => setNovoFeriadoData(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none' }} />
-              <input type="text" required placeholder="Descrição (ex: Padroeira)" value={novoFeriadoDesc} onChange={(e) => setNovoFeriadoDesc(e.target.value)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none' }} />
-              <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Adicionar</button>
+              <input type="text" required placeholder={t.mHolDescPlace} value={novoFeriadoDesc} onChange={(e) => setNovoFeriadoDesc(e.target.value)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none' }} />
+              <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>{t.mHolAdd}</button>
             </form>
 
             <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '20px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f7fafc' }}>
                   <tr>
-                    <th style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Data</th>
-                    <th style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Descrição</th>
-                    <th style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', textAlign: 'center' }}>Ação</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>{t.mHolDateCol}</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>{t.mHolDescCol}</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', textAlign: 'center' }}>{t.mHolActionCol}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {feriados.length === 0 ? (
-                    <tr><td colSpan={3} style={{ padding: '15px', textAlign: 'center', color: '#a0aec0' }}>Nenhum feriado cadastrado.</td></tr>
+                    <tr><td colSpan={3} style={{ padding: '15px', textAlign: 'center', color: '#a0aec0' }}>{t.mHolEmpty}</td></tr>
                   ) : (
-                    feriados.sort((a, b) => new Date(a.data) - new Date(b.data)).map((f, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #edf2f7' }}>
-                        <td style={{ padding: '8px' }}>{f.data.split('-').reverse().join('/')}</td>
-                        <td style={{ padding: '8px', fontWeight: 'bold', color: '#2d3748' }}>{f.descricao}</td>
-                        <td style={{ padding: '8px', textAlign: 'center' }}>
-                          <button onClick={() => handleRemoverFeriado(f.data)} style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>Excluir</button>
-                        </td>
-                      </tr>
-                    ))
+                    feriados.sort((a, b) => new Date(a.data) - new Date(b.data)).map((f, i) => {
+                      const parts = f.data.split('-');
+                      const displayDate = isEn ? `${parts[1]}/${parts[2]}/${parts[0]}` : `${parts[2]}/${parts[1]}/${parts[0]}`;
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid #edf2f7' }}>
+                          <td style={{ padding: '8px' }}>{displayDate}</td>
+                          <td style={{ padding: '8px', fontWeight: 'bold', color: '#2d3748' }}>{f.descricao}</td>
+                          <td style={{ padding: '8px', textAlign: 'center' }}>
+                            <button onClick={() => handleRemoverFeriado(f.data)} style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>{t.mHolDel}</button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowFeriadosModal(false)} style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Concluir</button>
+              <button onClick={() => setShowFeriadosModal(false)} style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.mHolDone}</button>
             </div>
           </div>
         </div>
@@ -611,39 +705,39 @@ export default function MasterPlanPage() {
       {showPdfModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '480px', fontFamily: 'sans-serif' }}>
-            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Configuração de Impressão (PDF)</h2>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>{t.mPdfTitle}</h2>
             
             <div style={{ backgroundColor: '#ebf8ff', padding: '12px', borderRadius: '6px', border: '1px solid #90cdf4', marginBottom: '20px' }}>
               <p style={{ margin: 0, fontSize: '0.85rem', color: '#2b6cb0', lineHeight: '1.4' }}>
-                💡 <strong>Sugestão do Sistema:</strong> Com base na largura atual do seu cronograma ({datasVisiveis.length} colunas), recomendamos utilizar o papel <strong>{papelIdeal.toUpperCase()}</strong>.
+                💡 <strong>{t.mPdfSugest}</strong> {t.mPdfSugestText(datasVisiveis.length)} <strong>{formatoIdealCode.toUpperCase()}</strong>.
               </p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Tamanho da Folha</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mPdfSize}</label>
                 <select value={pdfConfig.formato} onChange={(e) => setPdfConfig({...pdfConfig, formato: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
-                  <option value="a4">A4 (Padrão)</option>
-                  <option value="a3">A3 (Recomendado)</option>
-                  <option value="a2">A2 (Grande)</option>
-                  <option value="a1">A1 (Gigante)</option>
-                  <option value="a0">A0 (Extremo)</option>
-                  <option value="unica">Ajuste Perfeito (Página Única Contínua)</option>
+                  <option value="a4">{t.mPdf_a4}</option>
+                  <option value="a3">{t.mPdf_a3}</option>
+                  <option value="a2">{t.mPdf_a2}</option>
+                  <option value="a1">{t.mPdf_a1}</option>
+                  <option value="a0">{t.mPdf_a0}</option>
+                  <option value="unica">{t.mPdf_unica}</option>
                 </select>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Orientação</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mPdfOrient}</label>
                 <select value={pdfConfig.orientacao} onChange={(e) => setPdfConfig({...pdfConfig, orientacao: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} disabled={pdfConfig.formato === 'unica'}>
-                  <option value="landscape">Paisagem (Horizontal)</option>
-                  <option value="portrait">Retrato (Vertical)</option>
+                  <option value="landscape">{t.mPdfLand}</option>
+                  <option value="portrait">{t.mPdfPort}</option>
                 </select>
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setShowPdfModal(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={gerarPDF} style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Confirmar e Baixar PDF</button>
+              <button onClick={() => setShowPdfModal(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer' }}>{t.mPkgCancel}</button>
+              <button onClick={gerarPDF} style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.mPdfConfirm}</button>
             </div>
           </div>
         </div>
@@ -658,7 +752,7 @@ export default function MasterPlanPage() {
                 <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#1a365d' }}>
                   <tr>
                     <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#1a365d', color: 'white', padding: '8px', borderRight: '1px solid #2a4365', width: '40px' }}>ID</th>
-                    <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#1a365d', color: 'white', padding: '8px 15px', borderRight: '1px solid #2a4365', textAlign: 'left', minWidth: '320px' }}>DESCRIÇÃO</th>
+                    <th rowSpan={2} style={{ position: 'sticky', left: '40px', zIndex: 11, backgroundColor: '#1a365d', color: 'white', padding: '8px 15px', borderRight: '1px solid #2a4365', textAlign: 'left', minWidth: '320px' }}>{t.descHeader}</th>
                     {datasVisiveis.map((d, i) => (
                       <th key={`data-${i}`} style={{ backgroundColor: '#1a365d', borderRight: '1px solid #2a4365', borderBottom: '1px solid #2a4365', padding: '4px 2px', fontSize: '0.8rem', color: 'white', textAlign: 'center' }}>
                         {d.labelData}
@@ -675,14 +769,16 @@ export default function MasterPlanPage() {
                 </thead>
 
                 <tbody>
-                  {secoes.map((secao) => (
+                  {secoes.map((secao) => {
+                    const displayTitle = secao.titulo === 'SERVIÇOS INTERNOS' && isEn ? t.intWork : (secao.titulo === 'SERVIÇOS EXTERNOS' && isEn ? t.extWork : secao.titulo);
+                    return (
                     <React.Fragment key={secao.id}>
                       <tr style={{ backgroundColor: '#edf2f7' }}>
                         <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: '#edf2f7', padding: '6px 15px', borderBottom: '2px solid #2a4365', borderTop: '2px solid #2a4365' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <input 
                               type="text"
-                              value={secao.titulo}
+                              value={displayTitle}
                               onChange={(e) => handleAtualizarTituloSecao(secao.id, e.target.value)}
                               disabled={linhaDeBaseCongelada}
                               style={{ fontWeight: 'bold', fontStyle: 'italic', color: '#2a4365', background: 'transparent', border: 'none', outline: 'none', width: '85%', fontSize: '0.9rem' }}
@@ -702,7 +798,8 @@ export default function MasterPlanPage() {
                         
                         const renderizarCelulas = (isRealizado) => {
                           return datasVisiveis.map((d) => {
-                            const cellKey = `${linha.id}___${d.labelData}`;
+                            // AQUI USAMOS A CHAVE INVARIANTE dataIso!
+                            const cellKey = `${linha.id}___${d.dataIso}`;
                             const baseDados = isRealizado ? dadosRealizado : dadosCelulas;
                             const valorSalvo = baseDados[cellKey];
                             
@@ -725,7 +822,7 @@ export default function MasterPlanPage() {
                                 <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <select
                                     value={valorEfetivo}
-                                    onChange={(e) => isRealizado ? handleCellRealizadoChange(linha.id, d.labelData, e.target.value) : handleCellChange(linha.id, d.labelData, e.target.value)}
+                                    onChange={(e) => isRealizado ? handleCellRealizadoChange(linha.id, d.dataIso, e.target.value) : handleCellChange(linha.id, d.dataIso, e.target.value)}
                                     disabled={inputBloqueado}
                                     style={{ width: '100%', height: '100%', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.7rem', fontWeight: 'bold', textAlign: 'center', textAlignLast: 'center', appearance: 'none', cursor: inputBloqueado ? 'default' : 'pointer', borderRadius: '2px', opacity: (modoControle && !isRealizado && valorEfetivo) ? 0.6 : 1, padding: '0 4px' }}
                                   >
@@ -758,10 +855,10 @@ export default function MasterPlanPage() {
                                       onChange={(e) => handleAtualizarLinha(secao.id, linha.id, e.target.value)} 
                                       disabled={linhaDeBaseCongelada}
                                       list="lista-zonas-coleta"
-                                      placeholder="Selecione ou digite a etapa..."
+                                      placeholder={t.selectOrType}
                                       style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
                                     />
-                                    {modoControle && <span style={{ fontSize: '0.65rem', backgroundColor: '#cbd5e0', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', color: '#4a5568' }}>PREVISTO</span>}
+                                    {modoControle && <span style={{ fontSize: '0.65rem', backgroundColor: '#cbd5e0', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', color: '#4a5568' }}>{t.plannedBadge}</span>}
                                   </div>
                                   {!linhaDeBaseCongelada && (
                                     <button onClick={() => handleRemoverLinha(secao.id, linha.id)} style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
@@ -780,7 +877,7 @@ export default function MasterPlanPage() {
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '90%' }}>
                                       <span style={{ flex: 1, color: '#a0aec0', fontSize: '0.85rem', paddingLeft: '2px' }}>↳ {linha.descricao}</span>
-                                      <span style={{ fontSize: '0.65rem', backgroundColor: '#3182ce', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', color: 'white' }}>REALIZADO</span>
+                                      <span style={{ fontSize: '0.65rem', backgroundColor: '#3182ce', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', color: 'white' }}>{t.actualBadge}</span>
                                     </div>
                                   </div>
                                 </td>
@@ -794,7 +891,7 @@ export default function MasterPlanPage() {
                       {!linhaDeBaseCongelada && (
                         <tr>
                           <td colSpan={2} style={{ position: 'sticky', left: 0, zIndex: 5, backgroundColor: 'white', padding: '5px 15px', borderBottom: '1px solid #cbd5e0' }}>
-                            <button onClick={() => handleAdicionarLinha(secao.id)} style={btnAdicionarStyle}>+ Adicionar Linha</button>
+                            <button onClick={() => handleAdicionarLinha(secao.id)} style={btnAdicionarStyle}>{t.addRow}</button>
                           </td>
                           {datasVisiveis.map((d, i) => (
                             <td key={`add-${secao.id}-${i}`} style={{ borderBottom: '1px solid #cbd5e0', backgroundColor: d.isFeriado ? '#fed7d7' : (d.isFimDeSemana ? '#e2e8f0' : 'white') }}></td>
@@ -802,13 +899,14 @@ export default function MasterPlanPage() {
                         </tr>
                       )}
                     </React.Fragment>
-                  ))}
+                    )
+                  })}
 
                   {!linhaDeBaseCongelada && (
                     <tr>
                       <td colSpan={2 + datasVisiveis.length} style={{ padding: '20px', backgroundColor: '#f4f7f6', textAlign: 'left' }}>
                         <button onClick={handleAdicionarSecao} style={{ backgroundColor: '#2a4365', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                          + Adicionar Nova Seção de Cronograma
+                          {t.addSection}
                         </button>
                       </td>
                     </tr>
@@ -819,11 +917,11 @@ export default function MasterPlanPage() {
           </div>
           
           <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #cbd5e0', display: 'flex', gap: '15px', flexWrap: 'wrap', fontSize: '0.75rem' }}>
-            <span style={{ fontWeight: 'bold', color: '#1a365d' }}>LEGENDA:</span>
+            <span style={{ fontWeight: 'bold', color: '#1a365d' }}>{t.legend}</span>
             {Object.entries(SERVICOS_CORES).filter(([sigla]) => sigla !== '').map(([sigla, info]) => (
               <div key={sigla} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <div style={{ width: '12px', height: '12px', backgroundColor: info.color, borderRadius: '2px', border: '1px solid #cbd5e0' }}></div>
-                <span><b>{sigla}</b> - {info.label}</span>
+                <span><b>{sigla}</b> - {isEn ? info.labelEn : info.labelPt}</span>
               </div>
             ))}
           </div>
