@@ -44,8 +44,10 @@ export default function MasterPlanPage() {
     orientacao: 'landscape'
   });
 
-  // Novos estados para o Modal de Pacote de Trabalho
+  // Estados para o Modal de Pacote de Trabalho
   const [showPacoteModal, setShowPacoteModal] = useState(false);
+  const [tipoInicio, setTipoInicio] = useState('data'); // 'data' ou 'predecessora'
+  const [pacotePredecessora, setPacotePredecessora] = useState('');
   const [pacoteAtividade, setPacoteAtividade] = useState('');
   const [pacoteLinhaId, setPacoteLinhaId] = useState('');
   const [pacoteDataInicio, setPacoteDataInicio] = useState('');
@@ -206,19 +208,66 @@ export default function MasterPlanPage() {
   const handleAtualizarLinha = (secId, linhaId, valor) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.map(l => l.id === linhaId ? { ...l, descricao: valor } : l) } : s));
   const handleRemoverLinha = (secId, linhaId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.filter(l => l.id !== linhaId) } : s));
 
-  // Função nova para inserir o pacote de trabalho automaticamente
+  // Função para escanear a grade e achar os pacotes já lançados (para usar como predecessora)
+  const getPacotesExistentes = () => {
+    const pacotes = {};
+    Object.entries(dadosCelulas).forEach(([key, sigla]) => {
+      if (!sigla || sigla === 'OFF' || sigla === 'FER') return;
+      const [linhaId, dataLabel] = key.split('___');
+      
+      const dataIndex = datasPlanilha.findIndex(d => d.labelData === dataLabel);
+      if (dataIndex === -1) return;
+
+      const pid = `${linhaId}|${sigla}`;
+      // Guarda sempre o índice do ÚLTIMO dia que essa atividade aparece
+      if (!pacotes[pid] || pacotes[pid].lastIndex < dataIndex) {
+        pacotes[pid] = { linhaId, sigla, lastIndex: dataIndex };
+      }
+    });
+    
+    return Object.values(pacotes).map(p => {
+      let desc = p.linhaId;
+      secoes.forEach(sec => sec.linhas.forEach(l => { if(l.id === p.linhaId) desc = l.descricao; }));
+      const sName = SERVICOS_CORES[p.sigla]?.label || p.sigla;
+      return {
+        id: `${p.linhaId}|${p.sigla}`,
+        label: `${desc} - ${sName}`,
+        lastIndex: p.lastIndex
+      };
+    }).sort((a, b) => a.label.localeCompare(b.label)); // Ordena alfabeticamente
+  };
+
+  const pacotesExistentes = getPacotesExistentes();
+
+  // Função para Inserir o pacote de trabalho considerando Data ou Predecessora + Feriados
   const handleInserirPacoteAutomacao = (e) => {
     e.preventDefault();
-    if (!pacoteAtividade || !pacoteLinhaId || !pacoteDataInicio || pacoteDuracao < 1) {
-      alert("Preencha todos os campos corretamente.");
+    if (!pacoteAtividade || !pacoteLinhaId || pacoteDuracao < 1) {
+      alert("Preencha Atividade, Linha e Duração.");
       return;
     }
 
-    const startIndex = datasPlanilha.findIndex(d => d.dataIso === pacoteDataInicio);
-    
-    if (startIndex === -1) {
-      alert("A data de início escolhida está fora do intervalo do cronograma (Início/Término Previsto).");
-      return;
+    let startIndex = -1;
+
+    if (tipoInicio === 'data') {
+      if (!pacoteDataInicio) return alert("Selecione a data de início.");
+      startIndex = datasPlanilha.findIndex(d => d.dataIso === pacoteDataInicio);
+      if (startIndex === -1) {
+        alert("A data escolhida está fora do intervalo do cronograma.");
+        return;
+      }
+    } else {
+      if (!pacotePredecessora) return alert("Selecione um pacote predecessor.");
+      const pred = pacotesExistentes.find(p => p.id === pacotePredecessora);
+      if (!pred) return alert("Predecessora não encontrada.");
+      
+      // O início será NO DIA SEGUINTE do último dia da predecessora
+      startIndex = pred.lastIndex + 1;
+      
+      if (startIndex >= datasPlanilha.length) {
+        alert("A predecessora termina no último dia do cronograma. Não há espaço para lançar esta atividade.");
+        return;
+      }
     }
 
     let diasAdicionados = 0;
@@ -227,6 +276,9 @@ export default function MasterPlanPage() {
     for (let i = startIndex; i < datasPlanilha.length && diasAdicionados < pacoteDuracao; i++) {
       const diaAtual = datasPlanilha[i];
       
+      // A MÁGICA DOS FERIADOS ACONTECE AQUI:
+      // Se for final de semana ou Feriado, ele PULA este dia e avança o loop. 
+      // Isso empurra o término automaticamente para a frente!
       if (!diaAtual.isFimDeSemana && !diaAtual.isFeriado) {
         const cellKey = `${pacoteLinhaId}___${diaAtual.labelData}`;
         novosDados[cellKey] = pacoteAtividade;
@@ -235,12 +287,13 @@ export default function MasterPlanPage() {
     }
 
     if (diasAdicionados < pacoteDuracao) {
-      alert(`Atenção: O cronograma terminou antes de alocar todos os dias. Foram alocados ${diasAdicionados} de ${pacoteDuracao} dias úteis.`);
+      alert(`Atenção: O cronograma acabou antes de alocar todos os dias. Foram alocados ${diasAdicionados} de ${pacoteDuracao} dias úteis.`);
     }
 
     setDadosCelulas(novosDados);
     setShowPacoteModal(false);
     setPacoteDataInicio('');
+    setPacotePredecessora('');
     setPacoteDuracao(1);
   };
 
@@ -328,7 +381,6 @@ export default function MasterPlanPage() {
 
         {projetoSelecionado && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* NOVO BOTÃO DE INSERIR PACOTE AQUI */}
             <button onClick={() => setShowPacoteModal(true)} disabled={linhaDeBaseCongelada} style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: linhaDeBaseCongelada ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.85rem', opacity: linhaDeBaseCongelada ? 0.6 : 1 }}>
               ⚡ Inserir Pacote
             </button>
@@ -369,46 +421,76 @@ export default function MasterPlanPage() {
       {/* MODAL: INSERIR PACOTE DE TRABALHO */}
       {showPacoteModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px', fontFamily: 'sans-serif' }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '550px', fontFamily: 'sans-serif' }}>
             <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Inserir Pacote de Trabalho</h2>
             
             <form onSubmit={handleInserirPacoteAutomacao} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Serviço / Atividade</label>
-                <select required value={pacoteAtividade} onChange={(e) => setPacoteAtividade(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
-                  <option value="">-- Selecione --</option>
-                  {Object.entries(SERVICOS_CORES)
-                    .filter(([sigla]) => sigla !== '' && sigla !== 'OFF' && sigla !== 'FER')
-                    .map(([sigla, info]) => (
-                      <option key={sigla} value={sigla}>{info.label} ({sigla})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Localização / Linha</label>
-                <select required value={pacoteLinhaId} onChange={(e) => setPacoteLinhaId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
-                  <option value="">-- Selecione --</option>
-                  {secoes.map(sec => (
-                    <optgroup key={sec.id} label={sec.titulo}>
-                      {sec.linhas.map(linha => (
-                        <option key={linha.id} value={linha.id}>{linha.descricao || `Linha ID: ${linha.id}`}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-
               <div style={{ display: 'flex', gap: '15px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Data de Início</label>
-                  <input type="date" required value={pacoteDataInicio} onChange={(e) => setPacoteDataInicio(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Serviço / Atividade</label>
+                  <select required value={pacoteAtividade} onChange={(e) => setPacoteAtividade(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
+                    <option value="">-- Selecione --</option>
+                    {Object.entries(SERVICOS_CORES)
+                      .filter(([sigla]) => sigla !== '' && sigla !== 'OFF' && sigla !== 'FER')
+                      .map(([sigla, info]) => (
+                        <option key={sigla} value={sigla}>{info.label} ({sigla})</option>
+                    ))}
+                  </select>
                 </div>
+
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Duração (Dias Úteis)</label>
-                  <input type="number" required min="1" value={pacoteDuracao} onChange={(e) => setPacoteDuracao(Number(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Localização / Zona</label>
+                  <select required value={pacoteLinhaId} onChange={(e) => setPacoteLinhaId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
+                    <option value="">-- Selecione --</option>
+                    {secoes.map(sec => (
+                      <optgroup key={sec.id} label={sec.titulo}>
+                        {sec.linhas.map(linha => (
+                          <option key={linha.id} value={linha.id}>{linha.descricao || `Linha ID: ${linha.id}`}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </div>
+              </div>
+
+              {/* OPÇÕES DE INÍCIO: DATA OU PREDECESSORA */}
+              <div style={{ backgroundColor: '#f7fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', color: '#2d3748', cursor: 'pointer', fontWeight: 'bold' }}>
+                    <input type="radio" name="tipoInicio" value="data" checked={tipoInicio === 'data'} onChange={() => setTipoInicio('data')} />
+                    📅 Iniciar em Data Específica
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', color: '#2d3748', cursor: 'pointer', fontWeight: 'bold' }}>
+                    <input type="radio" name="tipoInicio" value="predecessora" checked={tipoInicio === 'predecessora'} onChange={() => setTipoInicio('predecessora')} />
+                    🔗 Iniciar após Predecessora
+                  </label>
+                </div>
+
+                {tipoInicio === 'data' ? (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Data de Início</label>
+                    <input type="date" required={tipoInicio === 'data'} value={pacoteDataInicio} onChange={(e) => setPacoteDataInicio(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
+                  </div>
+                ) : (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Vincular ao Término de:</label>
+                    <select required={tipoInicio === 'predecessora'} value={pacotePredecessora} onChange={(e) => setPacotePredecessora(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
+                      <option value="">-- Selecione o Pacote Concluído --</option>
+                      {pacotesExistentes.map(p => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                      ))}
+                    </select>
+                    {pacotesExistentes.length === 0 && (
+                      <p style={{ fontSize: '0.75rem', color: '#e53e3e', marginTop: '5px' }}>Nenhum pacote lançado ainda. Use a Data Específica primeiro.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Duração (Dias Úteis)</label>
+                <input type="number" required min="1" value={pacoteDuracao} onChange={(e) => setPacoteDuracao(Number(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' }}>
@@ -420,6 +502,7 @@ export default function MasterPlanPage() {
         </div>
       )}
 
+      {/* RESTANTE DOS MODAIS (FERIADOS E PDF) */}
       {showFeriadosModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px', fontFamily: 'sans-serif' }}>
@@ -512,8 +595,6 @@ export default function MasterPlanPage() {
             <div id="conteudo-masterplan-pdf" style={{ minWidth: 'max-content', paddingBottom: '20px' }}>
               
               <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%' }}>
-                
-                {/* CABEÇALHO AZUL ESCURO CORRIGIDO */}
                 <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#1a365d' }}>
                   <tr>
                     <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 11, backgroundColor: '#1a365d', color: 'white', padding: '8px', borderRight: '1px solid #2a4365', width: '40px' }}>ID</th>
