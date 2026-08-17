@@ -3,22 +3,36 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { supabase } from '../../../../lib/supabase';
 
-// Cores e Labels com suporte a 2 idiomas
-const SERVICOS_CORES = {
+// 1. LISTA ATUALIZADA CONFORME A LEGENDA OFICIAL
+const DEFAULT_SERVICOS_CORES = {
   '': { labelPt: '', labelEn: '', color: 'transparent', text: '#000' },
   'FUN': { labelPt: 'Fundação', labelEn: 'Foundation', color: '#ff00ff', text: '#fff' },
-  'PNS': { labelPt: 'Painelização Aço', labelEn: 'Steel Paneling', color: '#9900cc', text: '#fff' },
-  'VTS': { labelPt: 'Estrutura', labelEn: 'Structure', color: '#0000ff', text: '#fff' },
-  'BUF': { labelPt: 'Buffer', labelEn: 'Buffer', color: '#000000', text: '#fff' },
+  'PNS': { labelPt: 'Painelização LSF', labelEn: 'LSF Paneling', color: '#8a2be2', text: '#fff' },
+  'VTS': { labelPt: 'Verticalização LSF', labelEn: 'LSF Verticalization', color: '#0000ff', text: '#fff' },
   'VEX': { labelPt: 'Vedações Externas', labelEn: 'Exterior Enclosures', color: '#00ffff', text: '#000' },
-  'COB': { labelPt: 'Cobertura', labelEn: 'Roofing', color: '#993333', text: '#fff' },
-  'INS': { labelPt: 'Instalações', labelEn: 'Installations', color: '#3366cc', text: '#fff' },
-  'LMI': { labelPt: 'Limpeza e Miudezas', labelEn: 'Cleaning & Misc', color: '#00cc00', text: '#fff' },
-  'VIN': { labelPt: 'Piso Vinílico', labelEn: 'Vinyl Flooring', color: '#ff9900', text: '#fff' },
-  'FOR': { labelPt: 'Forro', labelEn: 'Ceiling', color: '#336600', text: '#fff' },
-  'PIN': { labelPt: 'Pintura', labelEn: 'Painting', color: '#808000', text: '#fff' },
+  'LMI': { labelPt: 'Lã Mineral', labelEn: 'Mineral Wool', color: '#00ff00', text: '#000' },
+  'VIN': { labelPt: 'Vedações Internas', labelEn: 'Interior Enclosures', color: '#ff9900', text: '#fff' },
+  'PIS': { labelPt: 'Pisos', labelEn: 'Flooring', color: '#8b0000', text: '#fff' },
+  'FOR': { labelPt: 'Forros', labelEn: 'Ceilings', color: '#556b2f', text: '#fff' },
+  'COB': { labelPt: 'Calhas, Rufos e Cobertura', labelEn: 'Gutters, Flashings & Roof', color: '#b05070', text: '#fff' },
+  'INS': { labelPt: 'Instalações', labelEn: 'Installations', color: '#4682b4', text: '#fff' },
+  'BUF': { labelPt: 'Buffer', labelEn: 'Buffer', color: '#000000', text: '#fff' },
+  'PIN': { labelPt: 'Pintura', labelEn: 'Painting', color: '#daa520', text: '#fff' },
+  'ESQ': { labelPt: 'Esquadrias', labelEn: 'Frames / Windows', color: '#f0e68c', text: '#000' },
+  'REV': { labelPt: 'Outros Revestimentos', labelEn: 'Other Coatings', color: '#d2691e', text: '#fff' },
+  'SUP': { labelPt: 'Ação para Suprimentos', labelEn: 'Supply Action', color: '#ff0000', text: '#fff' },
   'OFF': { labelPt: 'Fim de Semana', labelEn: 'Weekend', color: '#a0aec0', text: '#fff' },
   'FER': { labelPt: 'Feriado', labelEn: 'Holiday', color: '#e53e3e', text: '#fff' },
+};
+
+// Função auxiliar para calcular contraste de cor de texto (branco ou preto) dependendo da cor de fundo
+const getContrastYIQ = (hexcolor) => {
+  const hex = hexcolor.replace("#", "");
+  const r = parseInt(hex.substr(0,2),16);
+  const g = parseInt(hex.substr(2,2),16);
+  const b = parseInt(hex.substr(4,2),16);
+  const yiq = ((r*299)+(g*587)+(b*114))/1000;
+  return (yiq >= 128) ? '#000000' : '#ffffff';
 };
 
 export default function MasterPlanPage() {
@@ -79,7 +93,7 @@ export default function MasterPlanPage() {
     errOutOfRange: isEn ? 'The chosen date is outside the schedule range.' : 'A data escolhida está fora do intervalo do cronograma.',
     warnEndEarly: (dias, dur) => isEn ? `Warning: The schedule ended before all days were allocated. ${dias} of ${dur} working days were allocated.` : `Atenção: O cronograma acabou antes de alocar todos os dias. Foram alocados ${dias} de ${dur} dias úteis.`,
     
-    // Textos dos Modais
+    // Textos do Modal de Pacote
     mPkgTitle: isEn ? 'Insert Work Package' : 'Inserir Pacote de Trabalho',
     mPkgService: isEn ? 'Service / Activity' : 'Serviço / Atividade',
     mPkgSelect: isEn ? '-- Select --' : '-- Selecione --',
@@ -94,6 +108,13 @@ export default function MasterPlanPage() {
     mPkgCancel: isEn ? 'Cancel' : 'Cancelar',
     mPkgAddGrid: isEn ? 'Add to Grid' : 'Lançar na Grade',
     
+    // Textos do Modal de Nova Atividade
+    newActBtn: isEn ? '+ New Service' : '+ Novo Serviço',
+    newActTitle: isEn ? 'Register Custom Activity' : 'Cadastrar Nova Atividade',
+    newActAcronym: isEn ? 'Acronym (max 3 letters)' : 'Sigla (máx 3 letras)',
+    newActName: isEn ? 'Activity Name' : 'Nome da Atividade',
+    newActColor: isEn ? 'Fill Color' : 'Cor de Preenchimento',
+
     mHolTitle: isEn ? 'Register Holidays (Local/State/Federal)' : 'Cadastrar Feriados (Mun/Est/Fed)',
     mHolDescPlace: isEn ? 'Description (e.g., National Holiday)' : 'Descrição (ex: Padroeira)',
     mHolAdd: isEn ? 'Add' : 'Adicionar',
@@ -129,6 +150,16 @@ export default function MasterPlanPage() {
   const [dataInicio, setDataInicio] = useState('2026-08-03');
   const [dataFim, setDataFim] = useState('2026-10-31');
   const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(false);
+
+  // ESTADO PARA SERVIÇOS CUSTOMIZADOS (Cores e Atividades Dinâmicas)
+  const [servicosCustomizados, setServicosCustomizados] = useState({});
+  const servicosCores = { ...DEFAULT_SERVICOS_CORES, ...servicosCustomizados };
+
+  // MODAL DE NOVA ATIVIDADE
+  const [showNovaAtivModal, setShowNovaAtivModal] = useState(false);
+  const [novaAtivSigla, setNovaAtivSigla] = useState('');
+  const [novaAtivNome, setNovaAtivNome] = useState('');
+  const [novaAtivCor, setNovaAtivCor] = useState('#3182ce');
 
   const [showFeriadosModal, setShowFeriadosModal] = useState(false);
   const [feriados, setFeriados] = useState([]);
@@ -180,7 +211,7 @@ export default function MasterPlanPage() {
         { id: 'e4', descricao: 'COBERTURA' },
         { id: 'e5', descricao: 'ESTRUTURA PV2' },
         { id: 'e6', descricao: 'ESTRUTURA PV1' },
-        { id: 'e7', descricao: 'PAINELIZAÇÃO AÇO' },
+        { id: 'e7', descricao: 'PAINELIZAÇÃO LSF' },
         { id: 'e8', descricao: 'FUNDAÇÃO' },
         { id: 'e9', descricao: 'LIMPEZA FINAL E OUTROS' },
       ]
@@ -197,11 +228,23 @@ export default function MasterPlanPage() {
 
   useEffect(() => {
     const fetchZonasDoProjeto = async () => {
-      if (!projetoSelecionado) { setZonasColeta([]); return; }
+      if (!projetoSelecionado) { 
+        setZonasColeta([]); 
+        setServicosCustomizados({});
+        return; 
+      }
       const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase').eq('projeto_id', projetoSelecionado);
       if (data) {
         const unicas = [...new Set(data.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
         setZonasColeta(unicas);
+      }
+
+      // Carrega atividades personalizadas do localStorage por projeto
+      const savedCustomServices = localStorage.getItem(`custom_services_${projetoSelecionado}`);
+      if (savedCustomServices) {
+        setServicosCustomizados(JSON.parse(savedCustomServices));
+      } else {
+        setServicosCustomizados({});
       }
     };
     fetchZonasDoProjeto();
@@ -333,6 +376,36 @@ export default function MasterPlanPage() {
   };
 
   // ----------------------------------------------------
+  // NOVA ATIVIDADE: SALVAR NO CACHE
+  // ----------------------------------------------------
+  const handleSalvarNovaAtividade = (e) => {
+    e.preventDefault();
+    const siglaUpper = novaAtivSigla.toUpperCase().trim().substring(0, 3);
+    if (!siglaUpper || !novaAtivNome) return;
+    
+    const textColor = getContrastYIQ(novaAtivCor);
+    
+    const novoServico = {
+      labelPt: novaAtivNome,
+      labelEn: novaAtivNome, // Permanece igual por simplicidade na criação dinâmica
+      color: novaAtivCor,
+      text: textColor
+    };
+
+    const novosServicosCustomizados = { ...servicosCustomizados, [siglaUpper]: novoServico };
+    setServicosCustomizados(novosServicosCustomizados);
+    
+    if (projetoSelecionado) {
+      localStorage.setItem(`custom_services_${projetoSelecionado}`, JSON.stringify(novosServicosCustomizados));
+    }
+    
+    setNovaAtivSigla('');
+    setNovaAtivNome('');
+    setNovaAtivCor('#3182ce');
+    setShowNovaAtivModal(false);
+  };
+
+  // ----------------------------------------------------
   // SISTEMA DE VERSÕES: SALVAR, ATUALIZAR E DUPLICAR
   // ----------------------------------------------------
   const handleSalvarVersao = () => {
@@ -345,7 +418,8 @@ export default function MasterPlanPage() {
       nome: nomeCenario,
       data: dataFormatada,
       pacotes: [...pacotesLancados],
-      feriadosSalvos: [...feriados]
+      feriadosSalvos: [...feriados],
+      servicosCustomizadosSalvos: { ...servicosCustomizados } // Salva as cores criadas!
     };
 
     setVersoes([...versoes, novaVersao]);
@@ -362,7 +436,8 @@ export default function MasterPlanPage() {
       ...v,
       data: dataFormatada,
       pacotes: [...pacotesLancados],
-      feriadosSalvos: [...feriados]
+      feriadosSalvos: [...feriados],
+      servicosCustomizadosSalvos: { ...servicosCustomizados }
     } : v));
     
     alert(t.scenarioUpdated);
@@ -378,7 +453,8 @@ export default function MasterPlanPage() {
       nome: nomeCopia,
       data: dataFormatada,
       pacotes: [...pacotesLancados],
-      feriadosSalvos: [...feriados]
+      feriadosSalvos: [...feriados],
+      servicosCustomizadosSalvos: { ...servicosCustomizados }
     };
 
     setVersoes([...versoes, novaVersao]);
@@ -400,6 +476,7 @@ export default function MasterPlanPage() {
       if (versao) {
         setPacotesLancados(versao.pacotes);
         setFeriados(versao.feriadosSalvos);
+        setServicosCustomizados(versao.servicosCustomizadosSalvos || {});
         setVersaoAtivaId(versao.id);
       }
     }
@@ -429,7 +506,7 @@ export default function MasterPlanPage() {
   const pacotesExistentes = pacotesLancados.map(p => {
     let desc = p.linhaId;
     secoes.forEach(sec => sec.linhas.forEach(l => { if(l.id === p.linhaId) desc = l.descricao; }));
-    const sName = isEn ? (SERVICOS_CORES[p.atividade]?.labelEn || p.atividade) : (SERVICOS_CORES[p.atividade]?.labelPt || p.atividade);
+    const sName = isEn ? (servicosCores[p.atividade]?.labelEn || p.atividade) : (servicosCores[p.atividade]?.labelPt || p.atividade);
     return {
       id: p.id,
       label: `${desc} - ${sName}`
@@ -463,9 +540,7 @@ export default function MasterPlanPage() {
     setPacotePredecessora('');
     setPacoteDuracao(1);
     
-    // NOTA: Agora, se você carregar um cenário e adicionar um pacote, 
-    // ele vai desconectar do ID da versão e virar rascunho de novo
-    // permitindo que o usuário "Salve" como se fosse novo.
+    // Desconecta da versão ativa se um novo pacote for inserido, ativando estado de rascunho
     setVersaoAtivaId(null); 
   };
 
@@ -637,6 +712,34 @@ export default function MasterPlanPage() {
         </div>
       )}
 
+      {/* MODAL: NOVA ATIVIDADE CUSTOMIZADA */}
+      {showNovaAtivModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3001 }}>
+          <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '10px', width: '400px', fontFamily: 'sans-serif' }}>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>{t.newActTitle}</h2>
+            <form onSubmit={handleSalvarNovaAtividade} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.newActAcronym}</label>
+                <input type="text" maxLength="3" required value={novaAtivSigla} onChange={(e) => setNovaAtivSigla(e.target.value.toUpperCase())} placeholder="Ex: DRY" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none', textTransform: 'uppercase' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.newActName}</label>
+                <input type="text" required value={novaAtivNome} onChange={(e) => setNovaAtivNome(e.target.value)} placeholder="Ex: Parede Drywall" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.newActColor}</label>
+                <input type="color" value={novaAtivCor} onChange={(e) => setNovaAtivCor(e.target.value)} style={{ width: '100%', height: '40px', padding: '2px', borderRadius: '6px', border: '1px solid #cbd5e0', cursor: 'pointer' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setShowNovaAtivModal(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', color: '#4a5568', fontWeight: 'bold' }}>{t.mPkgCancel}</button>
+                <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.saveScenario}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INSERIR PACOTE DE TRABALHO */}
       {showPacoteModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '550px', fontFamily: 'sans-serif' }}>
@@ -647,14 +750,20 @@ export default function MasterPlanPage() {
               <div style={{ display: 'flex', gap: '15px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mPkgService}</label>
-                  <select required value={pacoteAtividade} onChange={(e) => setPacoteAtividade(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
-                    <option value="">{t.mPkgSelect}</option>
-                    {Object.entries(SERVICOS_CORES)
-                      .filter(([sigla]) => sigla !== '' && sigla !== 'OFF' && sigla !== 'FER')
-                      .map(([sigla, info]) => (
-                        <option key={sigla} value={sigla}>{isEn ? info.labelEn : info.labelPt} ({sigla})</option>
-                    ))}
-                  </select>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    <select required value={pacoteAtividade} onChange={(e) => setPacoteAtividade(e.target.value)} style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
+                      <option value="">{t.mPkgSelect}</option>
+                      {Object.entries(servicosCores)
+                        .filter(([sigla]) => sigla !== '' && sigla !== 'OFF' && sigla !== 'FER')
+                        .map(([sigla, info]) => (
+                          <option key={sigla} value={sigla}>{isEn ? info.labelEn : info.labelPt} ({sigla})</option>
+                      ))}
+                    </select>
+                    {/* BOTÃO CADASTRAR NOVA ATIVIDADE */}
+                    <button type="button" onClick={() => setShowNovaAtivModal(true)} style={{ backgroundColor: '#edf2f7', border: '1px solid #cbd5e0', borderRadius: '6px', padding: '0 10px', cursor: 'pointer', fontWeight: 'bold', color: '#2b6cb0', fontSize: '0.75rem' }} title="Criar nova atividade">
+                      {t.newActBtn}
+                    </button>
+                  </div>
                 </div>
 
                 <div style={{ flex: 1 }}>
@@ -719,6 +828,7 @@ export default function MasterPlanPage() {
         </div>
       )}
 
+      {/* MODAL: FERIADOS */}
       {showFeriadosModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px', fontFamily: 'sans-serif' }}>
@@ -768,6 +878,7 @@ export default function MasterPlanPage() {
         </div>
       )}
 
+      {/* MODAL: PDF */}
       {showPdfModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '480px', fontFamily: 'sans-serif' }}>
@@ -809,6 +920,7 @@ export default function MasterPlanPage() {
         </div>
       )}
 
+      {/* TABELA GRÁFICA DA LINHA DE BALANÇO */}
       {projetoSelecionado && (
         <>
           <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
@@ -873,7 +985,7 @@ export default function MasterPlanPage() {
                             else if (d.isFimDeSemana) defaultValor = 'OFF';
 
                             const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (isRealizado ? '' : defaultValor);
-                            const configCor = SERVICOS_CORES[valorEfetivo] || SERVICOS_CORES[''];
+                            const configCor = servicosCores[valorEfetivo] || servicosCores[''];
 
                             let bgColor = 'transparent';
                             if (configCor.color !== 'transparent') bgColor = configCor.color;
@@ -892,7 +1004,7 @@ export default function MasterPlanPage() {
                                     style={{ width: '100%', height: '100%', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.7rem', fontWeight: 'bold', textAlign: 'center', textAlignLast: 'center', appearance: 'none', cursor: inputBloqueado ? 'default' : 'pointer', borderRadius: '2px', opacity: (modoControle && !isRealizado && valorEfetivo) ? 0.6 : 1, padding: '0 4px' }}
                                   >
                                     <option value=""></option>
-                                    {Object.keys(SERVICOS_CORES).filter(k => k !== '').map(sigla => (
+                                    {Object.keys(servicosCores).filter(k => k !== '').map(sigla => (
                                       <option key={sigla} value={sigla}>{sigla}</option>
                                     ))}
                                   </select>
@@ -983,7 +1095,7 @@ export default function MasterPlanPage() {
           
           <div style={{ marginTop: '15px', padding: '10px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #cbd5e0', display: 'flex', gap: '15px', flexWrap: 'wrap', fontSize: '0.75rem' }}>
             <span style={{ fontWeight: 'bold', color: '#1a365d' }}>{t.legend}</span>
-            {Object.entries(SERVICOS_CORES).filter(([sigla]) => sigla !== '').map(([sigla, info]) => (
+            {Object.entries(servicosCores).filter(([sigla]) => sigla !== '').map(([sigla, info]) => (
               <div key={sigla} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <div style={{ width: '12px', height: '12px', backgroundColor: info.color, borderRadius: '2px', border: '1px solid #cbd5e0' }}></div>
                 <span><b>{sigla}</b> - {isEn ? info.labelEn : info.labelPt}</span>
