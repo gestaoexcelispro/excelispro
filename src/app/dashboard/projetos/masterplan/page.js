@@ -44,9 +44,10 @@ export default function MasterPlanPage() {
     orientacao: 'landscape'
   });
 
-  // Estados para o Modal de Pacote de Trabalho
+  // ESTADOS DO MOTOR DE AGENDAMENTO (SCHEDULING ENGINE)
+  const [pacotesLancados, setPacotesLancados] = useState([]); // Memória dos pacotes
   const [showPacoteModal, setShowPacoteModal] = useState(false);
-  const [tipoInicio, setTipoInicio] = useState('data'); // 'data' ou 'predecessora'
+  const [tipoInicio, setTipoInicio] = useState('data'); 
   const [pacotePredecessora, setPacotePredecessora] = useState('');
   const [pacoteAtividade, setPacoteAtividade] = useState('');
   const [pacoteLinhaId, setPacoteLinhaId] = useState('');
@@ -108,6 +109,7 @@ export default function MasterPlanPage() {
     fetchZonasDoProjeto();
   }, [projetoSelecionado]);
 
+  // GERAÇÃO DO CALENDÁRIO BASE
   useEffect(() => {
     const gerarDatas = () => {
       if (!dataInicio || !dataFim || !projetoSelecionado) return;
@@ -153,6 +155,50 @@ export default function MasterPlanPage() {
   }, [dataInicio, dataFim, feriados, projetoSelecionado]);
 
   const datasVisiveis = datasPlanilha.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true);
+
+  // MOTOR DE RECÁLCULO AUTOMÁTICO
+  // Vigia os feriados e os pacotes. Se um feriado é removido, recalcula tudo em milissegundos.
+  useEffect(() => {
+    if (datasPlanilha.length === 0 || pacotesLancados.length === 0) return;
+
+    let novaGrade = {};
+    let trackerFimPacote = {}; // Guarda o último dia de cada pacote para as predecessoras
+
+    pacotesLancados.forEach(pacote => {
+      let startIndex = -1;
+
+      if (pacote.tipoInicio === 'data') {
+        startIndex = datasPlanilha.findIndex(d => d.dataIso === pacote.dataInicio);
+      } else if (pacote.tipoInicio === 'predecessora') {
+        const indexFimPredecessora = trackerFimPacote[pacote.predecessoraId];
+        if (indexFimPredecessora !== undefined) {
+          startIndex = indexFimPredecessora + 1; // Próximo dia na grade
+        }
+      }
+
+      if (startIndex !== -1) {
+        let diasAlocados = 0;
+        let lastIndex = startIndex;
+
+        for (let i = startIndex; i < datasPlanilha.length && diasAlocados < pacote.duracao; i++) {
+          const dia = datasPlanilha[i];
+          
+          // O PULSO DO MOTOR: Só avança o dia útil se não for feriado nem fim de semana
+          if (!dia.isFimDeSemana && !dia.isFeriado) {
+            const cellKey = `${pacote.linhaId}___${dia.labelData}`;
+            novaGrade[cellKey] = pacote.atividade;
+            diasAlocados++;
+            lastIndex = i;
+          }
+        }
+        trackerFimPacote[pacote.id] = lastIndex; // Salva para a próxima tarefa encadear
+      }
+    });
+
+    // Atualiza a grade inteira de uma vez!
+    setDadosCelulas(novaGrade);
+    
+  }, [pacotesLancados, datasPlanilha]);
 
   const calcularPapelSugerido = () => {
     const colunasDeData = datasVisiveis.length;
@@ -208,38 +254,18 @@ export default function MasterPlanPage() {
   const handleAtualizarLinha = (secId, linhaId, valor) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.map(l => l.id === linhaId ? { ...l, descricao: valor } : l) } : s));
   const handleRemoverLinha = (secId, linhaId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.filter(l => l.id !== linhaId) } : s));
 
-  // Função para escanear a grade e achar os pacotes já lançados (para usar como predecessora)
-  const getPacotesExistentes = () => {
-    const pacotes = {};
-    Object.entries(dadosCelulas).forEach(([key, sigla]) => {
-      if (!sigla || sigla === 'OFF' || sigla === 'FER') return;
-      const [linhaId, dataLabel] = key.split('___');
-      
-      const dataIndex = datasPlanilha.findIndex(d => d.labelData === dataLabel);
-      if (dataIndex === -1) return;
+  // Prepara os pacotes já lançados para o select de Predecessoras
+  const pacotesExistentes = pacotesLancados.map(p => {
+    let desc = p.linhaId;
+    secoes.forEach(sec => sec.linhas.forEach(l => { if(l.id === p.linhaId) desc = l.descricao; }));
+    const sName = SERVICOS_CORES[p.atividade]?.label || p.atividade;
+    return {
+      id: p.id,
+      label: `${desc} - ${sName}`
+    };
+  });
 
-      const pid = `${linhaId}|${sigla}`;
-      // Guarda sempre o índice do ÚLTIMO dia que essa atividade aparece
-      if (!pacotes[pid] || pacotes[pid].lastIndex < dataIndex) {
-        pacotes[pid] = { linhaId, sigla, lastIndex: dataIndex };
-      }
-    });
-    
-    return Object.values(pacotes).map(p => {
-      let desc = p.linhaId;
-      secoes.forEach(sec => sec.linhas.forEach(l => { if(l.id === p.linhaId) desc = l.descricao; }));
-      const sName = SERVICOS_CORES[p.sigla]?.label || p.sigla;
-      return {
-        id: `${p.linhaId}|${p.sigla}`,
-        label: `${desc} - ${sName}`,
-        lastIndex: p.lastIndex
-      };
-    }).sort((a, b) => a.label.localeCompare(b.label)); // Ordena alfabeticamente
-  };
-
-  const pacotesExistentes = getPacotesExistentes();
-
-  // Função para Inserir o pacote de trabalho considerando Data ou Predecessora + Feriados
+  // Salva o Pacote na Memória (O useEffect acima fará o trabalho duro de desenhar na grade)
   const handleInserirPacoteAutomacao = (e) => {
     e.preventDefault();
     if (!pacoteAtividade || !pacoteLinhaId || pacoteDuracao < 1) {
@@ -247,50 +273,21 @@ export default function MasterPlanPage() {
       return;
     }
 
-    let startIndex = -1;
+    if (tipoInicio === 'data' && !pacoteDataInicio) return alert("Selecione a data de início.");
+    if (tipoInicio === 'predecessora' && !pacotePredecessora) return alert("Selecione um pacote predecessor.");
 
-    if (tipoInicio === 'data') {
-      if (!pacoteDataInicio) return alert("Selecione a data de início.");
-      startIndex = datasPlanilha.findIndex(d => d.dataIso === pacoteDataInicio);
-      if (startIndex === -1) {
-        alert("A data escolhida está fora do intervalo do cronograma.");
-        return;
-      }
-    } else {
-      if (!pacotePredecessora) return alert("Selecione um pacote predecessor.");
-      const pred = pacotesExistentes.find(p => p.id === pacotePredecessora);
-      if (!pred) return alert("Predecessora não encontrada.");
-      
-      // O início será NO DIA SEGUINTE do último dia da predecessora
-      startIndex = pred.lastIndex + 1;
-      
-      if (startIndex >= datasPlanilha.length) {
-        alert("A predecessora termina no último dia do cronograma. Não há espaço para lançar esta atividade.");
-        return;
-      }
-    }
+    const novoPacote = {
+      id: `pct_${Date.now()}`,
+      atividade: pacoteAtividade,
+      linhaId: pacoteLinhaId,
+      tipoInicio: tipoInicio,
+      dataInicio: pacoteDataInicio,
+      predecessoraId: pacotePredecessora,
+      duracao: pacoteDuracao
+    };
 
-    let diasAdicionados = 0;
-    let novosDados = { ...dadosCelulas };
+    setPacotesLancados([...pacotesLancados, novoPacote]);
 
-    for (let i = startIndex; i < datasPlanilha.length && diasAdicionados < pacoteDuracao; i++) {
-      const diaAtual = datasPlanilha[i];
-      
-      // A MÁGICA DOS FERIADOS ACONTECE AQUI:
-      // Se for final de semana ou Feriado, ele PULA este dia e avança o loop. 
-      // Isso empurra o término automaticamente para a frente!
-      if (!diaAtual.isFimDeSemana && !diaAtual.isFeriado) {
-        const cellKey = `${pacoteLinhaId}___${diaAtual.labelData}`;
-        novosDados[cellKey] = pacoteAtividade;
-        diasAdicionados++;
-      }
-    }
-
-    if (diasAdicionados < pacoteDuracao) {
-      alert(`Atenção: O cronograma acabou antes de alocar todos os dias. Foram alocados ${diasAdicionados} de ${pacoteDuracao} dias úteis.`);
-    }
-
-    setDadosCelulas(novosDados);
     setShowPacoteModal(false);
     setPacoteDataInicio('');
     setPacotePredecessora('');
@@ -502,7 +499,7 @@ export default function MasterPlanPage() {
         </div>
       )}
 
-      {/* RESTANTE DOS MODAIS (FERIADOS E PDF) */}
+      {/* RESTANTE DOS MODAIS E DA GRADE INTACTOS */}
       {showFeriadosModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
           <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px', fontFamily: 'sans-serif' }}>
