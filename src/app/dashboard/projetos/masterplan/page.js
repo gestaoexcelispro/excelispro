@@ -44,6 +44,13 @@ export default function MasterPlanPage() {
     orientacao: 'landscape'
   });
 
+  // Novos estados para o Modal de Pacote de Trabalho
+  const [showPacoteModal, setShowPacoteModal] = useState(false);
+  const [pacoteAtividade, setPacoteAtividade] = useState('');
+  const [pacoteLinhaId, setPacoteLinhaId] = useState('');
+  const [pacoteDataInicio, setPacoteDataInicio] = useState('');
+  const [pacoteDuracao, setPacoteDuracao] = useState(1);
+
   const [datasPlanilha, setDatasPlanilha] = useState([]);
   const [dadosCelulas, setDadosCelulas] = useState({});
   const [dadosRealizado, setDadosRealizado] = useState({});
@@ -199,6 +206,44 @@ export default function MasterPlanPage() {
   const handleAtualizarLinha = (secId, linhaId, valor) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.map(l => l.id === linhaId ? { ...l, descricao: valor } : l) } : s));
   const handleRemoverLinha = (secId, linhaId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.filter(l => l.id !== linhaId) } : s));
 
+  // Função nova para inserir o pacote de trabalho automaticamente
+  const handleInserirPacoteAutomacao = (e) => {
+    e.preventDefault();
+    if (!pacoteAtividade || !pacoteLinhaId || !pacoteDataInicio || pacoteDuracao < 1) {
+      alert("Preencha todos os campos corretamente.");
+      return;
+    }
+
+    const startIndex = datasPlanilha.findIndex(d => d.dataIso === pacoteDataInicio);
+    
+    if (startIndex === -1) {
+      alert("A data de início escolhida está fora do intervalo do cronograma (Início/Término Previsto).");
+      return;
+    }
+
+    let diasAdicionados = 0;
+    let novosDados = { ...dadosCelulas };
+
+    for (let i = startIndex; i < datasPlanilha.length && diasAdicionados < pacoteDuracao; i++) {
+      const diaAtual = datasPlanilha[i];
+      
+      if (!diaAtual.isFimDeSemana && !diaAtual.isFeriado) {
+        const cellKey = `${pacoteLinhaId}___${diaAtual.labelData}`;
+        novosDados[cellKey] = pacoteAtividade;
+        diasAdicionados++;
+      }
+    }
+
+    if (diasAdicionados < pacoteDuracao) {
+      alert(`Atenção: O cronograma terminou antes de alocar todos os dias. Foram alocados ${diasAdicionados} de ${pacoteDuracao} dias úteis.`);
+    }
+
+    setDadosCelulas(novosDados);
+    setShowPacoteModal(false);
+    setPacoteDataInicio('');
+    setPacoteDuracao(1);
+  };
+
   const gerarPDF = () => {
     import('html2pdf.js').then((html2pdf) => {
       const elemento = document.getElementById('conteudo-masterplan-pdf');
@@ -283,6 +328,10 @@ export default function MasterPlanPage() {
 
         {projetoSelecionado && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* NOVO BOTÃO DE INSERIR PACOTE AQUI */}
+            <button onClick={() => setShowPacoteModal(true)} disabled={linhaDeBaseCongelada} style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: linhaDeBaseCongelada ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.85rem', opacity: linhaDeBaseCongelada ? 0.6 : 1 }}>
+              ⚡ Inserir Pacote
+            </button>
             <button onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)} style={{ backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', color: ocultarFinaisDeSemana ? 'white' : '#4a5568', border: '1px solid #cbd5e0', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
               {ocultarFinaisDeSemana ? 'Mostrar Finais de Semana' : 'Ocultar Finais de Semana'}
             </button>
@@ -313,6 +362,60 @@ export default function MasterPlanPage() {
             <span style={{ fontSize: '3rem', display: 'block', marginBottom: '10px' }}>🏗️</span>
             <h2>Nenhuma Obra Selecionada</h2>
             <p>Selecione um projeto no menu acima para criar ou visualizar o Master Plan.</p>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INSERIR PACOTE DE TRABALHO */}
+      {showPacoteModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '500px', fontFamily: 'sans-serif' }}>
+            <h2 style={{ color: '#1a365d', marginBottom: '20px' }}>Inserir Pacote de Trabalho</h2>
+            
+            <form onSubmit={handleInserirPacoteAutomacao} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Serviço / Atividade</label>
+                <select required value={pacoteAtividade} onChange={(e) => setPacoteAtividade(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
+                  <option value="">-- Selecione --</option>
+                  {Object.entries(SERVICOS_CORES)
+                    .filter(([sigla]) => sigla !== '' && sigla !== 'OFF' && sigla !== 'FER')
+                    .map(([sigla, info]) => (
+                      <option key={sigla} value={sigla}>{info.label} ({sigla})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Localização / Linha</label>
+                <select required value={pacoteLinhaId} onChange={(e) => setPacoteLinhaId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
+                  <option value="">-- Selecione --</option>
+                  {secoes.map(sec => (
+                    <optgroup key={sec.id} label={sec.titulo}>
+                      {sec.linhas.map(linha => (
+                        <option key={linha.id} value={linha.id}>{linha.descricao || `Linha ID: ${linha.id}`}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '15px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Data de Início</label>
+                  <input type="date" required value={pacoteDataInicio} onChange={(e) => setPacoteDataInicio(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>Duração (Dias Úteis)</label>
+                  <input type="number" required min="1" value={pacoteDuracao} onChange={(e) => setPacoteDuracao(Number(e.target.value))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' }}>
+                <button type="button" onClick={() => setShowPacoteModal(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', color: '#4a5568', fontWeight: 'bold' }}>Cancelar</button>
+                <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Lançar na Grade</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
