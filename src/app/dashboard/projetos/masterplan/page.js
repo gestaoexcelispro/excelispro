@@ -32,7 +32,14 @@ export default function MasterPlanPage() {
     scenarioLabel: isEn ? 'Scenario / Version (Last Planner)' : 'Cenário / Versão (Last Planner)',
     unsavedEdit: isEn ? '* Unsaved edit...' : '* Edição não salva...',
     newBlank: isEn ? 'New Blank Scenario' : 'Novo Cenário em Branco',
-    saveScenario: isEn ? '💾 Save Scenario' : '💾 Salvar Cenário',
+    
+    // AÇÕES DE CENÁRIO
+    saveScenario: isEn ? '💾 Save' : '💾 Salvar',
+    updateScenario: isEn ? '💾 Update' : '💾 Atualizar',
+    duplicateScenario: isEn ? '📑 Duplicate' : '📑 Duplicar',
+    promptDuplicate: isEn ? 'Enter a name for the copied Scenario:' : 'Digite um nome para a cópia do Cenário:',
+    scenarioUpdated: isEn ? 'Scenario updated successfully!' : 'Cenário atualizado com sucesso!',
+    
     freezeBase: isEn ? '🔒 Freeze Baseline' : '🔒 Congelar Linha de Base',
     editBase: isEn ? '🔓 Edit Baseline' : '🔓 Editar Base',
     planning: isEn ? '📋 Planning' : '📋 Planejamento',
@@ -60,7 +67,7 @@ export default function MasterPlanPage() {
     // Alertas e Confirmações
     confirmFreeze: isEn ? 'Are you sure you want to freeze the current schedule? This will create the official project Baseline.' : 'Tem certeza que deseja congelar o planejamento atual? Isso criará a Linha de Base oficial do projeto.',
     confirmUnfreeze: isEn ? 'WARNING: Unfreezing the baseline will allow changes to the Planned schedule. Do you want to continue?' : 'ATENÇÃO: Descongelar a linha de base permitirá alterações no Previsto. Deseja continuar?',
-    promptScenario: isEn ? 'Enter a name for this Scenario/Version (e.g., Scenario A - Fast Track):' : 'Digite um nome para este Cenário/Versão (ex: Cenário A - Aceleração Fachada):',
+    promptScenario: isEn ? 'Enter a name for this Scenario/Version:' : 'Digite um nome para este Cenário/Versão:',
     scenarioSaved: isEn ? 'Scenario saved successfully! You can switch between scenarios in the top menu.' : 'Cenário salvo com sucesso! Você pode alternar entre os cenários no menu superior.',
     confirmClear: isEn ? 'Do you want to clear the current schedule to create a blank scenario?' : 'Deseja limpar o planejamento atual para criar um cenário em branco?',
     confirmLoad: isEn ? 'This will load the selected scenario and replace the current grid. Do you want to continue?' : 'Isso carregará o cenário selecionado e substituirá a grade atual. Deseja continuar?',
@@ -250,7 +257,7 @@ export default function MasterPlanPage() {
 
   const datasVisiveis = datasPlanilha.filter(d => ocultarFinaisDeSemana ? !d.isFimDeSemana : true);
 
-  // MOTOR DE RECÁLCULO AUTOMÁTICO (Utiliza dataIso para nunca quebrar na tradução)
+  // MOTOR DE RECÁLCULO AUTOMÁTICO
   useEffect(() => {
     if (datasPlanilha.length === 0) return;
 
@@ -276,7 +283,6 @@ export default function MasterPlanPage() {
         for (let i = startIndex; i < datasPlanilha.length && diasAlocados < pacote.duracao; i++) {
           const dia = datasPlanilha[i];
           if (!dia.isFimDeSemana && !dia.isFeriado) {
-            // Usa dataIso como chave oficial da célula
             const cellKey = `${pacote.linhaId}___${dia.dataIso}`;
             novaGrade[cellKey] = pacote.atividade;
             diasAlocados++;
@@ -326,7 +332,9 @@ export default function MasterPlanPage() {
     }
   };
 
-  // FUNÇÕES DE GERENCIAMENTO DE VERSÕES
+  // ----------------------------------------------------
+  // SISTEMA DE VERSÕES: SALVAR, ATUALIZAR E DUPLICAR
+  // ----------------------------------------------------
   const handleSalvarVersao = () => {
     const nomeCenario = prompt(t.promptScenario);
     if (!nomeCenario) return;
@@ -335,6 +343,39 @@ export default function MasterPlanPage() {
     const novaVersao = {
       id: `v_${Date.now()}`,
       nome: nomeCenario,
+      data: dataFormatada,
+      pacotes: [...pacotesLancados],
+      feriadosSalvos: [...feriados]
+    };
+
+    setVersoes([...versoes, novaVersao]);
+    setVersaoAtivaId(novaVersao.id);
+    alert(t.scenarioSaved);
+  };
+
+  const handleAtualizarVersao = () => {
+    if (!versaoAtivaId) return;
+    
+    const dataFormatada = new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    setVersoes(versoes.map(v => v.id === versaoAtivaId ? {
+      ...v,
+      data: dataFormatada,
+      pacotes: [...pacotesLancados],
+      feriadosSalvos: [...feriados]
+    } : v));
+    
+    alert(t.scenarioUpdated);
+  };
+
+  const handleDuplicarVersao = () => {
+    const nomeCopia = prompt(t.promptDuplicate);
+    if (!nomeCopia) return;
+
+    const dataFormatada = new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const novaVersao = {
+      id: `v_${Date.now()}`,
+      nome: nomeCopia,
       data: dataFormatada,
       pacotes: [...pacotesLancados],
       feriadosSalvos: [...feriados]
@@ -363,6 +404,7 @@ export default function MasterPlanPage() {
       }
     }
   };
+  // ----------------------------------------------------
 
   const handleAdicionarFeriado = (e) => {
     e.preventDefault();
@@ -421,6 +463,9 @@ export default function MasterPlanPage() {
     setPacotePredecessora('');
     setPacoteDuracao(1);
     
+    // NOTA: Agora, se você carregar um cenário e adicionar um pacote, 
+    // ele vai desconectar do ID da versão e virar rascunho de novo
+    // permitindo que o usuário "Salve" como se fosse novo.
     setVersaoAtivaId(null); 
   };
 
@@ -490,13 +535,34 @@ export default function MasterPlanPage() {
                         {versoes.map(v => <option key={v.id} value={v.id}>{v.nome} ({v.data})</option>)}
                       </select>
                     </div>
-                    <button 
-                      onClick={handleSalvarVersao} 
-                      disabled={pacotesLancados.length === 0}
-                      style={{ backgroundColor: '#4a5568', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: pacotesLancados.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.8rem', opacity: pacotesLancados.length === 0 ? 0.5 : 1, marginTop: '14px' }}
-                    >
-                      {t.saveScenario}
-                    </button>
+
+                    {/* BOTÕES DE SALVAMENTO DINÂMICOS */}
+                    {versaoAtivaId === null ? (
+                      <button 
+                        onClick={handleSalvarVersao} 
+                        disabled={pacotesLancados.length === 0}
+                        style={{ backgroundColor: '#4a5568', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: pacotesLancados.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.8rem', opacity: pacotesLancados.length === 0 ? 0.5 : 1, marginTop: '14px' }}
+                      >
+                        {t.saveScenario}
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', gap: '5px', marginTop: '14px' }}>
+                        <button 
+                          onClick={handleAtualizarVersao} 
+                          style={{ backgroundColor: '#2f855a', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
+                          title={isEn ? "Update current scenario" : "Atualizar cenário atual"}
+                        >
+                          {t.updateScenario}
+                        </button>
+                        <button 
+                          onClick={handleDuplicarVersao} 
+                          style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
+                          title={isEn ? "Create a copy of this scenario" : "Criar uma cópia deste cenário"}
+                        >
+                          {t.duplicateScenario}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -798,7 +864,6 @@ export default function MasterPlanPage() {
                         
                         const renderizarCelulas = (isRealizado) => {
                           return datasVisiveis.map((d) => {
-                            // AQUI USAMOS A CHAVE INVARIANTE dataIso!
                             const cellKey = `${linha.id}___${d.dataIso}`;
                             const baseDados = isRealizado ? dadosRealizado : dadosCelulas;
                             const valorSalvo = baseDados[cellKey];
