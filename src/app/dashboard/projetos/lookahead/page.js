@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { supabase } from '../../../../lib/supabase';
 
+// 1. LISTA DE CORES
 const DEFAULT_SERVICOS_CORES = {
   '': { labelPt: '', labelEn: '', color: 'transparent', text: '#000' },
   'FUN': { labelPt: 'Fundação', labelEn: 'Foundation', color: '#ff00ff', text: '#fff' },
@@ -23,6 +24,8 @@ const DEFAULT_SERVICOS_CORES = {
   'OFF': { labelPt: 'Fim de Semana', labelEn: 'Weekend', color: '#a0aec0', text: '#fff' },
   'FER': { labelPt: 'Feriado', labelEn: 'Holiday', color: '#e53e3e', text: '#fff' },
 };
+
+const ISHIKAWA_CATS = ['Mão de Obra', 'Máquina', 'Material', 'Método', 'Meio Ambiente', 'Medida'];
 
 const getContrastYIQ = (hexcolor) => {
   const hex = hexcolor.replace("#", "");
@@ -55,7 +58,6 @@ export default function LookaheadPage() {
     'RESOLVIDO': isEn ? 'RESOLVED' : 'RESOLVIDO'
   };
 
-  // Dicionário Completo de Tradução
   const t = {
     title: isEn ? 'LOOKAHEAD (MEDIUM TERM) & KOSKELA MATRIX' : 'LOOKAHEAD (MÉDIO PRAZO) & MATRIZ DE KOSKELA',
     selectProject: isEn ? '-- Select a Project --' : '-- Selecione uma Obra --',
@@ -106,24 +108,28 @@ export default function LookaheadPage() {
     rEmpty: isEn ? '🎉 No active constraints at the moment. May the Continuous Flow be with you!' : '🎉 Nenhuma restrição ativa no momento. Que a força do Fluxo Contínuo esteja com você!',
     rAddBtn: isEn ? '+ Add Manual Constraint' : '+ Adicionar Restrição Manual',
 
-    promptScenario: isEn ? 'Enter a name for this Scenario/Version:' : 'Digite um nome para este Cenário/Versão:',
-    scenarioSaved: isEn ? 'Scenario saved successfully!' : 'Cenário salvo com sucesso!',
-    confirmClear: isEn ? 'Do you want to clear the current schedule to create a blank scenario?' : 'Deseja limpar o planejamento atual para criar um cenário em branco?',
-    confirmLoad: isEn ? 'This will load the selected scenario and replace the current grid. Do you want to continue?' : 'Isso carregará o cenário selecionado e substituirá a grade atual. Deseja continuar?',
-    errHolidayExists: isEn ? 'A holiday is already registered for this date!' : 'Já existe um feriado cadastrado para esta data!',
-    errFillFields: isEn ? 'Fill in Activity, Row, and Duration.' : 'Preencha Atividade, Linha e Duração.',
-    
-    // GESTÃO DE RESTRIÇÕES (NOVO MODAL)
+    // GESTÃO DE RESTRIÇÕES E KAIZEN (RCA)
     mGerTitle: isEn ? 'Manage Constraint' : 'Gerenciar Restrição',
     mGerCurStatus: isEn ? 'Current Status:' : 'Status Atual:',
+    mGerTypeTitle: isEn ? 'Complexity (Triaging)' : 'Complexidade da Restrição (Triagem)',
+    mGerTypeSimple: isEn ? '🟢 Simple / Operational' : '🟢 Simples / Operacional',
+    mGerTypeComplex: isEn ? '🧠 Systemic (Root Cause Analysis)' : '🧠 Sistêmico (Análise de Causa Raiz)',
     mGerNewStatus: isEn ? 'Update Status' : 'Atualizar Status',
     mGerNewDate: isEn ? 'New Target Resolution Date' : 'Nova Data Alvo de Resolução',
     mGerReason: isEn ? 'Reason for Impediment / Delay' : 'Motivo do Impedimento / Atraso',
     mGerDelay: isEn ? 'Calculated Delay:' : 'Atraso Calculado:',
     mGerDays: isEn ? 'days' : 'dias',
-    mGerHist: isEn ? 'Action & Delay History' : 'Diário de Bordo (Histórico)',
+    mGerHist: isEn ? 'Action & Delay History' : 'Diário de Bordo (Lições Aprendidas)',
     mGerSave: isEn ? 'Save Log' : 'Salvar Registro',
     mGerNoHist: isEn ? 'No logs registered yet.' : 'Nenhum registro no diário ainda.',
+    
+    // 5 WHYS & ISHIKAWA
+    mGerIshikawa: isEn ? 'Root Cause Category (Ishikawa)' : 'Categoria da Causa Raiz (Ishikawa)',
+    mGerWhy1: isEn ? 'Why? (1)' : 'Por que? (1)',
+    mGerWhy2: isEn ? 'Why? (2)' : 'Por que? (2)',
+    mGerWhy3: isEn ? 'Why? (3)' : 'Por que? (3)',
+    mGerWhy4: isEn ? 'Why? (4)' : 'Por que? (4)',
+    mGerWhy5: isEn ? 'Why? (5) - Root Cause' : 'Por que? (5) - Causa Raiz',
 
     mPkgTitle: isEn ? 'Insert Work Package' : 'Inserir Pacote de Trabalho',
     mPkgService: isEn ? 'Service / Activity' : 'Serviço / Atividade',
@@ -165,11 +171,10 @@ export default function LookaheadPage() {
   const [horizonteSemanas, setHorizonteSemanas] = useState(6);
   const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(true);
   
-  // ESTADO PARA SERVIÇOS CUSTOMIZADOS
   const [servicosCustomizados, setServicosCustomizados] = useState({});
   const servicosCores = { ...DEFAULT_SERVICOS_CORES, ...servicosCustomizados };
 
-  // MODAIS DIVERSOS
+  // MODAIS
   const [showNovaAtivModal, setShowNovaAtivModal] = useState(false);
   const [novaAtivSigla, setNovaAtivSigla] = useState('');
   const [novaAtivNome, setNovaAtivNome] = useState('');
@@ -180,11 +185,11 @@ export default function LookaheadPage() {
   const [novoFeriadoData, setNovoFeriadoData] = useState('');
   const [novoFeriadoDesc, setNovoFeriadoDesc] = useState('');
 
-  // SISTEMA DE VERSÕES (LAST PLANNER)
+  // VERSÕES (LAST PLANNER)
   const [versoes, setVersoes] = useState([]);
   const [versaoAtivaId, setVersaoAtivaId] = useState(null);
 
-  // MOTOR DE AGENDAMENTO E GRADE
+  // MOTOR DE AGENDAMENTO
   const [pacotesLancados, setPacotesLancados] = useState([]); 
   const [showPacoteModal, setShowPacoteModal] = useState(false);
   const [tipoInicio, setTipoInicio] = useState('data'); 
@@ -204,9 +209,7 @@ export default function LookaheadPage() {
     { id: 'l1', descricao: '' }
   ]);
 
-  // ----------------------------------------------------
-  // SISTEMA GLOBAL DE DESFAZER AÇÕES (HISTORY STACK)
-  // ----------------------------------------------------
+  // HISTÓRICO (UNDO)
   const [historico, setHistorico] = useState([]);
   const isUndoRef = useRef(false);
 
@@ -240,13 +243,18 @@ export default function LookaheadPage() {
   };
 
   // ----------------------------------------------------
-  // ESTADOS DO MODAL DE GESTÃO DE RESTRIÇÕES (O DIÁRIO)
+  // ESTADOS DO MODAL DE GESTÃO DE RESTRIÇÕES (RCA / KAIZEN)
   // ----------------------------------------------------
   const [showGerenciarModal, setShowGerenciarModal] = useState(false);
   const [restricaoAtivaId, setRestricaoAtivaId] = useState(null);
   const [gerStatus, setGerStatus] = useState('');
   const [gerDataResolucao, setGerDataResolucao] = useState('');
   const [gerMotivo, setGerMotivo] = useState('');
+  
+  // Novos campos de Triagem (Lean Construction)
+  const [gerComplexidade, setGerComplexidade] = useState('simples'); // 'simples' ou 'complexo'
+  const [gerIshikawa, setGerIshikawa] = useState('');
+  const [gerPorques, setGerPorques] = useState(['', '', '', '', '']);
 
   const abrirGerenciarModal = (id) => {
     const rest = restricoes.find(r => r.id === id);
@@ -255,6 +263,9 @@ export default function LookaheadPage() {
     setGerStatus(rest.status);
     setGerDataResolucao(rest.dataResolucao || '');
     setGerMotivo('');
+    setGerComplexidade('simples');
+    setGerIshikawa('');
+    setGerPorques(['', '', '', '', '']);
     setShowGerenciarModal(true);
   };
 
@@ -266,6 +277,12 @@ export default function LookaheadPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  const handleUpdatePorque = (index, value) => {
+    const novos = [...gerPorques];
+    novos[index] = value;
+    setGerPorques(novos);
+  };
+
   const salvarGerenciamentoRestricao = (e) => {
     e.preventDefault();
     salvarHistorico();
@@ -274,13 +291,13 @@ export default function LookaheadPage() {
       if (r.id === restricaoAtivaId) {
         
         let newDataResolucao = gerDataResolucao;
-        // Se marcou resolvido e não tem data, carimba a de hoje
         if (gerStatus === 'RESOLVIDO') {
           newDataResolucao = r.dataResolucao || new Date().toISOString().split('T')[0];
         }
 
         const atrasoDias = calcularAtrasoRestricao(r.dataResolucao, newDataResolucao);
 
+        // Montando o Log Híbrido (Simples vs RCA)
         const novoLog = {
           idLog: `log_${Date.now()}`,
           dataRegistro: new Date().toISOString().split('T')[0],
@@ -289,16 +306,21 @@ export default function LookaheadPage() {
           dataAnterior: r.dataResolucao,
           dataNova: newDataResolucao,
           motivo: gerMotivo,
-          atraso: atrasoDias
+          atraso: atrasoDias,
+          tipo: gerComplexidade, // 'simples' ou 'complexo'
+          ishikawa: gerComplexidade === 'complexo' ? gerIshikawa : null,
+          cincoPorques: gerComplexidade === 'complexo' ? [...gerPorques] : null
         };
 
         const historicoAtualizado = r.historico ? [...r.historico, novoLog] : [novoLog];
+        const isAcrRealizada = r.acrRealizada || gerComplexidade === 'complexo';
 
         return {
           ...r,
           status: gerStatus,
           dataResolucao: newDataResolucao,
-          historico: historicoAtualizado
+          historico: historicoAtualizado,
+          acrRealizada: isAcrRealizada // Flag para colocar o 🧠 na tabela
         };
       }
       return r;
@@ -471,7 +493,8 @@ export default function LookaheadPage() {
           dataAcao: '',
           dataResolucao: '',
           status: 'EM ANDAMENTO',
-          historico: [] // Novo campo Diário de Bordo
+          historico: [],
+          acrRealizada: false
         };
 
         return [...prev, novaRestricao];
@@ -563,7 +586,6 @@ export default function LookaheadPage() {
     }
   };
 
-  // ATIVIDADE CUSTOMIZADA
   const handleSalvarNovaAtividade = (e) => {
     e.preventDefault();
     const siglaUpper = novaAtivSigla.toUpperCase().trim().substring(0, 3);
@@ -576,7 +598,6 @@ export default function LookaheadPage() {
     setNovaAtivSigla(''); setNovaAtivNome(''); setNovaAtivCor('#3182ce'); setShowNovaAtivModal(false);
   };
 
-  // INSERÇÃO AUTOMÁTICA
   const pacotesExistentes = pacotesLancados.map(p => {
     const rowIndex = linhas.findIndex(l => l.id === p.linhaId);
     const lDesc = (rowIndex !== -1 && linhas[rowIndex].descricao) ? linhas[rowIndex].descricao : (isEn ? `Row ${rowIndex + 1}` : `Linha ${rowIndex + 1}`);
@@ -685,9 +706,6 @@ export default function LookaheadPage() {
             </button>
             <button onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)} style={{ backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', color: ocultarFinaisDeSemana ? 'white' : '#4a5568', border: '1px solid #cbd5e0', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
               {ocultarFinaisDeSemana ? t.showWeekends : t.hideWeekends}
-            </button>
-            <button onClick={() => setShowFeriadosModal(true)} style={{ backgroundColor: '#dd6b20', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-              {t.holidaysBtn}
             </button>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#f7fafc', padding: '8px 15px', borderRadius: '8px', border: '1px solid #cbd5e0' }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -889,7 +907,7 @@ export default function LookaheadPage() {
             </div>
           )}
 
-          {/* ABA 2: DETALHAMENTO DAS RESTRIÇÕES COM NOVO MOTOR */}
+          {/* ABA 2: DETALHAMENTO DAS RESTRIÇÕES COM NOVO MOTOR (RCA / KAIZEN) */}
           {abaAtiva === 'restricoes' && (
              <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
               <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%', minWidth: '1200px' }}>
@@ -930,12 +948,18 @@ export default function LookaheadPage() {
                         <tr key={rest.id} style={{ borderBottom: '1px dotted #cbd5e0', backgroundColor: rest.status === 'RESOLVIDO' ? '#f0fff4' : 'white' }}>
                           <td style={{ padding: '8px', textAlign: 'center', borderRight: '1px solid #e2e8f0', color: '#4a5568', fontWeight: 'bold' }}>{idNum}</td>
                           <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0' }}>
-                            <input 
-                              type="text" 
-                              value={rest.tarefa} 
-                              onChange={(e) => atualizarRestricao(rest.id, 'tarefa', e.target.value)}
-                              style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <input 
+                                type="text" 
+                                value={rest.tarefa} 
+                                onChange={(e) => atualizarRestricao(rest.id, 'tarefa', e.target.value)}
+                                style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem' }}
+                              />
+                              {/* SELO DE ANÁLISE DE CAUSA RAIZ */}
+                              {rest.acrRealizada && (
+                                <span title="Análise de Causa Raiz Realizada" style={{ fontSize: '1.2rem' }}>🧠</span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '2px', borderRight: '1px solid #e2e8f0', backgroundColor: corCodigo.color }}>
                             <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
@@ -978,7 +1002,6 @@ export default function LookaheadPage() {
                                 const newDate = e.target.value;
                                 salvarHistorico();
                                 setRestricoes(prev => prev.map(r => r.id === rest.id ? { ...r, dataAcao: newDate } : r));
-                                // Lança SUP na grade se a linha estiver identificada
                                 if (newDate && rest.linhaId) {
                                   setDadosCelulas(prev => ({ ...prev, [`${rest.linhaId}___${newDate}`]: 'SUP' }));
                                 }
@@ -1008,7 +1031,7 @@ export default function LookaheadPage() {
                   <tr>
                     <td colSpan={11} style={{ padding: '15px', backgroundColor: '#f7fafc', textAlign: 'left', borderTop: '1px solid #cbd5e0' }}>
                       <button 
-                        onClick={() => { salvarHistorico(); setRestricoes([...restricoes, { id: `rest_${Date.now()}`, linhaId: null, tarefa: '', codigoTarefa: '', restricao: '', motivo: '', acao: '', responsavel: '', dataAcao: '', dataResolucao: '', status: 'EM ANDAMENTO', historico: [] }])}} 
+                        onClick={() => { salvarHistorico(); setRestricoes([...restricoes, { id: `rest_${Date.now()}`, linhaId: null, tarefa: '', codigoTarefa: '', restricao: '', motivo: '', acao: '', responsavel: '', dataAcao: '', dataResolucao: '', status: 'EM ANDAMENTO', historico: [], acrRealizada: false }])}} 
                         style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
                       >
                         {t.rAddBtn}
@@ -1020,19 +1043,35 @@ export default function LookaheadPage() {
              </div>
           )}
 
-          {/* NOVO MODAL: DIÁRIO DE BORDO (GERENCIAR RESTRIÇÃO) */}
+          {/* NOVO MODAL: DIÁRIO DE BORDO E KAIZEN (GERENCIAR RESTRIÇÃO) */}
           {showGerenciarModal && restricaoAtivaId && (
             <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3005 }}>
-              <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '600px', maxHeight: '90vh', overflowY: 'auto', fontFamily: 'sans-serif' }}>
+              <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '650px', maxHeight: '90vh', overflowY: 'auto', fontFamily: 'sans-serif' }}>
                 <h2 style={{ color: '#1a365d', marginBottom: '15px' }}>⚙️ {t.mGerTitle}</h2>
                 
                 <div style={{ backgroundColor: '#ebf8ff', padding: '15px', borderRadius: '8px', border: '1px solid #90cdf4', marginBottom: '20px' }}>
-                  <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: '#2a4365' }}><strong>{t.rTask}:</strong> {restricaoEmFoco?.tarefa}</p>
-                  <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: '#2a4365' }}><strong>{t.rConst}:</strong> {KOSKELA_LABELS[restricaoEmFoco?.restricao] || restricaoEmFoco?.restricao}</p>
-                  <p style={{ margin: '0', fontSize: '0.9rem', color: '#2a4365' }}><strong>{t.mGerCurStatus}</strong> <span style={{ fontWeight: 'bold', color: getStatusStyle(restricaoEmFoco?.status).color }}>{statusMap[restricaoEmFoco?.status]}</span></p>
+                  <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: '#2a4365' }}><strong>{t.rTask}:</strong> {restricoes.find(r=>r.id===restricaoAtivaId)?.tarefa}</p>
+                  <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: '#2a4365' }}><strong>{t.rConst}:</strong> {KOSKELA_LABELS[restricoes.find(r=>r.id===restricaoAtivaId)?.restricao] || restricoes.find(r=>r.id===restricaoAtivaId)?.restricao}</p>
+                  <p style={{ margin: '0', fontSize: '0.9rem', color: '#2a4365' }}><strong>{t.mGerCurStatus}</strong> <span style={{ fontWeight: 'bold', color: getStatusStyle(restricoes.find(r=>r.id===restricaoAtivaId)?.status).color }}>{statusMap[restricoes.find(r=>r.id===restricaoAtivaId)?.status]}</span></p>
                 </div>
 
                 <form onSubmit={salvarGerenciamentoRestricao} style={{ display: 'flex', flexDirection: 'column', gap: '15px', borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '20px' }}>
+                  
+                  {/* SELETOR DE TRIAGEM */}
+                  <div style={{ backgroundColor: '#f7fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '10px', color: '#4a5568' }}>{t.mGerTypeTitle}</label>
+                    <div style={{ display: 'flex', gap: '20px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85rem', color: '#2d3748', cursor: 'pointer', fontWeight: 'bold' }}>
+                        <input type="radio" value="simples" checked={gerComplexidade === 'simples'} onChange={() => setGerComplexidade('simples')} />
+                        {t.mGerTypeSimple}
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85rem', color: '#2d3748', cursor: 'pointer', fontWeight: 'bold' }}>
+                        <input type="radio" value="complexo" checked={gerComplexidade === 'complexo'} onChange={() => setGerComplexidade('complexo')} />
+                        {t.mGerTypeComplex}
+                      </label>
+                    </div>
+                  </div>
+
                   <div>
                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerNewStatus}</label>
                     <select value={gerStatus} onChange={(e) => setGerStatus(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
@@ -1051,10 +1090,29 @@ export default function LookaheadPage() {
                           <p style={{ color: '#e53e3e', fontSize: '0.8rem', marginTop: '5px', fontWeight: 'bold' }}>⚠️ {t.mGerDelay} +{diffDiasCalculado} {t.mGerDays}</p>
                         )}
                       </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerReason}</label>
-                        <textarea required value={gerMotivo} onChange={(e) => setGerMotivo(e.target.value)} placeholder="Descreva por que a restrição não foi removida no prazo..." rows="3" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none', resize: 'vertical' }} />
-                      </div>
+
+                      {gerComplexidade === 'simples' ? (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerReason}</label>
+                          <textarea required value={gerMotivo} onChange={(e) => setGerMotivo(e.target.value)} placeholder="Ex: Pneu do caminhão furou, reagendado..." rows="2" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none', resize: 'vertical' }} />
+                        </div>
+                      ) : (
+                        <div style={{ backgroundColor: '#fffff0', padding: '15px', borderRadius: '8px', border: '1px solid #c6f6d5', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <h4 style={{ margin: '0 0 5px 0', color: '#22543d', fontSize: '0.9rem' }}>🧠 RCA (Root Cause Analysis)</h4>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '3px', color: '#276749' }}>{t.mGerIshikawa}</label>
+                            <select required value={gerIshikawa} onChange={(e) => setGerIshikawa(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #9ae6b4', outline: 'none' }}>
+                              <option value="">-- Selecione Categoria --</option>
+                              {ISHIKAWA_CATS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            </select>
+                          </div>
+                          <div><input type="text" required placeholder={t.mGerWhy1} value={gerPorques[0]} onChange={(e) => handleUpdatePorque(0, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
+                          <div><input type="text" placeholder={t.mGerWhy2} value={gerPorques[1]} onChange={(e) => handleUpdatePorque(1, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
+                          <div><input type="text" placeholder={t.mGerWhy3} value={gerPorques[2]} onChange={(e) => handleUpdatePorque(2, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
+                          <div><input type="text" placeholder={t.mGerWhy4} value={gerPorques[3]} onChange={(e) => handleUpdatePorque(3, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
+                          <div><input type="text" required placeholder={t.mGerWhy5} value={gerPorques[4]} onChange={(e) => handleUpdatePorque(4, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '2px solid #48bb78', outline: 'none', fontSize: '0.8rem', fontWeight: 'bold' }}/></div>
+                        </div>
+                      )}
                     </>
                   )}
 
@@ -1066,20 +1124,31 @@ export default function LookaheadPage() {
 
                 <div>
                   <h3 style={{ color: '#2a4365', fontSize: '1rem', marginBottom: '15px' }}>📋 {t.mGerHist}</h3>
-                  {(!restricaoEmFoco?.historico || restricaoEmFoco.historico.length === 0) ? (
+                  {(!restricoes.find(r=>r.id===restricaoAtivaId)?.historico || restricoes.find(r=>r.id===restricaoAtivaId).historico.length === 0) ? (
                     <p style={{ fontSize: '0.85rem', color: '#a0aec0', fontStyle: 'italic' }}>{t.mGerNoHist}</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {restricaoEmFoco.historico.map((log) => (
-                        <div key={log.idLog} style={{ backgroundColor: '#f7fafc', padding: '10px', borderRadius: '6px', borderLeft: '4px solid #3182ce', fontSize: '0.8rem', color: '#4a5568' }}>
+                      {restricoes.find(r=>r.id===restricaoAtivaId).historico.map((log) => (
+                        <div key={log.idLog} style={{ backgroundColor: log.tipo === 'complexo' ? '#fffff0' : '#f7fafc', padding: '10px', borderRadius: '6px', borderLeft: log.tipo === 'complexo' ? '4px solid #48bb78' : '4px solid #3182ce', fontSize: '0.8rem', color: '#4a5568' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                             <span style={{ fontWeight: 'bold' }}>{log.dataRegistro.split('-').reverse().join('/')}</span>
                             <span style={{ backgroundColor: getStatusStyle(log.statusNovo).backgroundColor, color: getStatusStyle(log.statusNovo).color, padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.7rem' }}>
                               {statusMap[log.statusNovo]}
                             </span>
                           </div>
-                          {log.motivo && <p style={{ margin: '5px 0' }}><strong>Motivo:</strong> {log.motivo}</p>}
-                          {log.atraso > 0 && <p style={{ margin: '0', color: '#e53e3e' }}><strong>Atraso Registrado:</strong> +{log.atraso} dias</p>}
+                          
+                          {log.tipo === 'simples' && log.motivo && <p style={{ margin: '5px 0' }}><strong>Motivo:</strong> {log.motivo}</p>}
+                          
+                          {log.tipo === 'complexo' && (
+                            <div style={{ marginTop: '8px' }}>
+                              <span style={{ backgroundColor: '#c6f6d5', color: '#22543d', padding: '2px 4px', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.65rem' }}>🧠 Causa Raiz: {log.ishikawa}</span>
+                              <ul style={{ paddingLeft: '15px', marginTop: '5px', marginBottom: '5px' }}>
+                                {log.cincoPorques?.map((pq, i) => pq && <li key={i}><em>{pq}</em></li>)}
+                              </ul>
+                            </div>
+                          )}
+
+                          {log.atraso > 0 && <p style={{ margin: '5px 0 0 0', color: '#e53e3e' }}><strong>Atraso Registrado:</strong> +{log.atraso} dias</p>}
                         </div>
                       ))}
                     </div>
