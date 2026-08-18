@@ -116,7 +116,7 @@ export default function LookaheadPage() {
     mGerTypeComplex: isEn ? '🧠 Systemic (Root Cause Analysis)' : '🧠 Sistêmico (Análise de Causa Raiz)',
     mGerNewStatus: isEn ? 'Update Status' : 'Atualizar Status',
     mGerNewDate: isEn ? 'New Target Resolution Date' : 'Nova Data Alvo de Resolução',
-    mGerReason: isEn ? 'Reason for Impediment / Delay' : 'Motivo do Impedimento / Atraso',
+    mGerReason: isEn ? 'Action Description / Impediment' : 'Descrição da Ação / Impedimento',
     mGerDelay: isEn ? 'Calculated Delay:' : 'Atraso Calculado:',
     mGerDays: isEn ? 'days' : 'dias',
     mGerHist: isEn ? 'Action & Delay History' : 'Diário de Bordo (Lições Aprendidas)',
@@ -251,8 +251,7 @@ export default function LookaheadPage() {
   const [gerDataResolucao, setGerDataResolucao] = useState('');
   const [gerMotivo, setGerMotivo] = useState('');
   
-  // Novos campos de Triagem (Lean Construction)
-  const [gerComplexidade, setGerComplexidade] = useState('simples'); // 'simples' ou 'complexo'
+  const [gerComplexidade, setGerComplexidade] = useState('simples'); 
   const [gerIshikawa, setGerIshikawa] = useState('');
   const [gerPorques, setGerPorques] = useState(['', '', '', '', '']);
 
@@ -307,7 +306,7 @@ export default function LookaheadPage() {
           dataNova: newDataResolucao,
           motivo: gerMotivo,
           atraso: atrasoDias,
-          tipo: gerComplexidade, // 'simples' ou 'complexo'
+          tipo: gerComplexidade, 
           ishikawa: gerComplexidade === 'complexo' ? gerIshikawa : null,
           cincoPorques: gerComplexidade === 'complexo' ? [...gerPorques] : null
         };
@@ -320,7 +319,7 @@ export default function LookaheadPage() {
           status: gerStatus,
           dataResolucao: newDataResolucao,
           historico: historicoAtualizado,
-          acrRealizada: isAcrRealizada // Flag para colocar o 🧠 na tabela
+          acrRealizada: isAcrRealizada 
         };
       }
       return r;
@@ -1081,39 +1080,39 @@ export default function LookaheadPage() {
                     </select>
                   </div>
 
+                  {/* DATA E CÁLCULO DE ATRASO APARECEM SE TIVER IMPACTO */}
                   {gerStatus === 'NÃO RESOLVIDO' && (
-                    <>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerNewDate}</label>
-                        <input type="date" required value={gerDataResolucao} onChange={(e) => setGerDataResolucao(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
-                        {diffDiasCalculado > 0 && (
-                          <p style={{ color: '#e53e3e', fontSize: '0.8rem', marginTop: '5px', fontWeight: 'bold' }}>⚠️ {t.mGerDelay} +{diffDiasCalculado} {t.mGerDays}</p>
-                        )}
-                      </div>
-
-                      {gerComplexidade === 'simples' ? (
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerReason}</label>
-                          <textarea required value={gerMotivo} onChange={(e) => setGerMotivo(e.target.value)} placeholder="Ex: Pneu do caminhão furou, reagendado..." rows="2" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none', resize: 'vertical' }} />
-                        </div>
-                      ) : (
-                        <div style={{ backgroundColor: '#fffff0', padding: '15px', borderRadius: '8px', border: '1px solid #c6f6d5', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          <h4 style={{ margin: '0 0 5px 0', color: '#22543d', fontSize: '0.9rem' }}>🧠 RCA (Root Cause Analysis)</h4>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '3px', color: '#276749' }}>{t.mGerIshikawa}</label>
-                            <select required value={gerIshikawa} onChange={(e) => setGerIshikawa(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #9ae6b4', outline: 'none' }}>
-                              <option value="">-- Selecione Categoria --</option>
-                              {ISHIKAWA_CATS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                            </select>
-                          </div>
-                          <div><input type="text" required placeholder={t.mGerWhy1} value={gerPorques[0]} onChange={(e) => handleUpdatePorque(0, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
-                          <div><input type="text" placeholder={t.mGerWhy2} value={gerPorques[1]} onChange={(e) => handleUpdatePorque(1, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
-                          <div><input type="text" placeholder={t.mGerWhy3} value={gerPorques[2]} onChange={(e) => handleUpdatePorque(2, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
-                          <div><input type="text" placeholder={t.mGerWhy4} value={gerPorques[3]} onChange={(e) => handleUpdatePorque(3, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
-                          <div><input type="text" required placeholder={t.mGerWhy5} value={gerPorques[4]} onChange={(e) => handleUpdatePorque(4, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '2px solid #48bb78', outline: 'none', fontSize: '0.8rem', fontWeight: 'bold' }}/></div>
-                        </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerNewDate}</label>
+                      <input type="date" required value={gerDataResolucao} onChange={(e) => setGerDataResolucao(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
+                      {diffDiasCalculado > 0 && (
+                        <p style={{ color: '#e53e3e', fontSize: '0.8rem', marginTop: '5px', fontWeight: 'bold' }}>⚠️ {t.mGerDelay} +{diffDiasCalculado} {t.mGerDays}</p>
                       )}
-                    </>
+                    </div>
+                  )}
+
+                  {/* OS CAMPOS DE MOTIVO / RCA AGORA APARECEM SEMPRE PARA REGISTRAR O QUE ACONTECEU! */}
+                  {gerComplexidade === 'simples' ? (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerReason}</label>
+                      <textarea required value={gerMotivo} onChange={(e) => setGerMotivo(e.target.value)} placeholder="Descreva a ação tomada ou o impedimento atual..." rows="2" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none', resize: 'vertical' }} />
+                    </div>
+                  ) : (
+                    <div style={{ backgroundColor: '#fffff0', padding: '15px', borderRadius: '8px', border: '1px solid #c6f6d5', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <h4 style={{ margin: '0 0 5px 0', color: '#22543d', fontSize: '0.9rem' }}>🧠 RCA (Root Cause Analysis)</h4>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '3px', color: '#276749' }}>{t.mGerIshikawa}</label>
+                        <select required value={gerIshikawa} onChange={(e) => setGerIshikawa(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #9ae6b4', outline: 'none' }}>
+                          <option value="">-- Selecione Categoria --</option>
+                          {ISHIKAWA_CATS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        </select>
+                      </div>
+                      <div><input type="text" required placeholder={t.mGerWhy1} value={gerPorques[0]} onChange={(e) => handleUpdatePorque(0, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
+                      <div><input type="text" placeholder={t.mGerWhy2} value={gerPorques[1]} onChange={(e) => handleUpdatePorque(1, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
+                      <div><input type="text" placeholder={t.mGerWhy3} value={gerPorques[2]} onChange={(e) => handleUpdatePorque(2, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
+                      <div><input type="text" placeholder={t.mGerWhy4} value={gerPorques[3]} onChange={(e) => handleUpdatePorque(3, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #9ae6b4', marginBottom: '4px', outline: 'none', fontSize: '0.8rem' }}/></div>
+                      <div><input type="text" required placeholder={t.mGerWhy5} value={gerPorques[4]} onChange={(e) => handleUpdatePorque(4, e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '2px solid #48bb78', outline: 'none', fontSize: '0.8rem', fontWeight: 'bold' }}/></div>
+                    </div>
                   )}
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '5px' }}>
@@ -1137,7 +1136,7 @@ export default function LookaheadPage() {
                             </span>
                           </div>
                           
-                          {log.tipo === 'simples' && log.motivo && <p style={{ margin: '5px 0' }}><strong>Motivo:</strong> {log.motivo}</p>}
+                          {log.tipo === 'simples' && log.motivo && <p style={{ margin: '5px 0' }}><strong>Descrição:</strong> {log.motivo}</p>}
                           
                           {log.tipo === 'complexo' && (
                             <div style={{ marginTop: '8px' }}>
