@@ -75,6 +75,7 @@ export default function LookaheadPage() {
     hideWeekends: isEn ? 'Hide Weekends' : 'Ocultar Finais de Semana',
     holidaysBtn: isEn ? '📅 Holidays' : '📅 Feriados',
     startWeek1: isEn ? 'Start of Week 1' : 'Início da Semana 1',
+    horizonLabel: isEn ? 'Horizon' : 'Horizonte (Semanas)',
     noProject: isEn ? 'No Project Selected' : 'Nenhuma Obra Selecionada',
     noProjectDesc: isEn ? 'Select a project from the menu above to open the Lookahead.' : 'Selecione um projeto no menu acima para abrir o Lookahead.',
     
@@ -148,7 +149,9 @@ export default function LookaheadPage() {
   const [projetoSelecionado, setProjetoSelecionado] = useState('');
   const [abaAtiva, setAbaAtiva] = useState('planilha');
 
+  // CONFIGURAÇÕES DA GRADE
   const [dataInicio, setDataInicio] = useState('2026-08-10');
+  const [horizonteSemanas, setHorizonteSemanas] = useState(6); // Novo parâmetro de semanas!
   const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(true);
   
   // ESTADO PARA SERVIÇOS CUSTOMIZADOS
@@ -203,7 +206,8 @@ export default function LookaheadPage() {
       koskela: JSON.stringify(dadosKoskela),
       restricoes: JSON.stringify(restricoes),
       feriados: JSON.stringify(feriados),
-      linhas: JSON.stringify(linhas)
+      linhas: JSON.stringify(linhas),
+      horizonte: horizonteSemanas
     }]);
   };
 
@@ -222,6 +226,7 @@ export default function LookaheadPage() {
     setRestricoes(JSON.parse(snapshot.restricoes));
     setFeriados(JSON.parse(snapshot.feriados));
     setLinhas(JSON.parse(snapshot.linhas));
+    if (snapshot.horizonte) setHorizonteSemanas(snapshot.horizonte);
     setVersaoAtivaId(null);
   };
   // ----------------------------------------------------
@@ -284,7 +289,8 @@ export default function LookaheadPage() {
       const diasSemanaEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const diasSemana = isEn ? diasSemanaEn : diasSemanaPt;
 
-      for (let w = 1; w <= 6; w++) {
+      // LAÇO DINÂMICO USANDO O HORIZONTE DE SEMANAS ESCOLHIDO
+      for (let w = 1; w <= horizonteSemanas; w++) {
         const diasDaSemana = [];
         for (let d = 0; d < 7; d++) {
           const dataClonada = new Date(dataAtual);
@@ -311,7 +317,7 @@ export default function LookaheadPage() {
       setSemanasPlanilha(semanasTemp);
     };
     gerarSemanas();
-  }, [dataInicio, feriados, isEn]);
+  }, [dataInicio, feriados, isEn, horizonteSemanas]); // horizonte adicionado!
 
   // MOTOR DE RECÁLCULO AUTOMÁTICO
   useEffect(() => {
@@ -367,7 +373,6 @@ export default function LookaheadPage() {
 
         const linhaReferencia = linhas.find(l => l.id === linhaId);
         const rowIndex = linhas.findIndex(l => l.id === linhaId);
-        // Garantindo que a restrição terá o nome correto ou "Linha X" ao invés do ID interno
         const descRef = (linhaReferencia && linhaReferencia.descricao) ? linhaReferencia.descricao : (isEn ? `Row ${rowIndex + 1}` : `Linha ${rowIndex + 1}`);
         
         let codigoSugerido = '';
@@ -428,7 +433,7 @@ export default function LookaheadPage() {
     const novaVersao = {
       id: `v_${Date.now()}`, nome: nomeCenario, data: dataFormatada,
       pacotes: [...pacotesLancados], linhasSalvas: [...linhas], dadosKoskelaSalvos: { ...dadosKoskela }, restricoesSalvas: [...restricoes], feriadosSalvos: [...feriados],
-      servicosCustomizadosSalvos: { ...servicosCustomizados } 
+      servicosCustomizadosSalvos: { ...servicosCustomizados }, horizonteSalvo: horizonteSemanas
     };
     setVersoes([...versoes, novaVersao]); setVersaoAtivaId(novaVersao.id); alert(t.scenarioSaved);
   };
@@ -437,7 +442,7 @@ export default function LookaheadPage() {
     if (!versaoAtivaId) return;
     const dataFormatada = new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR', { hour: '2-digit', minute: '2-digit' });
     setVersoes(versoes.map(v => v.id === versaoAtivaId ? {
-      ...v, data: dataFormatada, pacotes: [...pacotesLancados], linhasSalvas: [...linhas], dadosKoskelaSalvos: { ...dadosKoskela }, restricoesSalvas: [...restricoes], feriadosSalvos: [...feriados], servicosCustomizadosSalvos: { ...servicosCustomizados }
+      ...v, data: dataFormatada, pacotes: [...pacotesLancados], linhasSalvas: [...linhas], dadosKoskelaSalvos: { ...dadosKoskela }, restricoesSalvas: [...restricoes], feriadosSalvos: [...feriados], servicosCustomizadosSalvos: { ...servicosCustomizados }, horizonteSalvo: horizonteSemanas
     } : v));
     alert(t.scenarioUpdated);
   };
@@ -448,7 +453,7 @@ export default function LookaheadPage() {
     const dataFormatada = new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR', { hour: '2-digit', minute: '2-digit' });
     const novaVersao = {
       id: `v_${Date.now()}`, nome: nomeCopia, data: dataFormatada,
-      pacotes: [...pacotesLancados], linhasSalvas: [...linhas], dadosKoskelaSalvos: { ...dadosKoskela }, restricoesSalvas: [...restricoes], feriadosSalvos: [...feriados], servicosCustomizadosSalvos: { ...servicosCustomizados }
+      pacotes: [...pacotesLancados], linhasSalvas: [...linhas], dadosKoskelaSalvos: { ...dadosKoskela }, restricoesSalvas: [...restricoes], feriadosSalvos: [...feriados], servicosCustomizadosSalvos: { ...servicosCustomizados }, horizonteSalvo: horizonteSemanas
     };
     setVersoes([...versoes, novaVersao]); setVersaoAtivaId(novaVersao.id); alert(t.scenarioSaved);
   };
@@ -464,7 +469,9 @@ export default function LookaheadPage() {
     if (window.confirm(t.confirmLoad)) {
       const versao = versoes.find(v => v.id === versaoId);
       if (versao) {
-        setPacotesLancados(versao.pacotes); setLinhas(versao.linhasSalvas); setDadosKoskela(versao.dadosKoskelaSalvos); setRestricoes(versao.restricoesSalvas); setFeriados(versao.feriadosSalvos); setServicosCustomizados(versao.servicosCustomizadosSalvos || {}); setVersaoAtivaId(versao.id);
+        setPacotesLancados(versao.pacotes); setLinhas(versao.linhasSalvas); setDadosKoskela(versao.dadosKoskelaSalvos); setRestricoes(versao.restricoesSalvas); setFeriados(versao.feriadosSalvos); setServicosCustomizados(versao.servicosCustomizadosSalvos || {}); 
+        if (versao.horizonteSalvo) setHorizonteSemanas(versao.horizonteSalvo);
+        setVersaoAtivaId(versao.id);
       }
     }
   };
@@ -597,6 +604,15 @@ export default function LookaheadPage() {
                 <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>{t.startWeek1}</label>
                 <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }} />
               </div>
+              <div style={{ width: '1px', height: '30px', backgroundColor: '#cbd5e0', margin: '0 5px' }}></div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '2px' }}>{t.horizonLabel}</label>
+                <select value={horizonteSemanas} onChange={(e) => setHorizonteSemanas(Number(e.target.value))} style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #cbd5e0', outline: 'none', color: '#2d3748', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                    <option key={n} value={n}>{n} {isEn ? 'Weeks' : 'Semanas'}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         )}
@@ -642,7 +658,7 @@ export default function LookaheadPage() {
                           </th>
                         )
                       ))}
-                      <th colSpan={KOSKELA_KEYS.length} style={{ backgroundColor: '#ed8936', color: 'white', borderBottom: '1px solid #dd6b20', padding: '4px 0', fontSize: '0.85rem', fontStyle: 'italic', letterSpacing: '1px' }}>
+                      <th colSpan={KOSKELA_KEYS.length} style={{ backgroundColor: '#2a4365', color: 'white', borderBottom: '1px solid #1a365d', borderLeft: '2px solid #fff', padding: '4px 0', fontSize: '0.85rem', fontStyle: 'italic', letterSpacing: '1px' }}>
                         {isEn ? 'KOSKELA FLOW MATRIX' : 'MATRIZ DE FLUXO DE KOSKELA'}
                       </th>
                     </tr>
@@ -655,7 +671,7 @@ export default function LookaheadPage() {
                         </th>
                       )))}
                       {KOSKELA_KEYS.map((key) => (
-                        <th key={key} rowSpan={2} style={{ backgroundColor: '#f6ad55', color: '#1a365d', borderRight: '1px solid #dd6b20', borderTop: '1px solid #dd6b20', padding: '4px 10px', fontSize: '0.7rem', width: '100px', whiteSpace: 'normal', lineHeight: '1.2' }}>
+                        <th key={key} rowSpan={2} style={{ backgroundColor: '#3182ce', color: 'white', borderRight: '1px solid #2b6cb0', borderTop: '1px solid #2b6cb0', padding: '4px 10px', fontSize: '0.7rem', width: '100px', whiteSpace: 'normal', lineHeight: '1.2' }}>
                           {KOSKELA_LABELS[key]}
                         </th>
                       ))}
@@ -782,21 +798,21 @@ export default function LookaheadPage() {
               <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%', minWidth: '1200px' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                   <tr>
-                    <th colSpan={10} style={{ backgroundColor: 'white', padding: '10px 15px', textAlign: 'left', fontStyle: 'italic', color: '#1a365d', borderBottom: '2px solid #ed8936', fontSize: '1.2rem' }}>
+                    <th colSpan={10} style={{ backgroundColor: 'white', padding: '10px 15px', textAlign: 'left', fontStyle: 'italic', color: '#1a365d', borderBottom: '2px solid #2a4365', fontSize: '1.2rem' }}>
                       {t.restHeader}
                     </th>
                   </tr>
                   <tr>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', width: '40px', borderRight: '1px solid #fff' }}>ID</th>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', minWidth: '250px' }}>{t.rTask}</th>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px', lineHeight: '1.2' }}>{t.rCode}</th>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', width: '150px' }}>{t.rConst}</th>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', minWidth: '200px' }}>{t.rReason}</th>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', minWidth: '200px' }}>{t.rAction}</th>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', width: '150px' }}>{t.rResp}</th>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px' }}>{t.rDate}</th>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', width: '140px', borderRight: '1px solid #fff' }}>{t.rStatus}</th>
-                    <th style={{ backgroundColor: '#ed8936', color: 'white', padding: '10px', width: '50px' }}></th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', width: '40px', borderRight: '1px solid #fff' }}>ID</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', minWidth: '250px' }}>{t.rTask}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px', lineHeight: '1.2' }}>{t.rCode}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', width: '150px' }}>{t.rConst}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', minWidth: '200px' }}>{t.rReason}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', minWidth: '200px' }}>{t.rAction}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', width: '150px' }}>{t.rResp}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px' }}>{t.rDate}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', width: '140px', borderRight: '1px solid #fff' }}>{t.rStatus}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', width: '50px' }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -883,7 +899,7 @@ export default function LookaheadPage() {
                     <td colSpan={10} style={{ padding: '15px', backgroundColor: '#f7fafc', textAlign: 'left', borderTop: '1px solid #cbd5e0' }}>
                       <button 
                         onClick={() => { salvarHistorico(); setRestricoes([...restricoes, { id: `rest_${Date.now()}`, linhaId: null, tarefa: '', codigoTarefa: '', restricao: '', motivo: '', acao: '', responsavel: '', dataStatus: new Date().toISOString().split('T')[0], status: 'EM ANDAMENTO' }])}} 
-                        style={{ backgroundColor: '#ed8936', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+                        style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
                       >
                         {t.rAddBtn}
                       </button>
