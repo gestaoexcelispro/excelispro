@@ -100,7 +100,8 @@ export default function LookaheadPage() {
     rReason: isEn ? 'REASON' : 'MOTIVO',
     rAction: isEn ? 'ACTION' : 'AÇÃO',
     rResp: isEn ? 'RESPONSIBLE' : 'RESPONSÁVEL',
-    rDate: isEn ? 'STATUS DATE' : 'DATA DE STATUS',
+    rActionDate: isEn ? 'ACTION DATE' : 'DATA AÇÃO',
+    rResDate: isEn ? 'RESOLUTION DATE' : 'DATA RESOLUÇÃO',
     rStatus: isEn ? 'STATUS' : 'STATUS',
     rEmpty: isEn ? '🎉 No active constraints at the moment. May the Continuous Flow be with you!' : '🎉 Nenhuma restrição ativa no momento. Que a força do Fluxo Contínuo esteja com você!',
     rAddBtn: isEn ? '+ Add Manual Constraint' : '+ Adicionar Restrição Manual',
@@ -151,7 +152,7 @@ export default function LookaheadPage() {
 
   // CONFIGURAÇÕES DA GRADE
   const [dataInicio, setDataInicio] = useState('2026-08-10');
-  const [horizonteSemanas, setHorizonteSemanas] = useState(6); // Novo parâmetro de semanas!
+  const [horizonteSemanas, setHorizonteSemanas] = useState(6);
   const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(true);
   
   // ESTADO PARA SERVIÇOS CUSTOMIZADOS
@@ -289,7 +290,6 @@ export default function LookaheadPage() {
       const diasSemanaEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const diasSemana = isEn ? diasSemanaEn : diasSemanaPt;
 
-      // LAÇO DINÂMICO USANDO O HORIZONTE DE SEMANAS ESCOLHIDO
       for (let w = 1; w <= horizonteSemanas; w++) {
         const diasDaSemana = [];
         for (let d = 0; d < 7; d++) {
@@ -317,7 +317,7 @@ export default function LookaheadPage() {
       setSemanasPlanilha(semanasTemp);
     };
     gerarSemanas();
-  }, [dataInicio, feriados, isEn, horizonteSemanas]); // horizonte adicionado!
+  }, [dataInicio, feriados, isEn, horizonteSemanas]);
 
   // MOTOR DE RECÁLCULO AUTOMÁTICO
   useEffect(() => {
@@ -392,7 +392,8 @@ export default function LookaheadPage() {
           motivo: '',
           acao: '',
           responsavel: '',
-          dataStatus: new Date().toISOString().split('T')[0],
+          dataAcao: '',
+          dataResolucao: '',
           status: 'EM ANDAMENTO'
         };
 
@@ -422,8 +423,17 @@ export default function LookaheadPage() {
   const adicionarLinha = () => { salvarHistorico(); setLinhas([...linhas, { id: `l_${Date.now()}`, descricao: '' }]); };
   const removerLinha = (id) => { salvarHistorico(); setLinhas(linhas.filter(l => l.id !== id)); };
 
-  const atualizarRestricao = (id, campo, valor) => { salvarHistorico(); setRestricoes(prev => prev.map(r => r.id === id ? { ...r, [campo]: valor } : r)); };
-  const removerRestricao = (id) => { if (window.confirm('Excluir?')) { salvarHistorico(); setRestricoes(prev => prev.filter(r => r.id !== id)); } };
+  const atualizarRestricao = (id, campo, valor) => { 
+    salvarHistorico(); 
+    setRestricoes(prev => prev.map(r => r.id === id ? { ...r, [campo]: valor } : r)); 
+  };
+  
+  const removerRestricao = (id) => { 
+    if (window.confirm('Excluir?')) { 
+      salvarHistorico(); 
+      setRestricoes(prev => prev.filter(r => r.id !== id)); 
+    } 
+  };
 
   // AÇÕES DE CENÁRIO
   const handleSalvarVersao = () => {
@@ -712,6 +722,10 @@ export default function LookaheadPage() {
                             const valorSalvo = dadosCelulas[cellKey];
                             const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (d.isFimDeSemana ? 'OFF' : '');
                             const configCor = servicosCores[valorEfetivo] || servicosCores[''];
+                            
+                            // IDENTIFICADOR VISUAL SE HOUVER AÇÃO DE RESTRIÇÃO PLANEJADA PARA ESTE DIA NESTA LINHA
+                            const hasRestricaoNaData = restricoes.some(r => r.linhaId === linha.id && r.dataAcao === d.dataIso && r.status !== 'RESOLVIDO');
+
                             let bgColor = 'transparent';
                             if (configCor.color !== 'transparent') bgColor = configCor.color;
                             else if (d.isFeriado && !d.isFimDeSemana) bgColor = '#fed7d7';
@@ -720,6 +734,9 @@ export default function LookaheadPage() {
                             return (
                               <td key={cellKey} style={{ borderRight: i === s.diasVisiveis.length - 1 ? '2px solid #2a4365' : '1px dotted #cbd5e0', padding: '1px', backgroundColor: bgColor, textAlign: 'center', minWidth: '45px', height: '26px' }}>
                                 <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {hasRestricaoNaData && (
+                                    <div style={{ position: 'absolute', top: '-2px', left: '0px', fontSize: '0.55rem', zIndex: 10 }} title="Ação de Restrição Planejada">🚩</div>
+                                  )}
                                   <select
                                     value={valorEfetivo}
                                     onChange={(e) => handleCellChange(linha.id, d.dataIso, e.target.value)}
@@ -798,19 +815,20 @@ export default function LookaheadPage() {
               <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%', minWidth: '1200px' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                   <tr>
-                    <th colSpan={10} style={{ backgroundColor: 'white', padding: '10px 15px', textAlign: 'left', fontStyle: 'italic', color: '#1a365d', borderBottom: '2px solid #2a4365', fontSize: '1.2rem' }}>
+                    <th colSpan={11} style={{ backgroundColor: 'white', padding: '10px 15px', textAlign: 'left', fontStyle: 'italic', color: '#1a365d', borderBottom: '2px solid #2a4365', fontSize: '1.2rem' }}>
                       {t.restHeader}
                     </th>
                   </tr>
                   <tr>
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', width: '40px', borderRight: '1px solid #fff' }}>ID</th>
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', minWidth: '250px' }}>{t.rTask}</th>
-                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px', lineHeight: '1.2' }}>{t.rCode}</th>
-                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', width: '150px' }}>{t.rConst}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '100px', lineHeight: '1.2' }}>{t.rCode}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', width: '130px' }}>{t.rConst}</th>
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', minWidth: '200px' }}>{t.rReason}</th>
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', minWidth: '200px' }}>{t.rAction}</th>
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', textAlign: 'left', borderRight: '1px solid #fff', width: '150px' }}>{t.rResp}</th>
-                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px' }}>{t.rDate}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px' }}>{t.rActionDate}</th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px' }}>{t.rResDate}</th>
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', width: '140px', borderRight: '1px solid #fff' }}>{t.rStatus}</th>
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', width: '50px' }}></th>
                   </tr>
@@ -818,7 +836,7 @@ export default function LookaheadPage() {
                 <tbody>
                   {restricoes.length === 0 ? (
                     <tr>
-                      <td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: '#a0aec0', fontSize: '1.1rem' }}>
+                      <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: '#a0aec0', fontSize: '1.1rem' }}>
                         {t.rEmpty}
                       </td>
                     </tr>
@@ -873,13 +891,45 @@ export default function LookaheadPage() {
                             <input type="text" value={rest.responsavel} onChange={(e) => atualizarRestricao(rest.id, 'responsavel', e.target.value)} style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', textAlign: 'center' }} />
                           </td>
                           <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0', textAlign: 'center' }}>
-                            <input type="date" value={rest.dataStatus} onChange={(e) => atualizarRestricao(rest.id, 'dataStatus', e.target.value)} style={{ border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', cursor: 'pointer' }} />
+                            <input 
+                              type="date" 
+                              value={rest.dataAcao} 
+                              onChange={(e) => {
+                                const newDate = e.target.value;
+                                salvarHistorico();
+                                setRestricoes(prev => prev.map(r => r.id === rest.id ? { ...r, dataAcao: newDate } : r));
+                                // Ao escolher a data, injeta a atividade SUP (Suprimentos) na grade automaticamente
+                                if (newDate && rest.linhaId) {
+                                  setDadosCelulas(prev => ({ ...prev, [`${rest.linhaId}___${newDate}`]: 'SUP' }));
+                                }
+                              }} 
+                              style={{ border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', cursor: 'pointer' }} 
+                            />
+                          </td>
+                          <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0', textAlign: 'center' }}>
+                            <input 
+                              type="date" 
+                              value={rest.dataResolucao} 
+                              onChange={(e) => atualizarRestricao(rest.id, 'dataResolucao', e.target.value)} 
+                              style={{ border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', cursor: 'pointer' }} 
+                            />
                           </td>
                           <td style={{ padding: '2px', borderRight: '1px solid #e2e8f0', backgroundColor: statusStyle.backgroundColor }}>
                             <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
                               <select
                                 value={rest.status}
-                                onChange={(e) => atualizarRestricao(rest.id, 'status', e.target.value)}
+                                onChange={(e) => {
+                                  const novoStatus = e.target.value;
+                                  salvarHistorico();
+                                  setRestricoes(prev => prev.map(r => {
+                                    if (r.id === rest.id) {
+                                      // Se marcou como RESOLVIDO, preenche automaticamente a Data Resolução com a data de hoje
+                                      const newDataResolucao = novoStatus === 'RESOLVIDO' ? (r.dataResolucao || new Date().toISOString().split('T')[0]) : '';
+                                      return { ...r, status: novoStatus, dataResolucao: newDataResolucao };
+                                    }
+                                    return r;
+                                  }));
+                                }}
                                 style={{ width: '100%', padding: '8px 4px', backgroundColor: 'transparent', color: statusStyle.color, border: 'none', outline: 'none', fontSize: '0.8rem', fontWeight: 'bold', textAlign: 'center', textAlignLast: 'center', appearance: 'none', cursor: 'pointer' }}
                               >
                                 <option value="EM ANDAMENTO">{statusMap['EM ANDAMENTO']}</option>
@@ -896,9 +946,9 @@ export default function LookaheadPage() {
                     })
                   )}
                   <tr>
-                    <td colSpan={10} style={{ padding: '15px', backgroundColor: '#f7fafc', textAlign: 'left', borderTop: '1px solid #cbd5e0' }}>
+                    <td colSpan={11} style={{ padding: '15px', backgroundColor: '#f7fafc', textAlign: 'left', borderTop: '1px solid #cbd5e0' }}>
                       <button 
-                        onClick={() => { salvarHistorico(); setRestricoes([...restricoes, { id: `rest_${Date.now()}`, linhaId: null, tarefa: '', codigoTarefa: '', restricao: '', motivo: '', acao: '', responsavel: '', dataStatus: new Date().toISOString().split('T')[0], status: 'EM ANDAMENTO' }])}} 
+                        onClick={() => { salvarHistorico(); setRestricoes([...restricoes, { id: `rest_${Date.now()}`, linhaId: null, tarefa: '', codigoTarefa: '', restricao: '', motivo: '', acao: '', responsavel: '', dataAcao: '', dataResolucao: '', status: 'EM ANDAMENTO' }])}} 
                         style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
                       >
                         {t.rAddBtn}
