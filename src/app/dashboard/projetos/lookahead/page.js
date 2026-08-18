@@ -366,6 +366,9 @@ export default function LookaheadPage() {
         if (jaExiste) return prev;
 
         const linhaReferencia = linhas.find(l => l.id === linhaId);
+        const rowIndex = linhas.findIndex(l => l.id === linhaId);
+        // Garantindo que a restrição terá o nome correto ou "Linha X" ao invés do ID interno
+        const descRef = (linhaReferencia && linhaReferencia.descricao) ? linhaReferencia.descricao : (isEn ? `Row ${rowIndex + 1}` : `Linha ${rowIndex + 1}`);
         
         let codigoSugerido = '';
         for (const key in dadosCelulas) {
@@ -378,7 +381,7 @@ export default function LookaheadPage() {
         const novaRestricao = {
           id: `rest_${Date.now()}`,
           linhaId: linhaId,
-          tarefa: linhaReferencia ? linhaReferencia.descricao : '',
+          tarefa: descRef,
           codigoTarefa: codigoSugerido,
           restricao: koskelaKey,
           motivo: '',
@@ -481,7 +484,8 @@ export default function LookaheadPage() {
 
   // INSERÇÃO AUTOMÁTICA
   const pacotesExistentes = pacotesLancados.map(p => {
-    const lDesc = linhas.find(l => l.id === p.linhaId)?.descricao || p.linhaId;
+    const rowIndex = linhas.findIndex(l => l.id === p.linhaId);
+    const lDesc = (rowIndex !== -1 && linhas[rowIndex].descricao) ? linhas[rowIndex].descricao : (isEn ? `Row ${rowIndex + 1}` : `Linha ${rowIndex + 1}`);
     const sName = isEn ? (servicosCores[p.atividade]?.labelEn || p.atividade) : (servicosCores[p.atividade]?.labelPt || p.atividade);
     return { id: p.id, label: `${lDesc} - ${sName}` };
   });
@@ -944,8 +948,10 @@ export default function LookaheadPage() {
                       <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mPkgZone}</label>
                       <select required value={pacoteLinhaId} onChange={(e) => setPacoteLinhaId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
                         <option value="">{t.mPkgSelect}</option>
-                        {linhas.map(linha => (
-                          <option key={linha.id} value={linha.id}>{linha.descricao || `Linha ID: ${linha.id}`}</option>
+                        {linhas.map((linha, index) => (
+                          <option key={linha.id} value={linha.id}>
+                            {linha.descricao || (isEn ? `Row ${index + 1}` : `Linha ${index + 1}`)}
+                          </option>
                         ))}
                       </select>
                     </div>
