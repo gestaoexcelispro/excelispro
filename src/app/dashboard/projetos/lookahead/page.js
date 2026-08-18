@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { supabase } from '../../../../lib/supabase';
 
-// 1. LISTA ATUALIZADA CONFORME A LEGENDA OFICIAL
 const DEFAULT_SERVICOS_CORES = {
   '': { labelPt: '', labelEn: '', color: 'transparent', text: '#000' },
   'FUN': { labelPt: 'Fundação', labelEn: 'Foundation', color: '#ff00ff', text: '#fff' },
@@ -56,7 +55,7 @@ export default function LookaheadPage() {
     'RESOLVIDO': isEn ? 'RESOLVED' : 'RESOLVIDO'
   };
 
-  // Dicionário Completo de Tradução Dinâmica
+  // Dicionário Completo de Tradução
   const t = {
     title: isEn ? 'LOOKAHEAD (MEDIUM TERM) & KOSKELA MATRIX' : 'LOOKAHEAD (MÉDIO PRAZO) & MATRIZ DE KOSKELA',
     selectProject: isEn ? '-- Select a Project --' : '-- Selecione uma Obra --',
@@ -97,12 +96,13 @@ export default function LookaheadPage() {
     rTask: isEn ? 'TASK' : 'TAREFA',
     rCode: isEn ? 'TASK CODE' : 'CÓDIGO DA TAREFA',
     rConst: isEn ? 'CONSTRAINT' : 'RESTRIÇÃO',
-    rReason: isEn ? 'REASON' : 'MOTIVO',
+    rReason: isEn ? 'REASON' : 'MOTIVO INICIAL',
     rAction: isEn ? 'ACTION' : 'AÇÃO',
     rResp: isEn ? 'RESPONSIBLE' : 'RESPONSÁVEL',
     rActionDate: isEn ? 'ACTION DATE' : 'DATA AÇÃO',
     rResDate: isEn ? 'RESOLUTION DATE' : 'DATA RESOLUÇÃO',
     rStatus: isEn ? 'STATUS' : 'STATUS',
+    rManage: isEn ? 'Manage' : 'Gerenciar',
     rEmpty: isEn ? '🎉 No active constraints at the moment. May the Continuous Flow be with you!' : '🎉 Nenhuma restrição ativa no momento. Que a força do Fluxo Contínuo esteja com você!',
     rAddBtn: isEn ? '+ Add Manual Constraint' : '+ Adicionar Restrição Manual',
 
@@ -112,9 +112,19 @@ export default function LookaheadPage() {
     confirmLoad: isEn ? 'This will load the selected scenario and replace the current grid. Do you want to continue?' : 'Isso carregará o cenário selecionado e substituirá a grade atual. Deseja continuar?',
     errHolidayExists: isEn ? 'A holiday is already registered for this date!' : 'Já existe um feriado cadastrado para esta data!',
     errFillFields: isEn ? 'Fill in Activity, Row, and Duration.' : 'Preencha Atividade, Linha e Duração.',
-    errSelectDate: isEn ? 'Select the start date.' : 'Selecione a data de início.',
-    errSelectPred: isEn ? 'Select a predecessor package.' : 'Selecione um pacote predecessor.',
     
+    // GESTÃO DE RESTRIÇÕES (NOVO MODAL)
+    mGerTitle: isEn ? 'Manage Constraint' : 'Gerenciar Restrição',
+    mGerCurStatus: isEn ? 'Current Status:' : 'Status Atual:',
+    mGerNewStatus: isEn ? 'Update Status' : 'Atualizar Status',
+    mGerNewDate: isEn ? 'New Target Resolution Date' : 'Nova Data Alvo de Resolução',
+    mGerReason: isEn ? 'Reason for Impediment / Delay' : 'Motivo do Impedimento / Atraso',
+    mGerDelay: isEn ? 'Calculated Delay:' : 'Atraso Calculado:',
+    mGerDays: isEn ? 'days' : 'dias',
+    mGerHist: isEn ? 'Action & Delay History' : 'Diário de Bordo (Histórico)',
+    mGerSave: isEn ? 'Save Log' : 'Salvar Registro',
+    mGerNoHist: isEn ? 'No logs registered yet.' : 'Nenhum registro no diário ainda.',
+
     mPkgTitle: isEn ? 'Insert Work Package' : 'Inserir Pacote de Trabalho',
     mPkgService: isEn ? 'Service / Activity' : 'Serviço / Atividade',
     mPkgSelect: isEn ? '-- Select --' : '-- Selecione --',
@@ -159,7 +169,7 @@ export default function LookaheadPage() {
   const [servicosCustomizados, setServicosCustomizados] = useState({});
   const servicosCores = { ...DEFAULT_SERVICOS_CORES, ...servicosCustomizados };
 
-  // MODAIS
+  // MODAIS DIVERSOS
   const [showNovaAtivModal, setShowNovaAtivModal] = useState(false);
   const [novaAtivSigla, setNovaAtivSigla] = useState('');
   const [novaAtivNome, setNovaAtivNome] = useState('');
@@ -214,9 +224,7 @@ export default function LookaheadPage() {
 
   const handleDesfazer = () => {
     if (historico.length === 0) return;
-    
     isUndoRef.current = true;
-    
     const novoHistorico = [...historico];
     const snapshot = novoHistorico.pop();
     setHistorico(novoHistorico);
@@ -229,6 +237,74 @@ export default function LookaheadPage() {
     setLinhas(JSON.parse(snapshot.linhas));
     if (snapshot.horizonte) setHorizonteSemanas(snapshot.horizonte);
     setVersaoAtivaId(null);
+  };
+
+  // ----------------------------------------------------
+  // ESTADOS DO MODAL DE GESTÃO DE RESTRIÇÕES (O DIÁRIO)
+  // ----------------------------------------------------
+  const [showGerenciarModal, setShowGerenciarModal] = useState(false);
+  const [restricaoAtivaId, setRestricaoAtivaId] = useState(null);
+  const [gerStatus, setGerStatus] = useState('');
+  const [gerDataResolucao, setGerDataResolucao] = useState('');
+  const [gerMotivo, setGerMotivo] = useState('');
+
+  const abrirGerenciarModal = (id) => {
+    const rest = restricoes.find(r => r.id === id);
+    if (!rest) return;
+    setRestricaoAtivaId(id);
+    setGerStatus(rest.status);
+    setGerDataResolucao(rest.dataResolucao || '');
+    setGerMotivo('');
+    setShowGerenciarModal(true);
+  };
+
+  const calcularAtrasoRestricao = (dataAntiga, dataNova) => {
+    if (!dataAntiga || !dataNova) return 0;
+    const d1 = new Date(dataAntiga);
+    const d2 = new Date(dataNova);
+    const diffTime = d2 - d1;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const salvarGerenciamentoRestricao = (e) => {
+    e.preventDefault();
+    salvarHistorico();
+
+    setRestricoes(prev => prev.map(r => {
+      if (r.id === restricaoAtivaId) {
+        
+        let newDataResolucao = gerDataResolucao;
+        // Se marcou resolvido e não tem data, carimba a de hoje
+        if (gerStatus === 'RESOLVIDO') {
+          newDataResolucao = r.dataResolucao || new Date().toISOString().split('T')[0];
+        }
+
+        const atrasoDias = calcularAtrasoRestricao(r.dataResolucao, newDataResolucao);
+
+        const novoLog = {
+          idLog: `log_${Date.now()}`,
+          dataRegistro: new Date().toISOString().split('T')[0],
+          statusAnterior: r.status,
+          statusNovo: gerStatus,
+          dataAnterior: r.dataResolucao,
+          dataNova: newDataResolucao,
+          motivo: gerMotivo,
+          atraso: atrasoDias
+        };
+
+        const historicoAtualizado = r.historico ? [...r.historico, novoLog] : [novoLog];
+
+        return {
+          ...r,
+          status: gerStatus,
+          dataResolucao: newDataResolucao,
+          historico: historicoAtualizado
+        };
+      }
+      return r;
+    }));
+
+    setShowGerenciarModal(false);
   };
   // ----------------------------------------------------
 
@@ -394,7 +470,8 @@ export default function LookaheadPage() {
           responsavel: '',
           dataAcao: '',
           dataResolucao: '',
-          status: 'EM ANDAMENTO'
+          status: 'EM ANDAMENTO',
+          historico: [] // Novo campo Diário de Bordo
         };
 
         return [...prev, novaRestricao];
@@ -543,6 +620,9 @@ export default function LookaheadPage() {
     if (status === 'RESOLVIDO') return { backgroundColor: '#c6f6d5', color: '#22543d' };
     return { backgroundColor: 'white', color: '#000' };
   };
+
+  const restricaoEmFoco = restricoes.find(r => r.id === restricaoAtivaId);
+  const diffDiasCalculado = (restricaoEmFoco && gerDataResolucao) ? calcularAtrasoRestricao(restricaoEmFoco.dataResolucao, gerDataResolucao) : 0;
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
@@ -723,7 +803,7 @@ export default function LookaheadPage() {
                             const valorEfetivo = valorSalvo !== undefined ? valorSalvo : (d.isFimDeSemana ? 'OFF' : '');
                             const configCor = servicosCores[valorEfetivo] || servicosCores[''];
                             
-                            // IDENTIFICADOR VISUAL SE HOUVER AÇÃO DE RESTRIÇÃO PLANEJADA PARA ESTE DIA NESTA LINHA
+                            // IDENTIFICADOR VISUAL DE DATA DE AÇÃO PLANEJADA PARA RESTRIÇÃO
                             const hasRestricaoNaData = restricoes.some(r => r.linhaId === linha.id && r.dataAcao === d.dataIso && r.status !== 'RESOLVIDO');
 
                             let bgColor = 'transparent';
@@ -809,7 +889,7 @@ export default function LookaheadPage() {
             </div>
           )}
 
-          {/* ABA 2: DETALHAMENTO DAS RESTRIÇÕES */}
+          {/* ABA 2: DETALHAMENTO DAS RESTRIÇÕES COM NOVO MOTOR */}
           {abaAtiva === 'restricoes' && (
              <div style={{ flex: 1, overflow: 'auto', backgroundColor: 'white', border: '1px solid #cbd5e0', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
               <table style={{ borderCollapse: 'collapse', whiteSpace: 'nowrap', width: '100%', minWidth: '1200px' }}>
@@ -830,7 +910,7 @@ export default function LookaheadPage() {
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px' }}>{t.rActionDate}</th>
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', borderRight: '1px solid #fff', width: '120px' }}>{t.rResDate}</th>
                     <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', width: '140px', borderRight: '1px solid #fff' }}>{t.rStatus}</th>
-                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', width: '50px' }}></th>
+                    <th style={{ backgroundColor: '#2a4365', color: 'white', padding: '10px', width: '120px' }}>AÇÕES</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -898,7 +978,7 @@ export default function LookaheadPage() {
                                 const newDate = e.target.value;
                                 salvarHistorico();
                                 setRestricoes(prev => prev.map(r => r.id === rest.id ? { ...r, dataAcao: newDate } : r));
-                                // Ao escolher a data, injeta a atividade SUP (Suprimentos) na grade automaticamente
+                                // Lança SUP na grade se a linha estiver identificada
                                 if (newDate && rest.linhaId) {
                                   setDadosCelulas(prev => ({ ...prev, [`${rest.linhaId}___${newDate}`]: 'SUP' }));
                                 }
@@ -906,39 +986,19 @@ export default function LookaheadPage() {
                               style={{ border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', cursor: 'pointer' }} 
                             />
                           </td>
-                          <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0', textAlign: 'center' }}>
-                            <input 
-                              type="date" 
-                              value={rest.dataResolucao} 
-                              onChange={(e) => atualizarRestricao(rest.id, 'dataResolucao', e.target.value)} 
-                              style={{ border: 'none', outline: 'none', background: 'transparent', color: '#2d3748', fontSize: '0.85rem', cursor: 'pointer' }} 
-                            />
+
+                          {/* DADOS TRAVADOS PARA OBRIGAR O USO DO GERENCIAR */}
+                          <td style={{ padding: '8px 10px', borderRight: '1px solid #e2e8f0', textAlign: 'center', color: '#4a5568', fontSize: '0.85rem' }}>
+                            {rest.dataResolucao ? rest.dataResolucao.split('-').reverse().join('/') : '-'}
                           </td>
-                          <td style={{ padding: '2px', borderRight: '1px solid #e2e8f0', backgroundColor: statusStyle.backgroundColor }}>
-                            <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
-                              <select
-                                value={rest.status}
-                                onChange={(e) => {
-                                  const novoStatus = e.target.value;
-                                  salvarHistorico();
-                                  setRestricoes(prev => prev.map(r => {
-                                    if (r.id === rest.id) {
-                                      // Se marcou como RESOLVIDO, preenche automaticamente a Data Resolução com a data de hoje
-                                      const newDataResolucao = novoStatus === 'RESOLVIDO' ? (r.dataResolucao || new Date().toISOString().split('T')[0]) : '';
-                                      return { ...r, status: novoStatus, dataResolucao: newDataResolucao };
-                                    }
-                                    return r;
-                                  }));
-                                }}
-                                style={{ width: '100%', padding: '8px 4px', backgroundColor: 'transparent', color: statusStyle.color, border: 'none', outline: 'none', fontSize: '0.8rem', fontWeight: 'bold', textAlign: 'center', textAlignLast: 'center', appearance: 'none', cursor: 'pointer' }}
-                              >
-                                <option value="EM ANDAMENTO">{statusMap['EM ANDAMENTO']}</option>
-                                <option value="NÃO RESOLVIDO">{statusMap['NÃO RESOLVIDO']}</option>
-                                <option value="RESOLVIDO">{statusMap['RESOLVIDO']}</option>
-                              </select>
-                            </div>
+                          <td style={{ padding: '2px', borderRight: '1px solid #e2e8f0', backgroundColor: statusStyle.backgroundColor, textAlign: 'center', fontWeight: 'bold', color: statusStyle.color, fontSize: '0.8rem' }}>
+                            {statusMap[rest.status] || rest.status}
                           </td>
-                          <td style={{ padding: '8px', textAlign: 'center' }}>
+                          
+                          <td style={{ padding: '8px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '5px' }}>
+                            <button onClick={() => abrirGerenciarModal(rest.id)} title="Gerenciar Diário e Status" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.75rem' }}>
+                              ⚙️ {t.rManage}
+                            </button>
                             <button onClick={() => removerRestricao(rest.id)} title="Excluir Restrição" style={{ border: 'none', background: 'transparent', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}>✖</button>
                           </td>
                         </tr>
@@ -948,7 +1008,7 @@ export default function LookaheadPage() {
                   <tr>
                     <td colSpan={11} style={{ padding: '15px', backgroundColor: '#f7fafc', textAlign: 'left', borderTop: '1px solid #cbd5e0' }}>
                       <button 
-                        onClick={() => { salvarHistorico(); setRestricoes([...restricoes, { id: `rest_${Date.now()}`, linhaId: null, tarefa: '', codigoTarefa: '', restricao: '', motivo: '', acao: '', responsavel: '', dataAcao: '', dataResolucao: '', status: 'EM ANDAMENTO' }])}} 
+                        onClick={() => { salvarHistorico(); setRestricoes([...restricoes, { id: `rest_${Date.now()}`, linhaId: null, tarefa: '', codigoTarefa: '', restricao: '', motivo: '', acao: '', responsavel: '', dataAcao: '', dataResolucao: '', status: 'EM ANDAMENTO', historico: [] }])}} 
                         style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
                       >
                         {t.rAddBtn}
@@ -958,6 +1018,76 @@ export default function LookaheadPage() {
                 </tbody>
               </table>
              </div>
+          )}
+
+          {/* NOVO MODAL: DIÁRIO DE BORDO (GERENCIAR RESTRIÇÃO) */}
+          {showGerenciarModal && restricaoAtivaId && (
+            <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3005 }}>
+              <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '10px', width: '600px', maxHeight: '90vh', overflowY: 'auto', fontFamily: 'sans-serif' }}>
+                <h2 style={{ color: '#1a365d', marginBottom: '15px' }}>⚙️ {t.mGerTitle}</h2>
+                
+                <div style={{ backgroundColor: '#ebf8ff', padding: '15px', borderRadius: '8px', border: '1px solid #90cdf4', marginBottom: '20px' }}>
+                  <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: '#2a4365' }}><strong>{t.rTask}:</strong> {restricaoEmFoco?.tarefa}</p>
+                  <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: '#2a4365' }}><strong>{t.rConst}:</strong> {KOSKELA_LABELS[restricaoEmFoco?.restricao] || restricaoEmFoco?.restricao}</p>
+                  <p style={{ margin: '0', fontSize: '0.9rem', color: '#2a4365' }}><strong>{t.mGerCurStatus}</strong> <span style={{ fontWeight: 'bold', color: getStatusStyle(restricaoEmFoco?.status).color }}>{statusMap[restricaoEmFoco?.status]}</span></p>
+                </div>
+
+                <form onSubmit={salvarGerenciamentoRestricao} style={{ display: 'flex', flexDirection: 'column', gap: '15px', borderBottom: '2px solid #e2e8f0', paddingBottom: '20px', marginBottom: '20px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerNewStatus}</label>
+                    <select value={gerStatus} onChange={(e) => setGerStatus(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }}>
+                      <option value="EM ANDAMENTO">{statusMap['EM ANDAMENTO']}</option>
+                      <option value="NÃO RESOLVIDO">{statusMap['NÃO RESOLVIDO']}</option>
+                      <option value="RESOLVIDO">{statusMap['RESOLVIDO']}</option>
+                    </select>
+                  </div>
+
+                  {gerStatus === 'NÃO RESOLVIDO' && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerNewDate}</label>
+                        <input type="date" required value={gerDataResolucao} onChange={(e) => setGerDataResolucao(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none' }} />
+                        {diffDiasCalculado > 0 && (
+                          <p style={{ color: '#e53e3e', fontSize: '0.8rem', marginTop: '5px', fontWeight: 'bold' }}>⚠️ {t.mGerDelay} +{diffDiasCalculado} {t.mGerDays}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' }}>{t.mGerReason}</label>
+                        <textarea required value={gerMotivo} onChange={(e) => setGerMotivo(e.target.value)} placeholder="Descreva por que a restrição não foi removida no prazo..." rows="3" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e0', outline: 'none', resize: 'vertical' }} />
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '5px' }}>
+                    <button type="button" onClick={() => setShowGerenciarModal(false)} style={{ backgroundColor: '#cbd5e0', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', color: '#4a5568', fontWeight: 'bold' }}>{t.mPkgCancel}</button>
+                    <button type="submit" style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t.mGerSave}</button>
+                  </div>
+                </form>
+
+                <div>
+                  <h3 style={{ color: '#2a4365', fontSize: '1rem', marginBottom: '15px' }}>📋 {t.mGerHist}</h3>
+                  {(!restricaoEmFoco?.historico || restricaoEmFoco.historico.length === 0) ? (
+                    <p style={{ fontSize: '0.85rem', color: '#a0aec0', fontStyle: 'italic' }}>{t.mGerNoHist}</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {restricaoEmFoco.historico.map((log) => (
+                        <div key={log.idLog} style={{ backgroundColor: '#f7fafc', padding: '10px', borderRadius: '6px', borderLeft: '4px solid #3182ce', fontSize: '0.8rem', color: '#4a5568' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                            <span style={{ fontWeight: 'bold' }}>{log.dataRegistro.split('-').reverse().join('/')}</span>
+                            <span style={{ backgroundColor: getStatusStyle(log.statusNovo).backgroundColor, color: getStatusStyle(log.statusNovo).color, padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.7rem' }}>
+                              {statusMap[log.statusNovo]}
+                            </span>
+                          </div>
+                          {log.motivo && <p style={{ margin: '5px 0' }}><strong>Motivo:</strong> {log.motivo}</p>}
+                          {log.atraso > 0 && <p style={{ margin: '0', color: '#e53e3e' }}><strong>Atraso Registrado:</strong> +{log.atraso} dias</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </div>
           )}
 
           {/* MODAL: NOVA ATIVIDADE CUSTOMIZADA */}
