@@ -1,9 +1,9 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../../../../contexts/LanguageContext';
 import { supabase } from '../../../../lib/supabase';
 
-// 1. LISTA ATUALIZADA CONFORME A LEGENDA OFICIAL
+// Cores e Labels com suporte a 2 idiomas
 const DEFAULT_SERVICOS_CORES = {
   '': { labelPt: '', labelEn: '', color: 'transparent', text: '#000' },
   'FUN': { labelPt: 'Fundação', labelEn: 'Foundation', color: '#ff00ff', text: '#fff' },
@@ -59,6 +59,7 @@ export default function MasterPlanPage() {
     planning: isEn ? '📋 Planning' : '📋 Planejamento',
     control: isEn ? '⚙️ Control (Actual)' : '⚙️ Controle (Realizado)',
     insertPackage: isEn ? '⚡ Insert Package' : '⚡ Inserir Pacote',
+    undoBtn: isEn ? 'Undo' : 'Desfazer', // Novo botão de desfazer
     showWeekends: isEn ? 'Show Weekends' : 'Mostrar Finais de Semana',
     hideWeekends: isEn ? 'Hide Weekends' : 'Ocultar Finais de Semana',
     holidaysBtn: isEn ? '📅 Holidays' : '📅 Feriados',
@@ -218,6 +219,41 @@ export default function MasterPlanPage() {
     }
   ]);
 
+  // ----------------------------------------------------
+  // SISTEMA GLOBAL DE DESFAZER AÇÕES (HISTORY STACK)
+  // ----------------------------------------------------
+  const [historico, setHistorico] = useState([]);
+  const isUndoRef = useRef(false);
+
+  const salvarHistorico = () => {
+    setHistorico(prev => [...prev, {
+      pacotes: JSON.stringify(pacotesLancados),
+      celulas: JSON.stringify(dadosCelulas),
+      realizado: JSON.stringify(dadosRealizado),
+      feriados: JSON.stringify(feriados),
+      secoes: JSON.stringify(secoes)
+    }]);
+  };
+
+  const handleDesfazer = () => {
+    if (historico.length === 0) return;
+    
+    // Trava o recálculo automático para preservar o snapshot exatamente como ele era
+    isUndoRef.current = true;
+    
+    const novoHistorico = [...historico];
+    const snapshot = novoHistorico.pop();
+    setHistorico(novoHistorico);
+
+    setPacotesLancados(JSON.parse(snapshot.pacotes));
+    setDadosCelulas(JSON.parse(snapshot.celulas));
+    setDadosRealizado(JSON.parse(snapshot.realizado));
+    setFeriados(JSON.parse(snapshot.feriados));
+    setSecoes(JSON.parse(snapshot.secoes));
+    setVersaoAtivaId(null);
+  };
+  // ----------------------------------------------------
+
   useEffect(() => {
     const fetchProjetos = async () => {
       const { data } = await supabase.from('projetos').select('id, nome_projeto').order('id', { ascending: false });
@@ -231,6 +267,7 @@ export default function MasterPlanPage() {
       if (!projetoSelecionado) { 
         setZonasColeta([]); 
         setServicosCustomizados({});
+        setHistorico([]); // Limpa memória ao tirar o projeto
         return; 
       }
       const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase').eq('projeto_id', projetoSelecionado);
@@ -246,6 +283,8 @@ export default function MasterPlanPage() {
       } else {
         setServicosCustomizados({});
       }
+
+      setHistorico([]); // Reseta memória ao entrar num projeto
     };
     fetchZonasDoProjeto();
   }, [projetoSelecionado]);
@@ -304,6 +343,12 @@ export default function MasterPlanPage() {
   useEffect(() => {
     if (datasPlanilha.length === 0) return;
 
+    // Se é um retorno de histórico (Desfazer), não rola o recálculo para não sobrescrever a tela resgatada
+    if (isUndoRef.current) {
+      isUndoRef.current = false;
+      return;
+    }
+
     let novaGrade = {};
     let trackerFimPacote = {}; 
 
@@ -354,10 +399,12 @@ export default function MasterPlanPage() {
   const formatoIdealCode = calcularPapelSugerido();
 
   const handleCellChange = (linhaId, dataIso, valor) => {
+    salvarHistorico();
     setDadosCelulas(prev => ({ ...prev, [`${linhaId}___${dataIso}`]: valor }));
   };
 
   const handleCellRealizadoChange = (linhaId, dataIso, valor) => {
+    salvarHistorico();
     setDadosRealizado(prev => ({ ...prev, [`${linhaId}___${dataIso}`]: valor }));
   };
 
@@ -465,6 +512,7 @@ export default function MasterPlanPage() {
   const handleCarregarVersao = (versaoId) => {
     if (!versaoId) {
       if (window.confirm(t.confirmClear)) {
+        salvarHistorico();
         setPacotesLancados([]);
         setVersaoAtivaId(null);
       }
@@ -472,6 +520,7 @@ export default function MasterPlanPage() {
     }
 
     if (window.confirm(t.confirmLoad)) {
+      salvarHistorico();
       const versao = versoes.find(v => v.id === versaoId);
       if (versao) {
         setPacotesLancados(versao.pacotes);
@@ -487,21 +536,43 @@ export default function MasterPlanPage() {
     e.preventDefault();
     if (novoFeriadoData && novoFeriadoDesc) {
       if (feriados.find(f => f.data === novoFeriadoData)) return alert(t.errHolidayExists);
+      salvarHistorico();
       setFeriados([...feriados, { data: novoFeriadoData, descricao: novoFeriadoDesc }]);
       setNovoFeriadoData(''); 
       setNovoFeriadoDesc('');
     }
   };
   
-  const handleRemoverFeriado = (data) => setFeriados(feriados.filter(f => f.data !== data));
+  const handleRemoverFeriado = (data) => {
+    salvarHistorico();
+    setFeriados(feriados.filter(f => f.data !== data));
+  };
 
-  const handleAdicionarSecao = () => setSecoes([...secoes, { id: `sec_${Date.now()}`, titulo: t.newSecTitle, linhas: [] }]);
-  const handleAtualizarTituloSecao = (secId, novoTitulo) => setSecoes(secoes.map(s => s.id === secId ? { ...s, titulo: novoTitulo } : s));
-  const handleRemoverSecao = (secId) => { if(window.confirm(t.confirmDelSection)) setSecoes(secoes.filter(s => s.id !== secId)); };
+  const handleAdicionarSecao = () => {
+    salvarHistorico();
+    setSecoes([...secoes, { id: `sec_${Date.now()}`, titulo: t.newSecTitle, linhas: [] }]);
+  };
   
-  const handleAdicionarLinha = (secId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: [...s.linhas, { id: `l_${Date.now()}`, descricao: '' }] } : s));
+  const handleAtualizarTituloSecao = (secId, novoTitulo) => setSecoes(secoes.map(s => s.id === secId ? { ...s, titulo: novoTitulo } : s));
+  
+  const handleRemoverSecao = (secId) => { 
+    if(window.confirm(t.confirmDelSection)) {
+      salvarHistorico();
+      setSecoes(secoes.filter(s => s.id !== secId)); 
+    }
+  };
+  
+  const handleAdicionarLinha = (secId) => {
+    salvarHistorico();
+    setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: [...s.linhas, { id: `l_${Date.now()}`, descricao: '' }] } : s));
+  };
+
   const handleAtualizarLinha = (secId, linhaId, valor) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.map(l => l.id === linhaId ? { ...l, descricao: valor } : l) } : s));
-  const handleRemoverLinha = (secId, linhaId) => setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.filter(l => l.id !== linhaId) } : s));
+  
+  const handleRemoverLinha = (secId, linhaId) => {
+    salvarHistorico();
+    setSecoes(secoes.map(s => s.id === secId ? { ...s, linhas: s.linhas.filter(l => l.id !== linhaId) } : s));
+  };
 
   const pacotesExistentes = pacotesLancados.map(p => {
     let desc = p.linhaId;
@@ -522,6 +593,8 @@ export default function MasterPlanPage() {
 
     if (tipoInicio === 'data' && !pacoteDataInicio) return alert(t.errSelectDate);
     if (tipoInicio === 'predecessora' && !pacotePredecessora) return alert(t.errSelectPred);
+
+    salvarHistorico();
 
     const novoPacote = {
       id: `pct_${Date.now()}`,
@@ -678,6 +751,16 @@ export default function MasterPlanPage() {
             <button onClick={() => setShowPacoteModal(true)} disabled={linhaDeBaseCongelada} style={{ backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: linhaDeBaseCongelada ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.85rem', opacity: linhaDeBaseCongelada ? 0.6 : 1 }}>
               {t.insertPackage}
             </button>
+
+            {/* BOTÃO DESFAZER */}
+            <button 
+              onClick={handleDesfazer} 
+              disabled={historico.length === 0 || linhaDeBaseCongelada} 
+              style={{ backgroundColor: historico.length === 0 ? '#e2e8f0' : '#e53e3e', color: historico.length === 0 ? '#a0aec0' : 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: historico.length === 0 || linhaDeBaseCongelada ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+            >
+              ↩ {t.undoBtn}
+            </button>
+
             <button onClick={() => setOcultarFinaisDeSemana(!ocultarFinaisDeSemana)} style={{ backgroundColor: ocultarFinaisDeSemana ? '#2a4365' : '#edf2f7', color: ocultarFinaisDeSemana ? 'white' : '#4a5568', border: '1px solid #cbd5e0', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
               {ocultarFinaisDeSemana ? t.showWeekends : t.hideWeekends}
             </button>
@@ -759,7 +842,6 @@ export default function MasterPlanPage() {
                           <option key={sigla} value={sigla}>{isEn ? info.labelEn : info.labelPt} ({sigla})</option>
                       ))}
                     </select>
-                    {/* BOTÃO CADASTRAR NOVA ATIVIDADE */}
                     <button type="button" onClick={() => setShowNovaAtivModal(true)} style={{ backgroundColor: '#edf2f7', border: '1px solid #cbd5e0', borderRadius: '6px', padding: '0 10px', cursor: 'pointer', fontWeight: 'bold', color: '#2b6cb0', fontSize: '0.75rem' }} title="Criar nova atividade">
                       {t.newActBtn}
                     </button>
