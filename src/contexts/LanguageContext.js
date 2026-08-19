@@ -1,26 +1,68 @@
-'use client';
-import { createContext, useState, useContext } from 'react';
+'use client'
 
-// Cria o cofre do idioma
-const LanguageContext = createContext();
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from 'react'
+
+const LanguageContext = createContext(null)
+
+const DEFAULT_LANGUAGE = 'en-US'
+const STORAGE_KEY = 'ritsuflow-language'
+const SUPPORTED_LANGUAGES = ['en-US', 'pt-BR']
 
 export function LanguageProvider({ children }) {
-  // Define o Português como padrão
-  const [lang, setLang] = useState('pt-BR');
+  const [lang, setLang] = useState(DEFAULT_LANGUAGE)
 
-  // Função que inverte o idioma
-  const toggleLanguage = () => {
-    setLang((prev) => (prev === 'pt-BR' ? 'en-US' : 'pt-BR'));
-  };
+  useEffect(() => {
+    const savedLanguage = window.localStorage.getItem(
+      STORAGE_KEY
+    )
+
+    if (SUPPORTED_LANGUAGES.includes(savedLanguage)) {
+      setLang(savedLanguage)
+    }
+  }, [])
+
+  function changeLanguage(language) {
+    if (!SUPPORTED_LANGUAGES.includes(language)) {
+      return
+    }
+
+    setLang(language)
+    window.localStorage.setItem(STORAGE_KEY, language)
+  }
+
+  function toggleLanguage() {
+    const nextLanguage =
+      lang === 'en-US' ? 'pt-BR' : 'en-US'
+
+    changeLanguage(nextLanguage)
+  }
 
   return (
-    <LanguageContext.Provider value={{ lang, toggleLanguage }}>
+    <LanguageContext.Provider
+      value={{
+        lang,
+        changeLanguage,
+        toggleLanguage,
+      }}
+    >
       {children}
     </LanguageContext.Provider>
-  );
+  )
 }
 
-// Atalho para as páginas usarem
 export function useLanguage() {
-  return useContext(LanguageContext);
+  const context = useContext(LanguageContext)
+
+  if (!context) {
+    throw new Error(
+      'useLanguage must be used inside LanguageProvider'
+    )
+  }
+
+  return context
 }
