@@ -17,12 +17,12 @@ const navigationGroups = [
       },
       {
         label: 'Projects',
-        href: '/dashboard/projetos/lista',
+        href: '/dashboard/projects',
         icon: 'PR',
       },
       {
         label: 'Project Setup',
-        href: '/dashboard/projetos/coleta',
+        href: '/dashboard/projects/setup',
         icon: 'PS',
       },
     ],
@@ -64,69 +64,86 @@ const navigationGroups = [
   },
 ]
 
-export default function DashboardLayout({ children }) {
+export default function DashboardLayout({
+  children,
+}) {
   const pathname = usePathname()
 
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [isCollapsed, setIsCollapsed] =
+    useState(false)
+
+  const [isMobileOpen, setIsMobileOpen] =
+    useState(false)
 
   function isActive(href) {
     if (href === '/dashboard') {
-      return pathname === '/dashboard' || pathname === '/dashboard/'
+      return (
+        pathname === '/dashboard' ||
+        pathname === '/dashboard/'
+      )
+    }
+
+    if (href === '/dashboard/projects') {
+      return pathname === href
     }
 
     return pathname.startsWith(href)
   }
 
-  const currentNavigationGroup = navigationGroups.find((group) =>
-    group.items.some((item) => isActive(item.href))
-  )
+  const currentNavigationGroup =
+    navigationGroups.find((group) =>
+      group.items.some((item) =>
+        isActive(item.href)
+      )
+    )
 
-  const currentNavigationItem = navigationGroups
-    .flatMap((group) => group.items)
-    .find((item) => isActive(item.href))
+  const currentNavigationItem =
+    navigationGroups
+      .flatMap((group) => group.items)
+      .find((item) =>
+        isActive(item.href)
+      )
 
   const currentCategory =
-    currentNavigationGroup?.label || 'Workspace'
+    currentNavigationGroup?.label ||
+    'Workspace'
 
   const currentTitle =
-    currentNavigationItem?.label || 'Overview'
-
-  const isProjectSetupPage =
-    pathname === '/dashboard/projetos/coleta'
+    currentNavigationItem?.label ||
+    'Overview'
 
   function toggleNavigation() {
     if (
       typeof window !== 'undefined' &&
-      window.matchMedia('(max-width: 980px)').matches
+      window
+        .matchMedia('(max-width: 980px)')
+        .matches
     ) {
-      setIsMobileOpen((currentState) => !currentState)
+      setIsMobileOpen(
+        (currentState) => !currentState
+      )
       return
     }
 
-    setIsCollapsed((currentState) => !currentState)
+    setIsCollapsed(
+      (currentState) => !currentState
+    )
   }
 
   function closeMobileNavigation() {
     setIsMobileOpen(false)
   }
 
-  function openInitialData() {
-    window.dispatchEvent(
-      new CustomEvent('abrir-modal-coleta')
-    )
-  }
-
-  function openLocationBreakdown() {
-    window.dispatchEvent(
-      new CustomEvent('abrir-modal-setorizacao')
-    )
-  }
-
   const sidebarClassName = [
     styles.sidebar,
-    isCollapsed ? styles.sidebarCollapsed : '',
-    isMobileOpen ? styles.sidebarMobileOpen : '',
+
+    isCollapsed
+      ? styles.sidebarCollapsed
+      : '',
+
+    isMobileOpen
+      ? styles.sidebarMobileOpen
+      : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -136,18 +153,30 @@ export default function DashboardLayout({ children }) {
       {isMobileOpen && (
         <button
           type="button"
-          className={styles.mobileOverlay}
-          onClick={closeMobileNavigation}
+          className={
+            styles.mobileOverlay
+          }
+          onClick={
+            closeMobileNavigation
+          }
           aria-label="Close navigation"
         />
       )}
 
-      <aside className={sidebarClassName}>
-        <div className={styles.sidebarHeader}>
+      <aside
+        className={sidebarClassName}
+      >
+        <div
+          className={
+            styles.sidebarHeader
+          }
+        >
           <Link
             href="/"
             className={styles.brand}
-            onClick={closeMobileNavigation}
+            onClick={
+              closeMobileNavigation
+            }
             aria-label="RitsuFlow home"
           >
             <span
@@ -155,7 +184,9 @@ export default function DashboardLayout({ children }) {
               aria-hidden="true"
             />
 
-            <span className={styles.brandText}>
+            <span
+              className={styles.brandText}
+            >
               RitsuFlow
             </span>
           </Link>
@@ -165,112 +196,170 @@ export default function DashboardLayout({ children }) {
           className={styles.navigation}
           aria-label="RitsuFlow navigation"
         >
-          {navigationGroups.map((group) => (
-            <div
-              className={styles.navigationGroup}
-              key={group.label}
-            >
-              <p className={styles.navigationLabel}>
-                {group.label}
-              </p>
+          {navigationGroups.map(
+            (group) => (
+              <div
+                className={
+                  styles.navigationGroup
+                }
+                key={group.label}
+              >
+                <p
+                  className={
+                    styles.navigationLabel
+                  }
+                >
+                  {group.label}
+                </p>
 
-              {group.items.map((item) => {
-                const active = isActive(item.href)
+                {group.items.map(
+                  (item) => {
+                    const active =
+                      isActive(item.href)
 
-                const linkClassName = [
-                  styles.navigationLink,
-                  active
-                    ? styles.navigationLinkActive
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')
+                    const linkClassName = [
+                      styles.navigationLink,
 
-                return (
-                  <Link
-                    href={item.href}
-                    className={linkClassName}
-                    onClick={closeMobileNavigation}
-                    key={item.href}
-                  >
-                    <span className={styles.navigationIcon}>
-                      {item.icon}
-                    </span>
+                      active
+                        ? styles.navigationLinkActive
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
 
-                    <span className={styles.navigationText}>
-                      {item.label}
-                    </span>
-                  </Link>
-                )
-              })}
-            </div>
-          ))}
+                    return (
+                      <Link
+                        href={item.href}
+                        className={
+                          linkClassName
+                        }
+                        onClick={
+                          closeMobileNavigation
+                        }
+                        key={item.href}
+                      >
+                        <span
+                          className={
+                            styles.navigationIcon
+                          }
+                        >
+                          {item.icon}
+                        </span>
+
+                        <span
+                          className={
+                            styles.navigationText
+                          }
+                        >
+                          {item.label}
+                        </span>
+                      </Link>
+                    )
+                  }
+                )}
+              </div>
+            )
+          )}
         </nav>
 
-        <div className={styles.sidebarFooter}>
-          <div className={styles.developmentStatus}>
-            <div className={styles.statusTitle}>
-              <span className={styles.statusDot} />
+        <div
+          className={
+            styles.sidebarFooter
+          }
+        >
+          <div
+            className={
+              styles.developmentStatus
+            }
+          >
+            <div
+              className={
+                styles.statusTitle
+              }
+            >
+              <span
+                className={
+                  styles.statusDot
+                }
+              />
+
               Private development
             </div>
 
-            <p className={styles.statusText}>
-              RitsuFlow is currently under active development.
+            <p
+              className={
+                styles.statusText
+              }
+            >
+              RitsuFlow is currently under
+              active development.
             </p>
           </div>
 
-          <div className={styles.logoutArea}>
+          <div
+            className={
+              styles.logoutArea
+            }
+          >
             <LogoutButton
-              label={isCollapsed ? '' : 'Logout'}
+              label={
+                isCollapsed
+                  ? ''
+                  : 'Logout'
+              }
             />
           </div>
         </div>
       </aside>
 
       <div className={styles.workspace}>
-        <header className={styles.topbar}>
-          <div className={styles.topbarLeft}>
+        <header
+          className={styles.topbar}
+        >
+          <div
+            className={
+              styles.topbarLeft
+            }
+          >
             <button
               type="button"
-              className={styles.menuButton}
+              className={
+                styles.menuButton
+              }
               onClick={toggleNavigation}
               aria-label="Toggle navigation"
             >
               ☰
             </button>
 
-            <div className={styles.pageIdentity}>
-              <p className={styles.pageCategory}>
+            <div
+              className={
+                styles.pageIdentity
+              }
+            >
+              <p
+                className={
+                  styles.pageCategory
+                }
+              >
                 {currentCategory}
               </p>
 
-              <h1 className={styles.pageTitle}>
+              <h1
+                className={
+                  styles.pageTitle
+                }
+              >
                 {currentTitle}
               </h1>
             </div>
           </div>
 
-          <div className={styles.topbarRight}>
-            {isProjectSetupPage && (
-              <div className={styles.pageActions}>
-                <button
-                  type="button"
-                  className={styles.actionButton}
-                  onClick={openInitialData}
-                >
-                  Initial Data
-                </button>
-
-                <button
-                  type="button"
-                  className={`${styles.actionButton} ${styles.actionButtonPrimary}`}
-                  onClick={openLocationBreakdown}
-                >
-                  Location Breakdown
-                </button>
-              </div>
-            )}
-          </div>
+          <div
+            className={
+              styles.topbarRight
+            }
+          />
         </header>
 
         <main className={styles.content}>
