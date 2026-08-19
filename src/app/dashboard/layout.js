@@ -25,6 +25,11 @@ const navigationGroups = [
         href: '/dashboard/projects/setup',
         icon: 'PS',
       },
+      {
+        label: 'Location Structure',
+        href: '/dashboard/projects/locations',
+        icon: 'LB',
+      },
     ],
   },
   {
