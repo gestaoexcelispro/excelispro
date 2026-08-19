@@ -3,119 +3,72 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useLanguage } from '../../contexts/LanguageContext'
 import LogoutButton from '../../components/LogoutButton'
 import styles from './dashboard.module.css'
 
-const translations = {
-  'en-US': {
-    workspace: 'Workspace',
-    planning: 'Planning',
-    control: 'Control',
-    overview: 'Overview',
-    projects: 'Projects',
-    projectSetup: 'Project Setup',
-    masterPlan: 'Master Plan',
-    lookahead: 'Lookahead Planning',
-    weeklyPlan: 'Weekly Planning',
-    productionMap: 'Production Map',
-    statusMatrix: 'Status Matrix',
-    privateDevelopment: 'Private development',
-    activeBuild: 'RitsuFlow is currently under active development.',
-    initialData: 'Initial Data',
-    locationBreakdown: 'Location Breakdown',
-    logout: 'Logout',
-    openMenu: 'Open navigation',
-    closeMenu: 'Close navigation',
+const navigationGroups = [
+  {
+    label: 'Workspace',
+    items: [
+      {
+        label: 'Overview',
+        href: '/dashboard',
+        icon: 'OV',
+      },
+      {
+        label: 'Projects',
+        href: '/dashboard/projetos/lista',
+        icon: 'PR',
+      },
+      {
+        label: 'Project Setup',
+        href: '/dashboard/projetos/coleta',
+        icon: 'PS',
+      },
+    ],
   },
-  'pt-BR': {
-    workspace: 'Área de trabalho',
-    planning: 'Planejamento',
-    control: 'Controle',
-    overview: 'Visão geral',
-    projects: 'Projetos',
-    projectSetup: 'Estrutura do projeto',
-    masterPlan: 'Master Plan',
-    lookahead: 'Planejamento Lookahead',
-    weeklyPlan: 'Planejamento Semanal',
-    productionMap: 'Mapa de Produção',
-    statusMatrix: 'Matriz de Status',
-    privateDevelopment: 'Desenvolvimento privado',
-    activeBuild: 'O RitsuFlow está atualmente em desenvolvimento.',
-    initialData: 'Dados Iniciais',
-    locationBreakdown: 'Estrutura de Localizações',
-    logout: 'Sair',
-    openMenu: 'Abrir navegação',
-    closeMenu: 'Fechar navegação',
+  {
+    label: 'Planning',
+    items: [
+      {
+        label: 'Master Plan',
+        href: '/dashboard/projetos/masterplan',
+        icon: 'MP',
+      },
+      {
+        label: 'Lookahead Planning',
+        href: '/dashboard/projetos/lookahead',
+        icon: 'LA',
+      },
+      {
+        label: 'Weekly Planning',
+        href: '/dashboard/projetos/semanal',
+        icon: 'WP',
+      },
+    ],
   },
-}
+  {
+    label: 'Control',
+    items: [
+      {
+        label: 'Production Map',
+        href: '/dashboard/diretoria/mapa',
+        icon: 'PM',
+      },
+      {
+        label: 'Status Matrix',
+        href: '/dashboard/projetos/matriz-status',
+        icon: 'SM',
+      },
+    ],
+  },
+]
 
 export default function DashboardLayout({ children }) {
   const pathname = usePathname()
-  const { lang, toggleLanguage } = useLanguage()
 
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
-
-  const t = translations[lang] || translations['en-US']
-
-  const navigationGroups = [
-    {
-      label: t.workspace,
-      items: [
-        {
-          label: t.overview,
-          href: '/dashboard',
-          icon: 'OV',
-        },
-        {
-          label: t.projects,
-          href: '/dashboard/projetos/lista',
-          icon: 'PR',
-        },
-        {
-          label: t.projectSetup,
-          href: '/dashboard/projetos/coleta',
-          icon: 'PS',
-        },
-      ],
-    },
-    {
-      label: t.planning,
-      items: [
-        {
-          label: t.masterPlan,
-          href: '/dashboard/projetos/masterplan',
-          icon: 'MP',
-        },
-        {
-          label: t.lookahead,
-          href: '/dashboard/projetos/lookahead',
-          icon: 'LA',
-        },
-        {
-          label: t.weeklyPlan,
-          href: '/dashboard/projetos/semanal',
-          icon: 'WP',
-        },
-      ],
-    },
-    {
-      label: t.control,
-      items: [
-        {
-          label: t.productionMap,
-          href: '/dashboard/diretoria/mapa',
-          icon: 'PM',
-        },
-        {
-          label: t.statusMatrix,
-          href: '/dashboard/projetos/matriz-status',
-          icon: 'SM',
-        },
-      ],
-    },
-  ]
 
   function isActive(href) {
     if (href === '/dashboard') {
@@ -134,19 +87,13 @@ export default function DashboardLayout({ children }) {
     .find((item) => isActive(item.href))
 
   const currentCategory =
-    currentNavigationGroup?.label || t.workspace
+    currentNavigationGroup?.label || 'Workspace'
 
   const currentTitle =
-    currentNavigationItem?.label || t.overview
+    currentNavigationItem?.label || 'Overview'
 
   const isProjectSetupPage =
     pathname === '/dashboard/projetos/coleta'
-
-  function changeLanguage(targetLanguage) {
-    if (lang !== targetLanguage) {
-      toggleLanguage()
-    }
-  }
 
   function toggleNavigation() {
     if (
@@ -191,7 +138,7 @@ export default function DashboardLayout({ children }) {
           type="button"
           className={styles.mobileOverlay}
           onClick={closeMobileNavigation}
-          aria-label={t.closeMenu}
+          aria-label="Close navigation"
         />
       )}
 
@@ -264,17 +211,17 @@ export default function DashboardLayout({ children }) {
           <div className={styles.developmentStatus}>
             <div className={styles.statusTitle}>
               <span className={styles.statusDot} />
-              {t.privateDevelopment}
+              Private development
             </div>
 
             <p className={styles.statusText}>
-              {t.activeBuild}
+              RitsuFlow is currently under active development.
             </p>
           </div>
 
           <div className={styles.logoutArea}>
             <LogoutButton
-              label={isCollapsed ? '' : t.logout}
+              label={isCollapsed ? '' : 'Logout'}
             />
           </div>
         </div>
@@ -287,11 +234,7 @@ export default function DashboardLayout({ children }) {
               type="button"
               className={styles.menuButton}
               onClick={toggleNavigation}
-              aria-label={
-                isCollapsed || !isMobileOpen
-                  ? t.openMenu
-                  : t.closeMenu
-              }
+              aria-label="Toggle navigation"
             >
               ☰
             </button>
@@ -315,7 +258,7 @@ export default function DashboardLayout({ children }) {
                   className={styles.actionButton}
                   onClick={openInitialData}
                 >
-                  {t.initialData}
+                  Initial Data
                 </button>
 
                 <button
@@ -323,39 +266,10 @@ export default function DashboardLayout({ children }) {
                   className={`${styles.actionButton} ${styles.actionButtonPrimary}`}
                   onClick={openLocationBreakdown}
                 >
-                  {t.locationBreakdown}
+                  Location Breakdown
                 </button>
               </div>
             )}
-
-            <div
-              className={styles.languageSelector}
-              aria-label="Language selector"
-            >
-              <button
-                type="button"
-                className={`${styles.languageButton} ${
-                  lang === 'en-US'
-                    ? styles.languageButtonActive
-                    : ''
-                }`}
-                onClick={() => changeLanguage('en-US')}
-              >
-                EN
-              </button>
-
-              <button
-                type="button"
-                className={`${styles.languageButton} ${
-                  lang === 'pt-BR'
-                    ? styles.languageButtonActive
-                    : ''
-                }`}
-                onClick={() => changeLanguage('pt-BR')}
-              >
-                PT
-              </button>
-            </div>
           </div>
         </header>
 
