@@ -16,7 +16,7 @@ const nextConfig = {
           '/dashboard/projetos/coleta',
 
         destination:
-          '/dashboard/projects/setup',
+          '/dashboard/projects/setup?mode=new',
 
         permanent: false,
       },
