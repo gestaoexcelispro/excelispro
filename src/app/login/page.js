@@ -1,90 +1,160 @@
-'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase';
+'use client'
 
-export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '../../lib/supabase/client'
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+const supabase = createClient()
 
-    // Chama o cofre do Supabase para verificar e-mail e senha
-    const { data, error } = await supabase.auth.signInWithPassword({
+export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const router = useRouter()
+
+  async function handleLogin(event) {
+    event.preventDefault()
+    setLoading(true)
+    setErrorMessage('')
+
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-    });
+    })
 
     if (error) {
-      setError('E-mail ou senha incorretos.');
-      setLoading(false);
-    } else {
-      // Se der certo, manda para o painel comercial
-      router.push('/dashboard');
+      setErrorMessage('Invalid email or password.')
+      setLoading(false)
+      return
     }
-  };
+
+    router.replace('/dashboard')
+    router.refresh()
+  }
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f4f7f6', fontFamily: 'sans-serif' }}>
-      <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px' }}>
-        <h1 style={{ color: '#2A4365', textAlign: 'center', marginBottom: '30px' }}>ExcelisPro System</h1>
-        
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {error && (
-            <div style={{ color: '#c53030', backgroundColor: '#fed7d7', padding: '10px', borderRadius: '6px', textAlign: 'center', fontSize: '0.9rem', fontWeight: 'bold' }}>
-              {error}
+    <main
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        padding: '24px',
+        backgroundColor: '#f4f7f8',
+        fontFamily: 'Arial, sans-serif',
+      }}
+    >
+      <section
+        style={{
+          width: '100%',
+          maxWidth: '420px',
+          padding: '40px',
+          backgroundColor: '#ffffff',
+          borderRadius: '16px',
+          boxShadow: '0 12px 32px rgba(6, 43, 84, 0.12)',
+        }}
+      >
+        <header style={{ marginBottom: '32px', textAlign: 'center' }}>
+          <h1
+            style={{
+              margin: '0 0 8px',
+              color: '#062b54',
+              fontSize: '2rem',
+            }}
+          >
+            RitsuFlow
+          </h1>
+
+          <p style={{ margin: 0, color: '#64748b' }}>
+            Location-based planning and flow control
+          </p>
+        </header>
+
+        <form
+          onSubmit={handleLogin}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+          }}
+        >
+          {errorMessage && (
+            <div
+              role="alert"
+              style={{
+                padding: '12px',
+                color: '#991b1b',
+                backgroundColor: '#fee2e2',
+                borderRadius: '8px',
+                textAlign: 'center',
+              }}
+            >
+              {errorMessage}
             </div>
           )}
 
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', color: '#4A5568', fontWeight: 'bold', fontSize: '0.9rem' }}>E-mail</label>
-            <input 
-              type="email" 
+          <label style={{ color: '#334155', fontWeight: 600 }}>
+            Email
+            <input
+              type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="gestao.excelispro@gmail.com" 
-              style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e0', fontSize: '1rem', boxSizing: 'border-box' }} 
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="name@company.com"
+              autoComplete="email"
               required
+              style={{
+                width: '100%',
+                marginTop: '8px',
+                padding: '12px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                boxSizing: 'border-box',
+                fontSize: '1rem',
+              }}
             />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', color: '#4A5568', fontWeight: 'bold', fontSize: '0.9rem' }}>Senha</label>
-            <input 
-              type="password" 
+          </label>
+
+          <label style={{ color: '#334155', fontWeight: 600 }}>
+            Password
+            <input
+              type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••" 
-              style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e0', fontSize: '1rem', boxSizing: 'border-box' }} 
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Enter your password"
+              autoComplete="current-password"
               required
+              style={{
+                width: '100%',
+                marginTop: '8px',
+                padding: '12px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                boxSizing: 'border-box',
+                fontSize: '1rem',
+              }}
             />
-          </div>
-          
-          <button 
-            type="submit" 
+          </label>
+
+          <button
+            type="submit"
             disabled={loading}
-            style={{ 
-              padding: '14px', 
-              backgroundColor: loading ? '#a0aec0' : '#2A4365', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '6px', 
-              fontSize: '1rem', 
-              fontWeight: 'bold', 
-              cursor: loading ? 'not-allowed' : 'pointer', 
-              marginTop: '10px' 
+            style={{
+              padding: '14px',
+              color: '#ffffff',
+              backgroundColor: loading ? '#94a3b8' : '#062b54',
+              border: 0,
+              borderRadius: '8px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '1rem',
+              fontWeight: 700,
             }}
           >
-            {loading ? 'Validando...' : 'Entrar'}
+            {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
-      </div>
-    </div>
-  );
+      </section>
+    </main>
+  )
 }
