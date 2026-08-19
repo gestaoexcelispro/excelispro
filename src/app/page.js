@@ -1,5 +1,11 @@
 import styles from './landing.module.css'
 
+export const metadata = {
+  title: 'Coming Soon',
+  description:
+    'RitsuFlow is a location-based construction planning and flow control platform currently in private development.',
+}
+
 const workflowSteps = [
   {
     number: '01',
@@ -91,7 +97,7 @@ export default function HomePage() {
             </a>
 
             <a href="/login" className={styles.primaryButton}>
-              Open platform
+              Private access
             </a>
           </div>
         </div>
@@ -102,7 +108,7 @@ export default function HomePage() {
           <div>
             <p className={styles.eyebrow}>
               <span className={styles.eyebrowDot} />
-              Location-based construction planning
+              Coming soon · Location-based construction planning
             </p>
 
             <h1>
@@ -123,19 +129,24 @@ export default function HomePage() {
               </a>
 
               <a href="/login" className={styles.secondaryButton}>
-                Access RitsuFlow
+                Private access
               </a>
             </div>
 
             <p className={styles.heroNote}>
-              Built for contractors, planners, and production teams.
+              Currently in private development. Public release coming soon.
             </p>
           </div>
 
           <div className={styles.preview} id="platform">
             <div className={styles.previewHeader}>
-              <p className={styles.previewTitle}>Production Flow Overview</p>
-              <span className={styles.previewStatus}>Plan synchronized</span>
+              <p className={styles.previewTitle}>
+                Production Flow Overview
+              </p>
+
+              <span className={styles.previewStatus}>
+                Plan synchronized
+              </span>
             </div>
 
             <div className={styles.flowPanel}>
@@ -147,10 +158,13 @@ export default function HomePage() {
               <div className={styles.flowGrid}>
                 <div className={styles.flowColumn}>
                   <span className={styles.flowLocation}>ZONE 01</span>
+
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockTeal}`}
                   />
+
                   <div className={styles.flowBlock} />
+
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockLight}`}
                   />
@@ -158,19 +172,25 @@ export default function HomePage() {
 
                 <div className={styles.flowColumn}>
                   <span className={styles.flowLocation}>ZONE 02</span>
+
                   <div className={styles.flowBlock} />
+
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockTeal}`}
                   />
+
                   <div className={styles.flowBlock} />
                 </div>
 
                 <div className={styles.flowColumn}>
                   <span className={styles.flowLocation}>ZONE 03</span>
+
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockLight}`}
                   />
+
                   <div className={styles.flowBlock} />
+
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockTeal}`}
                   />
@@ -178,10 +198,13 @@ export default function HomePage() {
 
                 <div className={styles.flowColumn}>
                   <span className={styles.flowLocation}>ZONE 04</span>
+
                   <div className={styles.flowBlock} />
+
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockLight}`}
                   />
+
                   <div className={styles.flowBlock} />
                 </div>
               </div>
@@ -189,17 +212,26 @@ export default function HomePage() {
 
             <div className={styles.metricGrid}>
               <div className={styles.metric}>
-                <div className={styles.metricLabel}>Plan reliability</div>
+                <div className={styles.metricLabel}>
+                  Plan reliability
+                </div>
+
                 <div className={styles.metricValue}>86%</div>
               </div>
 
               <div className={styles.metric}>
-                <div className={styles.metricLabel}>Open constraints</div>
+                <div className={styles.metricLabel}>
+                  Open constraints
+                </div>
+
                 <div className={styles.metricValue}>12</div>
               </div>
 
               <div className={styles.metric}>
-                <div className={styles.metricLabel}>Flow variance</div>
+                <div className={styles.metricLabel}>
+                  Flow variance
+                </div>
+
                 <div className={styles.metricValue}>-4%</div>
               </div>
             </div>
@@ -230,11 +262,16 @@ export default function HomePage() {
 
             <div className={styles.workflowGrid}>
               {workflowSteps.map((step) => (
-                <article className={styles.workflowCard} key={step.number}>
+                <article
+                  className={styles.workflowCard}
+                  key={step.number}
+                >
                   <span className={styles.workflowNumber}>
                     {step.number}
                   </span>
+
                   <h3>{step.title}</h3>
+
                   <p>{step.description}</p>
                 </article>
               ))}
@@ -270,7 +307,9 @@ export default function HomePage() {
                   <span className={styles.capabilityIcon}>
                     {capability.icon}
                   </span>
+
                   <h3>{capability.title}</h3>
+
                   <p>{capability.description}</p>
                 </article>
               ))}
@@ -279,23 +318,25 @@ export default function HomePage() {
         </section>
 
         <section className={styles.closing}>
-          <h2>Build a more predictable production system.</h2>
+          <h2>RitsuFlow is coming soon.</h2>
 
           <p>
-            Connect planning horizons, prepare work before execution, and
-            control construction flow through locations.
+            We are building a location-based planning and flow control
+            platform to make construction production more predictable.
           </p>
 
           <a href="/login" className={styles.primaryButton}>
-            Open RitsuFlow
+            Private access
           </a>
         </section>
       </main>
 
       <footer className={styles.footer}>
         <span>
-          © {new Date().getFullYear()} RitsuFlow. All rights reserved.
+          © {new Date().getFullYear()} Eduardo Fernandes de Freitas. All
+          rights reserved.
         </span>
+
         <span>Location-based planning and flow control.</span>
       </footer>
     </div>
