@@ -1,21 +1,21 @@
 {
-  "name": "excelispro",
+  "name": "ritsuflow",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.43.0",
-    "html2pdf.js": "^0.10.1",
-    "leaflet": "^1.9.4",
+    "@supabase/ssr": "0.12.4",
+    "@supabase/supabase-js": "2.112.3",
+    "html2pdf.js": "0.10.1",
+    "leaflet": "1.9.4",
     "next": "14.2.35",
-    "react": "^18",
-    "react-dom": "^18",
-    "react-leaflet": "^4.2.1",
-    "recharts": "^2.12.7"
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-leaflet": "4.2.1",
+    "recharts": "2.15.4"
   }
 }
