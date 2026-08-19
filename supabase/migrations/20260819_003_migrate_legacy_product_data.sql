@@ -99,11 +99,13 @@ insert into public.projects (
 select
   organization.id,
   legacy_project.id,
+
   'RF-' || lpad(
     legacy_project.id::text,
     4,
     '0'
   ),
+
   coalesce(
     nullif(
       btrim(legacy_project.nome_projeto),
@@ -111,45 +113,57 @@ select
     ),
     'Imported Project ' || legacy_project.id::text
   ),
+
   nullif(
     btrim(legacy_project.cliente),
     ''
   ),
+
   nullif(
     btrim(legacy_project.num_proposta),
     ''
   ),
+
   nullif(
     btrim(legacy_project.num_contrato),
     ''
   ),
-  concat_ws(
-    ', ',
-    nullif(
-      btrim(legacy_project.endereco),
-      ''
+
+  nullif(
+    concat_ws(
+      ', ',
+      nullif(
+        btrim(legacy_project.endereco),
+        ''
+      ),
+      nullif(
+        btrim(legacy_project.numero::text),
+        ''
+      )
     ),
-    nullif(
-      btrim(legacy_project.numero),
-      ''
-    )
+    ''
   ),
+
   nullif(
     btrim(legacy_project.bairro),
     ''
   ),
+
   nullif(
     btrim(legacy_project.cidade),
     ''
   ),
+
   nullif(
     btrim(legacy_project.estado),
     ''
   ),
+
   nullif(
     btrim(legacy_project.codigo_postal),
     ''
   ),
+
   case
     when upper(
       btrim(
@@ -198,17 +212,24 @@ select
 
     else null
   end,
+
   legacy_project.valor_contrato,
   'planning',
   organization.owner_user_id,
+
   coalesce(
     legacy_project.created_at,
     now()
   ),
+
   now()
+
 from public.projetos as legacy_project
+
 cross join public.organizations as organization
+
 where organization.slug = 'ritsuflow-development'
+
 on conflict (legacy_project_id) do update
 set
   organization_id = excluded.organization_id,
@@ -241,9 +262,12 @@ select
   organization.owner_user_id,
   'manager'
 from public.projects as project
+
 join public.organizations as organization
   on organization.id = project.organization_id
+
 where organization.slug = 'ritsuflow-development'
+
 on conflict (
   project_id,
   user_id
@@ -284,7 +308,6 @@ with phase_source as (
     )
   )
     project.id as project_id,
-
     project.created_by,
 
     coalesce(
@@ -313,6 +336,7 @@ with phase_source as (
 
   order by
     project.id,
+
     lower(
       coalesce(
         nullif(
@@ -322,6 +346,7 @@ with phase_source as (
         'Unspecified Phase'
       )
     ),
+
     legacy_scope.id
 ),
 
@@ -409,9 +434,7 @@ with floor_source as (
     )
   )
     project.id as project_id,
-
     project.legacy_project_id,
-
     project.created_by,
 
     lower(
@@ -581,9 +604,7 @@ with area_source as (
     )
   )
     project.id as project_id,
-
     project.legacy_project_id,
-
     project.created_by,
 
     lower(
@@ -888,6 +909,7 @@ set
   service_name = excluded.service_name,
   quantity = excluded.quantity,
   unit = excluded.unit,
+  status = excluded.status,
   metadata = excluded.metadata,
   updated_at = now();
 
