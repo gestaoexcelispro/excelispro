@@ -1,32 +1,6 @@
 import Link from 'next/link'
+import { createClient } from '../../lib/supabase/server'
 import styles from './overview.module.css'
-
-const metrics = [
-  {
-    label: 'Active projects',
-    value: '0',
-    detail: 'No projects configured',
-    icon: 'PR',
-  },
-  {
-    label: 'Locations',
-    value: '0',
-    detail: 'No locations configured',
-    icon: 'LB',
-  },
-  {
-    label: 'Open constraints',
-    value: '0',
-    detail: 'No constraint data',
-    icon: 'CM',
-  },
-  {
-    label: 'Plan reliability',
-    value: '—',
-    detail: 'No weekly plan data',
-    icon: 'PPC',
-  },
-]
 
 const planningCycle = [
   {
@@ -59,34 +33,277 @@ const planningCycle = [
   },
 ]
 
-const readinessItems = [
-  {
-    icon: '✓',
-    name: 'Secure authentication',
-    status: 'Complete',
-    statusClass: styles.statusComplete,
-  },
-  {
-    icon: '01',
-    name: 'Project structure',
-    status: 'Not configured',
-    statusClass: styles.statusPlanned,
-  },
-  {
-    icon: '02',
-    name: 'Location breakdown structure',
-    status: 'Not configured',
-    statusClass: styles.statusPlanned,
-  },
-  {
-    icon: '03',
-    name: 'Planning workspace',
-    status: 'In preparation',
-    statusClass: styles.statusProgress,
-  },
-]
+function formatProjectDetail({
+  activeProjects,
+  planningProjects,
+  totalProjects,
+  hasError,
+}) {
+  if (hasError) {
+    return 'Unable to load project data'
+  }
 
-export default function DashboardHome() {
+  if (activeProjects > 0) {
+    return activeProjects === 1
+      ? '1 project currently active'
+      : `${activeProjects} projects currently active`
+  }
+
+  if (planningProjects > 0) {
+    return planningProjects === 1
+      ? '1 project currently in planning'
+      : `${planningProjects} projects currently in planning`
+  }
+
+  if (totalProjects > 0) {
+    return totalProjects === 1
+      ? '1 project configured'
+      : `${totalProjects} projects configured`
+  }
+
+  return 'No projects configured'
+}
+
+function formatLocationDetail({
+  locations,
+  hasError,
+}) {
+  if (hasError) {
+    return 'Unable to load location data'
+  }
+
+  if (locations === 1) {
+    return '1 production location configured'
+  }
+
+  if (locations > 1) {
+    return `${locations} production locations configured`
+  }
+
+  return 'No locations configured'
+}
+
+function getReadinessStatus({
+  complete,
+  completeLabel = 'Complete',
+  pendingLabel = 'Not configured',
+}) {
+  if (complete) {
+    return {
+      status: completeLabel,
+      statusClass: styles.statusComplete,
+    }
+  }
+
+  return {
+    status: pendingLabel,
+    statusClass: styles.statusPlanned,
+  }
+}
+
+export default async function DashboardHome() {
+  const supabase = await createClient()
+
+  const [
+    activeProjectsResult,
+    planningProjectsResult,
+    totalProjectsResult,
+    locationsResult,
+    scopeItemsResult,
+  ] = await Promise.all([
+    supabase
+      .from('projects')
+      .select('id', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('status', 'active'),
+
+    supabase
+      .from('projects')
+      .select('id', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('status', 'planning'),
+
+    supabase
+      .from('projects')
+      .select('id', {
+        count: 'exact',
+        head: true,
+      })
+      .neq('status', 'archived'),
+
+    supabase
+      .from('locations')
+      .select('id', {
+        count: 'exact',
+        head: true,
+      }),
+
+    supabase
+      .from('scope_items')
+      .select('id', {
+        count: 'exact',
+        head: true,
+      }),
+  ])
+
+  const projectQueryFailed = Boolean(
+    activeProjectsResult.error ||
+      planningProjectsResult.error ||
+      totalProjectsResult.error
+  )
+
+  const locationQueryFailed = Boolean(
+    locationsResult.error
+  )
+
+  const scopeQueryFailed = Boolean(
+    scopeItemsResult.error
+  )
+
+  if (
+    projectQueryFailed ||
+    locationQueryFailed ||
+    scopeQueryFailed
+  ) {
+    console.error(
+      'RitsuFlow dashboard data query failed.',
+      {
+        activeProjects:
+          activeProjectsResult.error,
+        planningProjects:
+          planningProjectsResult.error,
+        totalProjects:
+          totalProjectsResult.error,
+        locations:
+          locationsResult.error,
+        scopeItems:
+          scopeItemsResult.error,
+      }
+    )
+  }
+
+  const activeProjects =
+    activeProjectsResult.count ?? 0
+
+  const planningProjects =
+    planningProjectsResult.count ?? 0
+
+  const totalProjects =
+    totalProjectsResult.count ?? 0
+
+  const locations =
+    locationsResult.count ?? 0
+
+  const scopeItems =
+    scopeItemsResult.count ?? 0
+
+  const metrics = [
+    {
+      label: 'Active projects',
+      value: projectQueryFailed
+        ? '—'
+        : String(activeProjects),
+
+      detail: formatProjectDetail({
+        activeProjects,
+        planningProjects,
+        totalProjects,
+        hasError: projectQueryFailed,
+      }),
+
+      icon: 'PR',
+    },
+    {
+      label: 'Locations',
+      value: locationQueryFailed
+        ? '—'
+        : String(locations),
+
+      detail: formatLocationDetail({
+        locations,
+        hasError: locationQueryFailed,
+      }),
+
+      icon: 'LB',
+    },
+    {
+      label: 'Open constraints',
+      value: '—',
+      detail: 'Constraint module coming next',
+      icon: 'CM',
+    },
+    {
+      label: 'Plan reliability',
+      value: '—',
+      detail: 'Weekly planning module coming next',
+      icon: 'PPC',
+    },
+  ]
+
+  const projectReadiness = getReadinessStatus({
+    complete:
+      !projectQueryFailed &&
+      totalProjects > 0,
+  })
+
+  const locationReadiness =
+    getReadinessStatus({
+      complete:
+        !locationQueryFailed &&
+        locations > 0,
+    })
+
+  const scopeReadiness = scopeQueryFailed
+    ? {
+        status: 'Unable to verify',
+        statusClass: styles.statusPlanned,
+      }
+    : scopeItems > 0
+      ? {
+          status: 'Foundation ready',
+          statusClass:
+            styles.statusComplete,
+        }
+      : {
+          status: 'In preparation',
+          statusClass:
+            styles.statusProgress,
+        }
+
+  const readinessItems = [
+    {
+      icon: '✓',
+      name: 'Secure authentication',
+      status: 'Complete',
+      statusClass: styles.statusComplete,
+    },
+    {
+      icon: '01',
+      name: 'Project structure',
+      status: projectReadiness.status,
+      statusClass:
+        projectReadiness.statusClass,
+    },
+    {
+      icon: '02',
+      name: 'Location breakdown structure',
+      status: locationReadiness.status,
+      statusClass:
+        locationReadiness.statusClass,
+    },
+    {
+      icon: '03',
+      name: 'Planning workspace',
+      status: scopeReadiness.status,
+      statusClass:
+        scopeReadiness.statusClass,
+    },
+  ]
+
   return (
     <div className={styles.container}>
       <section className={styles.heading}>
@@ -100,14 +317,19 @@ export default function DashboardHome() {
           </h2>
 
           <p className={styles.description}>
-            Connect projects, locations, planning horizons,
-            constraints, and production performance in one
-            operational view.
+            Connect projects, locations, planning
+            horizons, constraints, and production
+            performance in one operational view.
           </p>
         </div>
 
-        <div className={styles.developmentBadge}>
-          <span className={styles.developmentDot} />
+        <div
+          className={styles.developmentBadge}
+        >
+          <span
+            className={styles.developmentDot}
+          />
+
           Private development
         </div>
       </section>
@@ -121,21 +343,31 @@ export default function DashboardHome() {
             className={styles.metricCard}
             key={metric.label}
           >
-            <div className={styles.metricHeader}>
-              <span className={styles.metricLabel}>
+            <div
+              className={styles.metricHeader}
+            >
+              <span
+                className={styles.metricLabel}
+              >
                 {metric.label}
               </span>
 
-              <span className={styles.metricIcon}>
+              <span
+                className={styles.metricIcon}
+              >
                 {metric.icon}
               </span>
             </div>
 
-            <p className={styles.metricValue}>
+            <p
+              className={styles.metricValue}
+            >
               {metric.value}
             </p>
 
-            <p className={styles.metricDetail}>
+            <p
+              className={styles.metricDetail}
+            >
               {metric.detail}
             </p>
           </article>
@@ -143,15 +375,23 @@ export default function DashboardHome() {
       </section>
 
       <section className={styles.section}>
-        <div className={styles.sectionHeading}>
+        <div
+          className={styles.sectionHeading}
+        >
           <div>
-            <h3 className={styles.sectionTitle}>
+            <h3
+              className={styles.sectionTitle}
+            >
               Planning cycle
             </h3>
 
-            <p className={styles.sectionDescription}>
-              Move from strategic planning to reliable
-              production control.
+            <p
+              className={
+                styles.sectionDescription
+              }
+            >
+              Move from strategic planning to
+              reliable production control.
             </p>
           </div>
         </div>
@@ -163,15 +403,23 @@ export default function DashboardHome() {
               className={styles.cycleCard}
               key={step.number}
             >
-              <span className={styles.cycleNumber}>
+              <span
+                className={styles.cycleNumber}
+              >
                 {step.number}
               </span>
 
-              <h4 className={styles.cycleTitle}>
+              <h4
+                className={styles.cycleTitle}
+              >
                 {step.title}
               </h4>
 
-              <p className={styles.cycleDescription}>
+              <p
+                className={
+                  styles.cycleDescription
+                }
+              >
                 {step.description}
               </p>
 
@@ -192,28 +440,53 @@ export default function DashboardHome() {
             Project readiness
           </h3>
 
-          <p className={styles.panelDescription}>
-            Complete the project foundation before activating
-            the planning cycle.
+          <p
+            className={
+              styles.panelDescription
+            }
+          >
+            Complete the project foundation
+            before activating the planning
+            cycle.
           </p>
 
-          <div className={styles.progressList}>
+          <div
+            className={styles.progressList}
+          >
             {readinessItems.map((item) => (
               <div
-                className={styles.progressItem}
+                className={
+                  styles.progressItem
+                }
                 key={item.name}
               >
-                <div className={styles.progressIdentity}>
-                  <span className={styles.progressIcon}>
+                <div
+                  className={
+                    styles.progressIdentity
+                  }
+                >
+                  <span
+                    className={
+                      styles.progressIcon
+                    }
+                  >
                     {item.icon}
                   </span>
 
-                  <span className={styles.progressName}>
+                  <span
+                    className={
+                      styles.progressName
+                    }
+                  >
                     {item.name}
                   </span>
                 </div>
 
-                <span className={item.statusClass}>
+                <span
+                  className={
+                    item.statusClass
+                  }
+                >
                   {item.status}
                 </span>
               </div>
@@ -225,20 +498,29 @@ export default function DashboardHome() {
           className={`${styles.panel} ${styles.startPanel}`}
         >
           <div>
-            <h3 className={styles.panelTitle}>
+            <h3
+              className={styles.panelTitle}
+            >
               Start with the project structure.
             </h3>
 
-            <p className={styles.panelDescription}>
-              Register the project, define its production
-              locations, and prepare the foundation for
-              location-based planning.
+            <p
+              className={
+                styles.panelDescription
+              }
+            >
+              Register the project, define its
+              production locations, and prepare
+              the foundation for location-based
+              planning.
             </p>
           </div>
 
           <Link
             href="/dashboard/projetos/coleta"
-            className={styles.primaryButton}
+            className={
+              styles.primaryButton
+            }
           >
             Configure project
           </Link>
