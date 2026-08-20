@@ -220,6 +220,9 @@ export default function LocationBreakdownPage() {
   const [productivitySearch, setProductivitySearch] = useState('')
   const [productivityMode, setProductivityMode] = useState('select')
   const [productivityForm, setProductivityForm] = useState(emptyProductivityForm)
+  const [divisionTaktTargets, setDivisionTaktTargets] = useState([])
+  const [taktTargetDrafts, setTaktTargetDrafts] = useState({})
+  const [savingTaktTargetId, setSavingTaktTargetId] = useState(null)
 
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true)
@@ -282,6 +285,8 @@ export default function LocationBreakdownPage() {
       setProductivityLibrary([])
       setProjectProductivities([])
       setEffectiveDrafts({})
+      setDivisionTaktTargets([])
+      setTaktTargetDrafts({})
       setIsLoading(false)
       return
     }
@@ -308,6 +313,7 @@ export default function LocationBreakdownPage() {
       quantitiesResult,
       productivityLibraryResult,
       projectProductivitiesResult,
+      divisionTaktTargetsResult,
     ] = await Promise.all([
       supabase
         .from('locations')
@@ -409,6 +415,18 @@ export default function LocationBreakdownPage() {
           updated_at
         `)
         .eq('project_id', selectedProjectId),
+
+      supabase
+        .from('project_division_takt_targets')
+        .select(`
+          id,
+          project_id,
+          division_location_id,
+          target_takt_days,
+          created_at,
+          updated_at
+        `)
+        .eq('project_id', selectedProjectId),
     ])
 
     const workspaceError =
@@ -417,7 +435,8 @@ export default function LocationBreakdownPage() {
       servicesResult.error ||
       quantitiesResult.error ||
       productivityLibraryResult.error ||
-      projectProductivitiesResult.error
+      projectProductivitiesResult.error ||
+      divisionTaktTargetsResult.error
 
     if (workspaceError) {
       setErrorMessage(getErrorMessage(workspaceError))
@@ -433,6 +452,17 @@ export default function LocationBreakdownPage() {
     setServiceQuantities(loadedQuantities)
     setProductivityLibrary(productivityLibraryResult.data || [])
     setProjectProductivities(projectProductivitiesResult.data || [])
+    setDivisionTaktTargets(divisionTaktTargetsResult.data || [])
+
+    const nextTaktTargetDrafts = {}
+    ;(divisionTaktTargetsResult.data || []).forEach((item) => {
+      nextTaktTargetDrafts[item.division_location_id] =
+        item.target_takt_days === null ||
+        item.target_takt_days === undefined
+          ? ''
+          : String(item.target_takt_days)
+    })
+    setTaktTargetDrafts(nextTaktTargetDrafts)
 
     const nextEffectiveDrafts = {}
     ;(projectProductivitiesResult.data || []).forEach((item) => {
@@ -737,6 +767,16 @@ export default function LocationBreakdownPage() {
 
     return map
   }, [projectProductivities])
+
+  const divisionTaktTargetMap = useMemo(() => {
+    const map = new Map()
+
+    divisionTaktTargets.forEach((item) => {
+      map.set(item.division_location_id, item)
+    })
+
+    return map
+  }, [divisionTaktTargets])
 
   const filteredProductivityLibrary = useMemo(() => {
     const normalizedSearch = productivitySearch.trim().toLowerCase()
@@ -1090,6 +1130,131 @@ export default function LocationBreakdownPage() {
 
     setNoticeMessage(
       `Effective workforce saved${savedService ? ` for ${savedService.service_name}` : ''}${savedFloor ? ` on ${savedFloor.name}` : ''}.`
+    )
+  }
+
+  async function saveDivisionTaktTarget(floorId) {
+    if (!selectedProject || !userId) {
+      return
+    }
+
+    const rawValue = taktTargetDrafts[floorId] ?? ''
+    const normalizedText = String(rawValue).trim()
+    const existing = divisionTaktTargetMap.get(floorId)
+
+    if (normalizedText === '') {
+      if (!existing) {
+        return
+      }
+
+      setSavingTaktTargetId(floorId)
+      setErrorMessage('')
+
+      const { error } = await supabase
+        .from('project_division_takt_targets')
+        .delete()
+        .eq('id', existing.id)
+        .eq('project_id', selectedProject.id)
+
+      if (error) {
+        setErrorMessage(getErrorMessage(error))
+        setTaktTargetDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [floorId]: String(existing.target_takt_days),
+        }))
+        setSavingTaktTargetId(null)
+        return
+      }
+
+      setDivisionTaktTargets((currentItems) =>
+        currentItems.filter((item) => item.id !== existing.id)
+      )
+
+      setSavingTaktTargetId(null)
+      setNoticeMessage('Target Takt was cleared for this division.')
+      return
+    }
+
+    const targetValue = Number(normalizedText.replace(',', '.'))
+
+    if (!Number.isFinite(targetValue) || targetValue <= 0) {
+      setErrorMessage('Enter a Target Takt greater than zero.')
+      setTaktTargetDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [floorId]:
+          existing?.target_takt_days === null ||
+          existing?.target_takt_days === undefined
+            ? ''
+            : String(existing.target_takt_days),
+      }))
+      return
+    }
+
+    if (
+      existing &&
+      Number(existing.target_takt_days) === targetValue
+    ) {
+      return
+    }
+
+    setSavingTaktTargetId(floorId)
+    setErrorMessage('')
+
+    const { data, error } = await supabase
+      .from('project_division_takt_targets')
+      .upsert(
+        {
+          project_id: selectedProject.id,
+          division_location_id: floorId,
+          target_takt_days: targetValue,
+          created_by: userId,
+        },
+        {
+          onConflict: 'project_id,division_location_id',
+        }
+      )
+      .select(`
+        id,
+        project_id,
+        division_location_id,
+        target_takt_days,
+        created_at,
+        updated_at
+      `)
+      .single()
+
+    if (error) {
+      setErrorMessage(getErrorMessage(error))
+      setTaktTargetDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [floorId]:
+          existing?.target_takt_days === null ||
+          existing?.target_takt_days === undefined
+            ? ''
+            : String(existing.target_takt_days),
+      }))
+      setSavingTaktTargetId(null)
+      return
+    }
+
+    setDivisionTaktTargets((currentItems) => {
+      const exists = currentItems.some((item) => item.id === data.id)
+
+      return exists
+        ? currentItems.map((item) => (item.id === data.id ? data : item))
+        : [...currentItems, data]
+    })
+
+    setTaktTargetDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [floorId]: String(data.target_takt_days),
+    }))
+
+    setSavingTaktTargetId(null)
+
+    const floor = locationMap.get(floorId)
+    setNoticeMessage(
+      `Target Takt saved${floor ? ` for ${floor.name}` : ''}.`
     )
   }
 
@@ -2566,10 +2731,10 @@ export default function LocationBreakdownPage() {
                 }}
               >
                 Select a productivity from the organization library, or create
-                a new one, then enter the effective workforce. Zone durations
-                are calculated automatically from the quantities in
-                Quantification by Location using: Quantity ÷ (Productivity ×
-                Effective).
+                a new one, then enter the effective workforce and the Target
+                Takt for each division. Zone durations are calculated as:
+                Quantity ÷ (Productivity × Effective). The result remains
+                decimal so imbalances are visible before planning integration.
               </div>
 
               <div
@@ -2592,6 +2757,75 @@ export default function LocationBreakdownPage() {
               ) : (
                 quantificationByDivision.map(({ floor, zones, totals }) => (
                   <div key={floor.id} style={{ marginBottom: '24px' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        border: '1px solid #dbe7f3',
+                        borderBottom: 'none',
+                        background: '#f8fbff',
+                      }}
+                    >
+                      <label
+                        htmlFor={`target-takt-${floor.id}`}
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          color: '#4a5568',
+                        }}
+                      >
+                        TARGET TAKT
+                      </label>
+
+                      <input
+                        id={`target-takt-${floor.id}`}
+                        type="number"
+                        min="0.01"
+                        step="any"
+                        value={taktTargetDrafts[floor.id] ?? ''}
+                        onChange={(event) =>
+                          setTaktTargetDrafts((currentDrafts) => ({
+                            ...currentDrafts,
+                            [floor.id]: event.target.value,
+                          }))
+                        }
+                        onBlur={() => saveDivisionTaktTarget(floor.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.currentTarget.blur()
+                          }
+                        }}
+                        disabled={savingTaktTargetId === floor.id}
+                        placeholder="Days"
+                        style={{
+                          width: '92px',
+                          padding: '7px 8px',
+                          textAlign: 'center',
+                          border: '1px solid #cbd5e0',
+                          borderRadius: '6px',
+                          background:
+                            savingTaktTargetId === floor.id
+                              ? '#edf2f7'
+                              : '#ffffff',
+                          outline: 'none',
+                          fontWeight: 700,
+                        }}
+                      />
+
+                      <span
+                        style={{
+                          fontSize: '0.78rem',
+                          color: '#718096',
+                          fontWeight: 700,
+                        }}
+                      >
+                        days
+                      </span>
+                    </div>
+
                     <table
                       style={{
                         width: '100%',
@@ -2749,28 +2983,98 @@ export default function LocationBreakdownPage() {
                                   totals.get(`${service.id}___${zone.id}`) || 0
                                 const duration =
                                   quantity > 0 && productivity > 0 && effective > 0
-                                    ? Math.ceil(quantity / (productivity * effective))
+                                    ? quantity / (productivity * effective)
                                     : 0
+
+                                const targetTakt =
+                                  Number(taktTargetDrafts[floor.id]) || 0
+
+                                let balanceStatus = 'not_evaluated'
+
+                                if (duration > 0 && targetTakt > 0) {
+                                  if (duration <= targetTakt) {
+                                    balanceStatus = 'within_target'
+                                  } else if (duration <= targetTakt * 1.1) {
+                                    balanceStatus = 'near_limit'
+                                  } else {
+                                    balanceStatus = 'above_target'
+                                  }
+                                }
+
+                                const balanceStyles = {
+                                  not_evaluated: {
+                                    backgroundColor:
+                                      duration > 0
+                                        ? getZoneColor(zone.name)
+                                        : undefined,
+                                    color:
+                                      duration > 0 ? '#2b6cb0' : '#a0aec0',
+                                  },
+                                  within_target: {
+                                    backgroundColor: '#f0fff4',
+                                    color: '#276749',
+                                  },
+                                  near_limit: {
+                                    backgroundColor: '#fffaf0',
+                                    color: '#975a16',
+                                  },
+                                  above_target: {
+                                    backgroundColor: '#fff5f5',
+                                    color: '#c53030',
+                                  },
+                                }
+
+                                const balanceLabel = {
+                                  not_evaluated: 'Target Takt not defined',
+                                  within_target: 'Within target',
+                                  near_limit: 'Near limit',
+                                  above_target: 'Above target',
+                                }[balanceStatus]
 
                                 return (
                                   <td
                                     key={zone.id}
                                     style={{
-                                      padding: '11px 14px',
+                                      padding: '8px 10px',
                                       border: '1px solid #cbd5e0',
                                       textAlign: 'center',
                                       fontWeight: 800,
-                                      color: duration > 0 ? '#2b6cb0' : '#a0aec0',
-                                      backgroundColor:
-                                        duration > 0 ? getZoneColor(zone.name) : undefined,
+                                      ...balanceStyles[balanceStatus],
                                     }}
                                     title={
                                       quantity > 0
-                                        ? `Quantity: ${formatQuantity(quantity)} ${service.unit || ''}`
+                                        ? `Quantity: ${formatQuantity(quantity)} ${service.unit || ''} · Duration: ${formatQuantity(duration)} days · ${balanceLabel}`
                                         : 'No quantity in this zone'
                                     }
                                   >
-                                    {duration}
+                                    {duration > 0 ? (
+                                      <div
+                                        style={{
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          alignItems: 'center',
+                                          gap: '2px',
+                                        }}
+                                      >
+                                        <span>{formatQuantity(duration)} d</span>
+
+                                        {targetTakt > 0 && (
+                                          <span
+                                            style={{
+                                              fontSize: '0.62rem',
+                                              fontWeight: 800,
+                                              textTransform: 'uppercase',
+                                              letterSpacing: '0.03em',
+                                              opacity: 0.85,
+                                            }}
+                                          >
+                                            {balanceLabel}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      '0'
+                                    )}
                                   </td>
                                 )
                               })}
