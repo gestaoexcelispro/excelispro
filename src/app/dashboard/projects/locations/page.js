@@ -51,6 +51,15 @@ const emptyServiceForm = {
   custom_unit: '',
 }
 
+const emptyProductivityForm = {
+  service_name: '',
+  service_code: '',
+  quantity_unit: 'm²',
+  productivity_rate: '',
+  productivity_basis: 'worker_day',
+  description: '',
+}
+
 function getLocationTypeLabel(locationType) {
   return (
     locationTypeOptions.find(
@@ -202,6 +211,15 @@ export default function LocationBreakdownPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [noticeMessage, setNoticeMessage] = useState('')
   const [showQuantification, setShowQuantification] = useState(true)
+  const [showTaktPresizing, setShowTaktPresizing] = useState(true)
+  const [productivityLibrary, setProductivityLibrary] = useState([])
+  const [projectProductivities, setProjectProductivities] = useState([])
+  const [effectiveDrafts, setEffectiveDrafts] = useState({})
+  const [isProductivityModalOpen, setIsProductivityModalOpen] = useState(false)
+  const [productivityTarget, setProductivityTarget] = useState(null)
+  const [productivitySearch, setProductivitySearch] = useState('')
+  const [productivityMode, setProductivityMode] = useState('select')
+  const [productivityForm, setProductivityForm] = useState(emptyProductivityForm)
 
   const loadWorkspace = useCallback(async () => {
     setIsLoading(true)
@@ -238,6 +256,7 @@ export default function LocationBreakdownPage() {
         code,
         name,
         client_name,
+        organization_id,
         status,
         created_at
       `)
@@ -260,6 +279,9 @@ export default function LocationBreakdownPage() {
       setProjectServices([])
       setServiceQuantities([])
       setQuantityDrafts({})
+      setProductivityLibrary([])
+      setProjectProductivities([])
+      setEffectiveDrafts({})
       setIsLoading(false)
       return
     }
@@ -284,6 +306,8 @@ export default function LocationBreakdownPage() {
       scopeItemsResult,
       servicesResult,
       quantitiesResult,
+      productivityLibraryResult,
+      projectProductivitiesResult,
     ] = await Promise.all([
       supabase
         .from('locations')
@@ -349,13 +373,51 @@ export default function LocationBreakdownPage() {
           updated_at
         `)
         .eq('project_id', selectedProjectId),
+
+      supabase
+        .from('productivity_library')
+        .select(`
+          id,
+          organization_id,
+          service_name,
+          service_code,
+          quantity_unit,
+          productivity_rate,
+          productivity_basis,
+          description,
+          is_active,
+          created_at,
+          updated_at
+        `)
+        .eq('organization_id', activeProject.organization_id)
+        .eq('is_active', true)
+        .order('service_name', { ascending: true }),
+
+      supabase
+        .from('project_service_productivity')
+        .select(`
+          id,
+          project_id,
+          division_location_id,
+          service_id,
+          productivity_library_id,
+          productivity_rate,
+          quantity_unit,
+          productivity_basis,
+          effective,
+          created_at,
+          updated_at
+        `)
+        .eq('project_id', selectedProjectId),
     ])
 
     const workspaceError =
       locationsResult.error ||
       scopeItemsResult.error ||
       servicesResult.error ||
-      quantitiesResult.error
+      quantitiesResult.error ||
+      productivityLibraryResult.error ||
+      projectProductivitiesResult.error
 
     if (workspaceError) {
       setErrorMessage(getErrorMessage(workspaceError))
@@ -369,6 +431,18 @@ export default function LocationBreakdownPage() {
     setScopeItems(scopeItemsResult.data || [])
     setProjectServices(servicesResult.data || [])
     setServiceQuantities(loadedQuantities)
+    setProductivityLibrary(productivityLibraryResult.data || [])
+    setProjectProductivities(projectProductivitiesResult.data || [])
+
+    const nextEffectiveDrafts = {}
+    ;(projectProductivitiesResult.data || []).forEach((item) => {
+      const key = `${item.division_location_id}___${item.service_id}`
+      nextEffectiveDrafts[key] =
+        item.effective === null || item.effective === undefined
+          ? ''
+          : String(item.effective)
+    })
+    setEffectiveDrafts(nextEffectiveDrafts)
 
     const nextDrafts = {}
 
@@ -651,6 +725,40 @@ export default function LocationBreakdownPage() {
     sortedLocations,
   ])
 
+  const projectProductivityMap = useMemo(() => {
+    const map = new Map()
+
+    projectProductivities.forEach((item) => {
+      map.set(
+        `${item.division_location_id}___${item.service_id}`,
+        item
+      )
+    })
+
+    return map
+  }, [projectProductivities])
+
+  const filteredProductivityLibrary = useMemo(() => {
+    const normalizedSearch = productivitySearch.trim().toLowerCase()
+
+    if (!normalizedSearch) {
+      return productivityLibrary
+    }
+
+    return productivityLibrary.filter((item) =>
+      [
+        item.service_name,
+        item.service_code,
+        item.quantity_unit,
+        item.description,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedSearch)
+    )
+  }, [productivityLibrary, productivitySearch])
+
   function changeProject(projectId) {
     window.location.href =
       `/dashboard/projects/locations?projectId=${projectId}`
@@ -714,6 +822,261 @@ export default function LocationBreakdownPage() {
     setIsServiceModalOpen(false)
     setServiceForm(emptyServiceForm)
     setServiceCodeWasEdited(false)
+  }
+
+  function openProductivityModal(floor, service) {
+    setProductivityTarget({ floor, service })
+    setProductivitySearch(service.service_name || '')
+    setProductivityMode('select')
+    setProductivityForm({
+      ...emptyProductivityForm,
+      service_name: service.service_name || '',
+      service_code: service.service_code || '',
+      quantity_unit: service.unit || 'm²',
+    })
+    setErrorMessage('')
+    setIsProductivityModalOpen(true)
+  }
+
+  function closeProductivityModal() {
+    if (isSaving) {
+      return
+    }
+
+    setIsProductivityModalOpen(false)
+    setProductivityTarget(null)
+    setProductivitySearch('')
+    setProductivityMode('select')
+    setProductivityForm(emptyProductivityForm)
+  }
+
+  async function applyProductivity(libraryItem) {
+    if (!selectedProject || !userId || !productivityTarget) {
+      return
+    }
+
+    const { floor, service } = productivityTarget
+    const key = `${floor.id}___${service.id}`
+    const existing = projectProductivityMap.get(key)
+
+    setIsSaving(true)
+    setErrorMessage('')
+
+    const { data, error } = await supabase
+      .from('project_service_productivity')
+      .upsert(
+        {
+          project_id: selectedProject.id,
+          division_location_id: floor.id,
+          service_id: service.id,
+          productivity_library_id: libraryItem.id,
+          productivity_rate: Number(libraryItem.productivity_rate),
+          quantity_unit: libraryItem.quantity_unit || service.unit || null,
+          productivity_basis: libraryItem.productivity_basis || 'worker_day',
+          effective: existing?.effective ?? null,
+          created_by: existing?.created_by || userId,
+        },
+        {
+          onConflict: 'project_id,division_location_id,service_id',
+        }
+      )
+      .select(`
+        id,
+        project_id,
+        division_location_id,
+        service_id,
+        productivity_library_id,
+        productivity_rate,
+        quantity_unit,
+        productivity_basis,
+        effective,
+        created_at,
+        updated_at
+      `)
+      .single()
+
+    if (error) {
+      setErrorMessage(getErrorMessage(error))
+      setIsSaving(false)
+      return
+    }
+
+    setProjectProductivities((currentItems) => {
+      const exists = currentItems.some((item) => item.id === data.id)
+      return exists
+        ? currentItems.map((item) => (item.id === data.id ? data : item))
+        : [...currentItems, data]
+    })
+
+    setEffectiveDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [key]: data.effective === null || data.effective === undefined
+        ? ''
+        : String(data.effective),
+    }))
+
+    setNoticeMessage(
+      `${libraryItem.service_name} productivity was applied to ${floor.name}.`
+    )
+    setIsSaving(false)
+    closeProductivityModal()
+  }
+
+  async function createProductivity(event) {
+    event.preventDefault()
+
+    if (!selectedProject || !userId || !productivityTarget) {
+      return
+    }
+
+    const normalizedName = productivityForm.service_name.trim()
+    const rate = Number(String(productivityForm.productivity_rate).replace(',', '.'))
+
+    if (!normalizedName) {
+      setErrorMessage('Enter a service name.')
+      return
+    }
+
+    if (!Number.isFinite(rate) || rate <= 0) {
+      setErrorMessage('Enter a productivity greater than zero.')
+      return
+    }
+
+    if (!productivityForm.quantity_unit.trim()) {
+      setErrorMessage('Enter a quantity unit.')
+      return
+    }
+
+    setIsSaving(true)
+    setErrorMessage('')
+
+    const { data, error } = await supabase
+      .from('productivity_library')
+      .insert({
+        organization_id: selectedProject.organization_id,
+        service_name: normalizedName,
+        service_code: productivityForm.service_code.trim() || null,
+        quantity_unit: productivityForm.quantity_unit.trim(),
+        productivity_rate: rate,
+        productivity_basis:
+          productivityForm.productivity_basis.trim() || 'worker_day',
+        description: productivityForm.description.trim() || null,
+        is_active: true,
+        created_by: userId,
+      })
+      .select(`
+        id,
+        organization_id,
+        service_name,
+        service_code,
+        quantity_unit,
+        productivity_rate,
+        productivity_basis,
+        description,
+        is_active,
+        created_at,
+        updated_at
+      `)
+      .single()
+
+    if (error) {
+      setErrorMessage(getErrorMessage(error))
+      setIsSaving(false)
+      return
+    }
+
+    setProductivityLibrary((currentItems) => [...currentItems, data])
+    setIsSaving(false)
+    await applyProductivity(data)
+  }
+
+  async function saveEffective(floorId, serviceId) {
+    if (!selectedProject || !userId) {
+      return
+    }
+
+    const key = `${floorId}___${serviceId}`
+    const rawValue = effectiveDrafts[key] ?? ''
+    const normalizedText = String(rawValue).trim()
+    const existing = projectProductivityMap.get(key)
+
+    let effective = null
+
+    if (normalizedText !== '') {
+      effective = Number(normalizedText.replace(',', '.'))
+
+      if (!Number.isFinite(effective) || effective < 0) {
+        setErrorMessage('Enter a valid effective workforce.')
+        setEffectiveDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [key]: existing?.effective === null || existing?.effective === undefined
+            ? ''
+            : String(existing.effective),
+        }))
+        return
+      }
+    }
+
+    if (
+      existing &&
+      (existing.effective === null ? null : Number(existing.effective)) === effective
+    ) {
+      return
+    }
+
+    setErrorMessage('')
+
+    const { data, error } = await supabase
+      .from('project_service_productivity')
+      .upsert(
+        {
+          project_id: selectedProject.id,
+          division_location_id: floorId,
+          service_id: serviceId,
+          productivity_library_id: existing?.productivity_library_id || null,
+          productivity_rate: existing?.productivity_rate ?? null,
+          quantity_unit: existing?.quantity_unit ?? null,
+          productivity_basis: existing?.productivity_basis || 'worker_day',
+          effective,
+          created_by: userId,
+        },
+        {
+          onConflict: 'project_id,division_location_id,service_id',
+        }
+      )
+      .select(`
+        id,
+        project_id,
+        division_location_id,
+        service_id,
+        productivity_library_id,
+        productivity_rate,
+        quantity_unit,
+        productivity_basis,
+        effective,
+        created_at,
+        updated_at
+      `)
+      .single()
+
+    if (error) {
+      setErrorMessage(getErrorMessage(error))
+      return
+    }
+
+    setProjectProductivities((currentItems) => {
+      const exists = currentItems.some((item) => item.id === data.id)
+      return exists
+        ? currentItems.map((item) => (item.id === data.id ? data : item))
+        : [...currentItems, data]
+    })
+
+    setEffectiveDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [key]: data.effective === null || data.effective === undefined
+        ? ''
+        : String(data.effective),
+    }))
   }
 
   async function saveLocation(event) {
@@ -2133,6 +2496,299 @@ export default function LocationBreakdownPage() {
         </section>
       )}
 
+      {activeTab === 'scope' && (
+        <section
+          className={styles.panel}
+          style={{ marginTop: '28px' }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '16px',
+              marginBottom: showTaktPresizing ? '18px' : 0,
+            }}
+          >
+            <div>
+              <p
+                className={styles.eyebrow}
+                style={{ marginBottom: '6px' }}
+              >
+                Takt pre-sizing
+              </p>
+
+              <h2
+                className={styles.panelTitle}
+                style={{ margin: 0 }}
+              >
+                Takt Pre-dimensioning
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() =>
+                setShowTaktPresizing((currentValue) => !currentValue)
+              }
+            >
+              {showTaktPresizing ? 'Hide ▲' : 'Show ▼'}
+            </button>
+          </div>
+
+          {showTaktPresizing && (
+            <div
+              style={{
+                border: '1px solid #cbd5e0',
+                borderRadius: '8px',
+                overflowX: 'auto',
+                background: '#ffffff',
+              }}
+            >
+              {quantificationByDivision.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <h3 className={styles.emptyTitle}>
+                    No Takt pre-sizing data available.
+                  </h3>
+                  <p className={styles.emptyDescription}>
+                    Create divisions, zones, services and quantities first.
+                  </p>
+                </div>
+              ) : (
+                quantificationByDivision.map(({ floor, zones, totals }) => (
+                  <div key={floor.id} style={{ marginBottom: '24px' }}>
+                    <table
+                      style={{
+                        width: '100%',
+                        minWidth: `${Math.max(820, 560 + zones.length * 160)}px`,
+                        borderCollapse: 'collapse',
+                        fontSize: '0.86rem',
+                      }}
+                    >
+                      <thead>
+                        <tr
+                          style={{
+                            backgroundColor: '#2a4365',
+                            color: '#ffffff',
+                          }}
+                        >
+                          <th
+                            style={{
+                              width: '25%',
+                              padding: '12px 14px',
+                              border: '1px solid #1a365d',
+                              textAlign: 'left',
+                              fontWeight: 800,
+                            }}
+                          >
+                            {floor.name}
+                          </th>
+                          <th
+                            style={{
+                              width: '15%',
+                              padding: '12px 14px',
+                              border: '1px solid #1a365d',
+                              textAlign: 'center',
+                              fontWeight: 800,
+                            }}
+                          >
+                            PRODUCTIVITY
+                          </th>
+                          <th
+                            colSpan={zones.length}
+                            style={{
+                              padding: '12px 14px',
+                              border: '1px solid #1a365d',
+                              textAlign: 'center',
+                              fontWeight: 800,
+                              letterSpacing: '0.06em',
+                            }}
+                          >
+                            ZONES
+                          </th>
+                          <th
+                            style={{
+                              width: '15%',
+                              padding: '12px 14px',
+                              border: '1px solid #1a365d',
+                              textAlign: 'center',
+                              fontWeight: 800,
+                            }}
+                          >
+                            EFFECTIVE
+                          </th>
+                        </tr>
+
+                        <tr
+                          style={{
+                            backgroundColor: '#e2e8f0',
+                            color: '#1a365d',
+                          }}
+                        >
+                          <th
+                            style={{
+                              padding: '10px 14px',
+                              border: '1px solid #cbd5e0',
+                              textAlign: 'left',
+                              fontStyle: 'italic',
+                              fontWeight: 800,
+                            }}
+                          >
+                            DESCRIPTION
+                          </th>
+                          <th style={{ border: '1px solid #cbd5e0' }} />
+                          {zones.map((zone) => (
+                            <th
+                              key={zone.id}
+                              style={{
+                                padding: '10px 14px',
+                                border: '1px solid #cbd5e0',
+                                textAlign: 'center',
+                                fontWeight: 800,
+                                backgroundColor: getZoneColor(zone.name),
+                              }}
+                            >
+                              {zone.name}
+                            </th>
+                          ))}
+                          <th style={{ border: '1px solid #cbd5e0' }} />
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {projectServices.map((service, serviceIndex) => {
+                          const key = `${floor.id}___${service.id}`
+                          const setup = projectProductivityMap.get(key)
+                          const productivity = Number(setup?.productivity_rate) || 0
+                          const effective = Number(effectiveDrafts[key]) || 0
+
+                          return (
+                            <tr
+                              key={service.id}
+                              style={{
+                                backgroundColor:
+                                  serviceIndex % 2 === 0 ? '#ffffff' : '#f8fafc',
+                              }}
+                            >
+                              <td
+                                style={{
+                                  padding: '11px 14px',
+                                  border: '1px solid #cbd5e0',
+                                  textAlign: 'left',
+                                  fontWeight: 800,
+                                  color: '#1a365d',
+                                }}
+                              >
+                                {service.service_name.toUpperCase()}
+                              </td>
+
+                              <td
+                                style={{
+                                  padding: '7px',
+                                  border: '1px solid #cbd5e0',
+                                  textAlign: 'center',
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => openProductivityModal(floor, service)}
+                                  style={{
+                                    minWidth: '112px',
+                                    padding: '7px 10px',
+                                    border: '1px solid #cbd5e0',
+                                    borderRadius: '6px',
+                                    background: '#ffffff',
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                    color: productivity > 0 ? '#1a365d' : '#718096',
+                                  }}
+                                >
+                                  {productivity > 0
+                                    ? `${formatQuantity(productivity)} ${setup?.quantity_unit || service.unit || ''}`
+                                    : 'Select...'}
+                                </button>
+                              </td>
+
+                              {zones.map((zone) => {
+                                const quantity =
+                                  totals.get(`${service.id}___${zone.id}`) || 0
+                                const duration =
+                                  quantity > 0 && productivity > 0 && effective > 0
+                                    ? Math.ceil(quantity / (productivity * effective))
+                                    : 0
+
+                                return (
+                                  <td
+                                    key={zone.id}
+                                    style={{
+                                      padding: '11px 14px',
+                                      border: '1px solid #cbd5e0',
+                                      textAlign: 'center',
+                                      fontWeight: 800,
+                                      color: duration > 0 ? '#2b6cb0' : '#a0aec0',
+                                      backgroundColor:
+                                        duration > 0 ? getZoneColor(zone.name) : undefined,
+                                    }}
+                                    title={
+                                      quantity > 0
+                                        ? `Quantity: ${formatQuantity(quantity)} ${service.unit || ''}`
+                                        : 'No quantity in this zone'
+                                    }
+                                  >
+                                    {duration}
+                                  </td>
+                                )
+                              })}
+
+                              <td
+                                style={{
+                                  padding: '7px',
+                                  border: '1px solid #cbd5e0',
+                                  textAlign: 'center',
+                                }}
+                              >
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={effectiveDrafts[key] ?? ''}
+                                  onChange={(event) =>
+                                    setEffectiveDrafts((currentDrafts) => ({
+                                      ...currentDrafts,
+                                      [key]: event.target.value,
+                                    }))
+                                  }
+                                  onBlur={() => saveEffective(floor.id, service.id)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.currentTarget.blur()
+                                    }
+                                  }}
+                                  style={{
+                                    width: '88px',
+                                    padding: '7px 8px',
+                                    textAlign: 'center',
+                                    border: '1px solid #cbd5e0',
+                                    borderRadius: '6px',
+                                    outline: 'none',
+                                  }}
+                                  aria-label={`Effective workforce for ${service.service_name} on ${floor.name}`}
+                                />
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       {noticeMessage && (
         <div className={styles.notice} role="status">
           <span className={styles.noticeIcon}>✓</span>
@@ -2323,6 +2979,272 @@ export default function LocationBreakdownPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {isProductivityModalOpen && productivityTarget && (
+        <div
+          className={styles.modalBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeProductivityModal()
+            }
+          }}
+        >
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <div>
+                <p className={styles.modalEyebrow}>Productivity library</p>
+                <h2 className={styles.modalTitle}>
+                  {productivityMode === 'select'
+                    ? `Select productivity · ${productivityTarget.service.service_name}`
+                    : 'Add productivity'}
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                className={styles.modalClose}
+                onClick={closeProductivityModal}
+                aria-label="Close modal"
+              >
+                ×
+              </button>
+            </div>
+
+            {productivityMode === 'select' ? (
+              <>
+                <p className={styles.modalDescription}>
+                  Search the organization productivity library or create a new
+                  productivity without leaving the project.
+                </p>
+
+                <div className={styles.searchField} style={{ marginBottom: '14px' }}>
+                  <span className={styles.searchIcon} aria-hidden="true">⌕</span>
+                  <input
+                    type="search"
+                    className={styles.searchInput}
+                    value={productivitySearch}
+                    onChange={(event) => setProductivitySearch(event.target.value)}
+                    placeholder="Search service, code or unit..."
+                    autoFocus
+                  />
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: '320px',
+                    overflowY: 'auto',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                  }}
+                >
+                  {filteredProductivityLibrary.length === 0 ? (
+                    <div className={styles.emptyState} style={{ padding: '24px' }}>
+                      <h3 className={styles.emptyTitle}>No productivity found.</h3>
+                      <p className={styles.emptyDescription}>
+                        Add the first productivity for this service.
+                      </p>
+                    </div>
+                  ) : (
+                    filteredProductivityLibrary.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => applyProductivity(item)}
+                        disabled={isSaving}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '16px',
+                          padding: '12px 14px',
+                          border: 'none',
+                          borderBottom: '1px solid #e2e8f0',
+                          background: '#ffffff',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span>
+                          <strong style={{ display: 'block', color: '#1a365d' }}>
+                            {item.service_name}
+                          </strong>
+                          <span style={{ fontSize: '0.78rem', color: '#718096' }}>
+                            {item.service_code || 'No code'} · {item.productivity_basis}
+                          </span>
+                        </span>
+                        <strong style={{ color: '#2b6cb0', whiteSpace: 'nowrap' }}>
+                          {formatQuantity(item.productivity_rate)} {item.quantity_unit}
+                        </strong>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {errorMessage && (
+                  <div className={styles.modalError} role="alert">
+                    {errorMessage}
+                  </div>
+                )}
+
+                <div className={styles.modalActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={closeProductivityModal}
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    onClick={() => {
+                      setProductivityMode('create')
+                      setErrorMessage('')
+                    }}
+                    disabled={isSaving}
+                  >
+                    + Add new productivity
+                  </button>
+                </div>
+              </>
+            ) : (
+              <form onSubmit={createProductivity}>
+                <p className={styles.modalDescription}>
+                  Save this productivity to the organization library so it can
+                  be reused in future projects.
+                </p>
+
+                <div className={styles.formGrid}>
+                  <label className={`${styles.formField} ${styles.formFieldFull}`}>
+                    <span>Service name</span>
+                    <input
+                      type="text"
+                      required
+                      value={productivityForm.service_name}
+                      onChange={(event) =>
+                        setProductivityForm((currentForm) => ({
+                          ...currentForm,
+                          service_name: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className={styles.formField}>
+                    <span>Service code</span>
+                    <input
+                      type="text"
+                      value={productivityForm.service_code}
+                      onChange={(event) =>
+                        setProductivityForm((currentForm) => ({
+                          ...currentForm,
+                          service_code: event.target.value.toUpperCase(),
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className={styles.formField}>
+                    <span>Quantity unit</span>
+                    <input
+                      type="text"
+                      required
+                      value={productivityForm.quantity_unit}
+                      onChange={(event) =>
+                        setProductivityForm((currentForm) => ({
+                          ...currentForm,
+                          quantity_unit: event.target.value,
+                        }))
+                      }
+                      placeholder="Example: m²"
+                    />
+                  </label>
+
+                  <label className={styles.formField}>
+                    <span>Productivity</span>
+                    <input
+                      type="number"
+                      min="0.0001"
+                      step="0.01"
+                      required
+                      value={productivityForm.productivity_rate}
+                      onChange={(event) =>
+                        setProductivityForm((currentForm) => ({
+                          ...currentForm,
+                          productivity_rate: event.target.value,
+                        }))
+                      }
+                      placeholder="Example: 18"
+                    />
+                  </label>
+
+                  <label className={styles.formField}>
+                    <span>Productivity basis</span>
+                    <select
+                      value={productivityForm.productivity_basis}
+                      onChange={(event) =>
+                        setProductivityForm((currentForm) => ({
+                          ...currentForm,
+                          productivity_basis: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="worker_day">Per worker-day</option>
+                      <option value="crew_day">Per crew-day</option>
+                      <option value="worker_hour">Per worker-hour</option>
+                      <option value="crew_hour">Per crew-hour</option>
+                    </select>
+                  </label>
+
+                  <label className={`${styles.formField} ${styles.formFieldFull}`}>
+                    <span>Description / notes</span>
+                    <input
+                      type="text"
+                      value={productivityForm.description}
+                      onChange={(event) =>
+                        setProductivityForm((currentForm) => ({
+                          ...currentForm,
+                          description: event.target.value,
+                        }))
+                      }
+                      placeholder="Optional context for this productivity"
+                    />
+                  </label>
+                </div>
+
+                {errorMessage && (
+                  <div className={styles.modalError} role="alert">
+                    {errorMessage}
+                  </div>
+                )}
+
+                <div className={styles.modalActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={() => {
+                      setProductivityMode('select')
+                      setErrorMessage('')
+                    }}
+                    disabled={isSaving}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    className={styles.primaryButton}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? 'Saving...' : 'Save and use productivity'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       )}
 
