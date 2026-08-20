@@ -33,6 +33,16 @@ const navigationGroups = [
     ],
   },
   {
+    label: 'Field Management',
+    items: [
+      {
+        label: 'Daily Reports',
+        href: '/dashboard/projects/daily-reports',
+        icon: 'DR',
+      },
+    ],
+  },
+  {
     label: 'Planning',
     items: [
       {
