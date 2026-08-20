@@ -11,30 +11,12 @@ import { createClient } from '../../../../lib/supabase/client'
 import styles from './location-breakdown.module.css'
 
 const locationTypeOptions = [
-  {
-    value: 'building',
-    label: 'Building',
-  },
-  {
-    value: 'floor',
-    label: 'Floor',
-  },
-  {
-    value: 'zone',
-    label: 'Zone',
-  },
-  {
-    value: 'area',
-    label: 'Area',
-  },
-  {
-    value: 'room',
-    label: 'Room',
-  },
-  {
-    value: 'custom',
-    label: 'Custom location',
-  },
+  { value: 'building', label: 'Building' },
+  { value: 'floor', label: 'Floor' },
+  { value: 'zone', label: 'Zone' },
+  { value: 'area', label: 'Area' },
+  { value: 'room', label: 'Room' },
+  { value: 'custom', label: 'Custom location' },
 ]
 
 const unitOptions = [
@@ -72,8 +54,7 @@ const emptyServiceForm = {
 function getLocationTypeLabel(locationType) {
   return (
     locationTypeOptions.find(
-      (option) =>
-        option.value === locationType
+      (option) => option.value === locationType
     )?.label || locationType
   )
 }
@@ -109,19 +90,13 @@ function normalizeServiceCode(value) {
     .replace(/^_+|_+$/g, '')
 }
 
-function createServiceCode(
-  serviceName,
-  services
-) {
+function createServiceCode(serviceName, services) {
   const base =
-    normalizeServiceCode(serviceName) ||
-    'SERVICE'
+    normalizeServiceCode(serviceName) || 'SERVICE'
 
   const existingCodes = new Set(
     services.map((service) =>
-      String(
-        service.service_code || ''
-      ).toUpperCase()
+      String(service.service_code || '').toUpperCase()
     )
   )
 
@@ -131,11 +106,7 @@ function createServiceCode(
 
   let suffix = 2
 
-  while (
-    existingCodes.has(
-      `${base}_${suffix}`
-    )
-  ) {
+  while (existingCodes.has(`${base}_${suffix}`)) {
     suffix += 1
   }
 
@@ -147,8 +118,7 @@ function getZoneColor(zoneName) {
     return '#ffffff'
   }
 
-  const normalized =
-    zoneName.trim().toUpperCase()
+  const normalized = zoneName.trim().toUpperCase()
 
   const fixedColors = {
     Z1: '#ebf8ff',
@@ -186,696 +156,502 @@ function getZoneColor(zoneName) {
 
   let hash = 0
 
-  for (
-    let index = 0;
-    index < normalized.length;
-    index += 1
-  ) {
+  for (let index = 0; index < normalized.length; index += 1) {
     hash =
-      normalized.charCodeAt(index) +
-      ((hash << 5) - hash)
+      normalized.charCodeAt(index) + ((hash << 5) - hash)
   }
 
-  return palette[
-    Math.abs(hash) % palette.length
-  ]
+  return palette[Math.abs(hash) % palette.length]
+}
+
+function formatQuantity(value) {
+  const numberValue = Number(value)
+
+  if (!Number.isFinite(numberValue)) {
+    return '0'
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(numberValue)
 }
 
 export default function LocationBreakdownPage() {
-  const supabase = useMemo(
-    () => createClient(),
-    []
-  )
+  const supabase = useMemo(() => createClient(), [])
 
-  const [userId, setUserId] =
-    useState(null)
+  const [userId, setUserId] = useState(null)
+  const [projects, setProjects] = useState([])
+  const [selectedProject, setSelectedProject] = useState(null)
+  const [locations, setLocations] = useState([])
+  const [scopeItems, setScopeItems] = useState([])
+  const [projectServices, setProjectServices] = useState([])
+  const [serviceQuantities, setServiceQuantities] = useState([])
+  const [quantityDrafts, setQuantityDrafts] = useState({})
+  const [activeTab, setActiveTab] = useState('locations')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [floorFilter, setFloorFilter] = useState('all')
+  const [locationForm, setLocationForm] = useState(emptyLocationForm)
+  const [serviceForm, setServiceForm] = useState(emptyServiceForm)
+  const [serviceCodeWasEdited, setServiceCodeWasEdited] = useState(false)
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false)
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [savingCellKey, setSavingCellKey] = useState(null)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [noticeMessage, setNoticeMessage] = useState('')
+  const [showQuantification, setShowQuantification] = useState(true)
 
-  const [projects, setProjects] =
-    useState([])
+  const loadWorkspace = useCallback(async () => {
+    setIsLoading(true)
+    setErrorMessage('')
 
-  const [
-    selectedProject,
-    setSelectedProject,
-  ] = useState(null)
+    const queryParameters = new URLSearchParams(
+      window.location.search
+    )
 
-  const [locations, setLocations] =
-    useState([])
+    const selectedProjectId = queryParameters.get('projectId')
 
-  const [scopeItems, setScopeItems] =
-    useState([])
+    const {
+      data: userData,
+      error: userError,
+    } = await supabase.auth.getUser()
 
-  const [
-    projectServices,
-    setProjectServices,
-  ] = useState([])
-
-  const [
-    serviceQuantities,
-    setServiceQuantities,
-  ] = useState([])
-
-  const [
-    quantityDrafts,
-    setQuantityDrafts,
-  ] = useState({})
-
-  const [activeTab, setActiveTab] =
-    useState('locations')
-
-  const [searchTerm, setSearchTerm] =
-    useState('')
-
-  const [floorFilter, setFloorFilter] =
-    useState('all')
-
-  const [
-    locationForm,
-    setLocationForm,
-  ] = useState(emptyLocationForm)
-
-  const [
-    serviceForm,
-    setServiceForm,
-  ] = useState(emptyServiceForm)
-
-  const [
-    serviceCodeWasEdited,
-    setServiceCodeWasEdited,
-  ] = useState(false)
-
-  const [
-    isLocationModalOpen,
-    setIsLocationModalOpen,
-  ] = useState(false)
-
-  const [
-    isServiceModalOpen,
-    setIsServiceModalOpen,
-  ] = useState(false)
-
-  const [isLoading, setIsLoading] =
-    useState(true)
-
-  const [isSaving, setIsSaving] =
-    useState(false)
-
-  const [
-    savingCellKey,
-    setSavingCellKey,
-  ] = useState(null)
-
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] = useState('')
-
-  const [
-    noticeMessage,
-    setNoticeMessage,
-  ] = useState('')
-
-  const loadWorkspace = useCallback(
-    async () => {
-      setIsLoading(true)
-      setErrorMessage('')
-
-      const queryParameters =
-        new URLSearchParams(
-          window.location.search
-        )
-
-      const selectedProjectId =
-        queryParameters.get('projectId')
-
-      const {
-        data: userData,
-        error: userError,
-      } = await supabase.auth.getUser()
-
-      if (
-        userError ||
-        !userData?.user
-      ) {
-        setErrorMessage(
-          'Your authenticated session could not be verified.'
-        )
-
-        setIsLoading(false)
-        return
-      }
-
-      setUserId(
-        userData.user.id
+    if (userError || !userData?.user) {
+      setErrorMessage(
+        'Your authenticated session could not be verified.'
       )
+      setIsLoading(false)
+      return
+    }
 
-      const {
-        data: projectsData,
-        error: projectsError,
-      } = await supabase
-        .from('projects')
+    setUserId(userData.user.id)
+
+    const {
+      data: projectsData,
+      error: projectsError,
+    } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        code,
+        name,
+        client_name,
+        status,
+        created_at
+      `)
+      .neq('status', 'archived')
+      .order('created_at', { ascending: false })
+
+    if (projectsError) {
+      setErrorMessage(getErrorMessage(projectsError))
+      setIsLoading(false)
+      return
+    }
+
+    const availableProjects = projectsData || []
+    setProjects(availableProjects)
+
+    if (!selectedProjectId) {
+      setSelectedProject(null)
+      setLocations([])
+      setScopeItems([])
+      setProjectServices([])
+      setServiceQuantities([])
+      setQuantityDrafts({})
+      setIsLoading(false)
+      return
+    }
+
+    const activeProject = availableProjects.find(
+      (project) => project.id === selectedProjectId
+    )
+
+    if (!activeProject) {
+      setErrorMessage(
+        'The selected project does not exist or your account cannot access it.'
+      )
+      setSelectedProject(null)
+      setIsLoading(false)
+      return
+    }
+
+    setSelectedProject(activeProject)
+
+    const [
+      locationsResult,
+      scopeItemsResult,
+      servicesResult,
+      quantitiesResult,
+    ] = await Promise.all([
+      supabase
+        .from('locations')
         .select(`
           id,
-          code,
+          project_id,
+          parent_id,
           name,
-          client_name,
-          status,
-          created_at
+          location_type,
+          environment_type,
+          sequence_number,
+          created_at,
+          updated_at
         `)
-        .neq(
-          'status',
-          'archived'
-        )
-        .order(
-          'created_at',
-          {
-            ascending: false,
-          }
-        )
+        .eq('project_id', selectedProjectId)
+        .order('sequence_number', { ascending: true })
+        .order('name', { ascending: true }),
 
-      if (projectsError) {
-        setErrorMessage(
-          getErrorMessage(
-            projectsError
-          )
-        )
+      supabase
+        .from('scope_items')
+        .select(`
+          id,
+          project_id,
+          location_id,
+          service_code,
+          service_name,
+          quantity,
+          unit,
+          status,
+          created_at,
+          updated_at
+        `)
+        .eq('project_id', selectedProjectId),
 
-        setIsLoading(false)
-        return
-      }
+      supabase
+        .from('project_services')
+        .select(`
+          id,
+          project_id,
+          service_code,
+          service_name,
+          unit,
+          sequence_number,
+          is_active,
+          created_at,
+          updated_at
+        `)
+        .eq('project_id', selectedProjectId)
+        .eq('is_active', true)
+        .order('sequence_number', { ascending: true })
+        .order('service_name', { ascending: true }),
 
-      const availableProjects =
-        projectsData || []
+      supabase
+        .from('location_service_quantities')
+        .select(`
+          id,
+          project_id,
+          location_id,
+          service_id,
+          quantity,
+          source_scope_item_id,
+          created_at,
+          updated_at
+        `)
+        .eq('project_id', selectedProjectId),
+    ])
 
-      setProjects(
-        availableProjects
-      )
+    const workspaceError =
+      locationsResult.error ||
+      scopeItemsResult.error ||
+      servicesResult.error ||
+      quantitiesResult.error
 
-      if (!selectedProjectId) {
-        setSelectedProject(null)
-        setLocations([])
-        setScopeItems([])
-        setProjectServices([])
-        setServiceQuantities([])
-        setQuantityDrafts({})
-        setIsLoading(false)
-        return
-      }
-
-      const activeProject =
-        availableProjects.find(
-          (project) =>
-            project.id ===
-            selectedProjectId
-        )
-
-      if (!activeProject) {
-        setErrorMessage(
-          'The selected project does not exist or your account cannot access it.'
-        )
-
-        setSelectedProject(null)
-        setIsLoading(false)
-        return
-      }
-
-      setSelectedProject(
-        activeProject
-      )
-
-      const [
-        locationsResult,
-        scopeItemsResult,
-        servicesResult,
-        quantitiesResult,
-      ] = await Promise.all([
-        supabase
-          .from('locations')
-          .select(`
-            id,
-            project_id,
-            parent_id,
-            name,
-            location_type,
-            environment_type,
-            sequence_number,
-            created_at,
-            updated_at
-          `)
-          .eq(
-            'project_id',
-            selectedProjectId
-          )
-          .order(
-            'sequence_number',
-            {
-              ascending: true,
-            }
-          )
-          .order(
-            'name',
-            {
-              ascending: true,
-            }
-          ),
-
-        supabase
-          .from('scope_items')
-          .select(`
-            id,
-            project_id,
-            location_id,
-            service_code,
-            service_name,
-            quantity,
-            unit,
-            status,
-            created_at,
-            updated_at
-          `)
-          .eq(
-            'project_id',
-            selectedProjectId
-          ),
-
-        supabase
-          .from('project_services')
-          .select(`
-            id,
-            project_id,
-            service_code,
-            service_name,
-            unit,
-            sequence_number,
-            is_active,
-            created_at,
-            updated_at
-          `)
-          .eq(
-            'project_id',
-            selectedProjectId
-          )
-          .eq(
-            'is_active',
-            true
-          )
-          .order(
-            'sequence_number',
-            {
-              ascending: true,
-            }
-          )
-          .order(
-            'service_name',
-            {
-              ascending: true,
-            }
-          ),
-
-        supabase
-          .from(
-            'location_service_quantities'
-          )
-          .select(`
-            id,
-            project_id,
-            location_id,
-            service_id,
-            quantity,
-            source_scope_item_id,
-            created_at,
-            updated_at
-          `)
-          .eq(
-            'project_id',
-            selectedProjectId
-          ),
-      ])
-
-      const workspaceError =
-        locationsResult.error ||
-        scopeItemsResult.error ||
-        servicesResult.error ||
-        quantitiesResult.error
-
-      if (workspaceError) {
-        setErrorMessage(
-          getErrorMessage(
-            workspaceError
-          )
-        )
-
-        setIsLoading(false)
-        return
-      }
-
-      const loadedQuantities =
-        quantitiesResult.data || []
-
-      setLocations(
-        locationsResult.data || []
-      )
-
-      setScopeItems(
-        scopeItemsResult.data || []
-      )
-
-      setProjectServices(
-        servicesResult.data || []
-      )
-
-      setServiceQuantities(
-        loadedQuantities
-      )
-
-      const nextDrafts = {}
-
-      loadedQuantities.forEach(
-        (quantityItem) => {
-          const key =
-            `${quantityItem.location_id}___${quantityItem.service_id}`
-
-          nextDrafts[key] =
-            quantityItem.quantity ===
-              null ||
-            quantityItem.quantity ===
-              undefined
-              ? ''
-              : String(
-                  quantityItem.quantity
-                )
-        }
-      )
-
-      setQuantityDrafts(
-        nextDrafts
-      )
-
+    if (workspaceError) {
+      setErrorMessage(getErrorMessage(workspaceError))
       setIsLoading(false)
-    },
-    [supabase]
-  )
+      return
+    }
+
+    const loadedQuantities = quantitiesResult.data || []
+
+    setLocations(locationsResult.data || [])
+    setScopeItems(scopeItemsResult.data || [])
+    setProjectServices(servicesResult.data || [])
+    setServiceQuantities(loadedQuantities)
+
+    const nextDrafts = {}
+
+    loadedQuantities.forEach((quantityItem) => {
+      const key =
+        `${quantityItem.location_id}___${quantityItem.service_id}`
+
+      nextDrafts[key] =
+        quantityItem.quantity === null ||
+        quantityItem.quantity === undefined
+          ? ''
+          : String(quantityItem.quantity)
+    })
+
+    setQuantityDrafts(nextDrafts)
+    setIsLoading(false)
+  }, [supabase])
 
   useEffect(() => {
     loadWorkspace()
   }, [loadWorkspace])
 
-  const locationMap =
-    useMemo(() => {
-      return new Map(
-        locations.map(
-          (location) => [
-            location.id,
-            location,
-          ]
-        )
-      )
-    }, [locations])
+  const locationMap = useMemo(() => {
+    return new Map(
+      locations.map((location) => [location.id, location])
+    )
+  }, [locations])
 
-  const locationPathMap =
-    useMemo(() => {
-      const pathMap =
-        new Map()
+  const locationPathMap = useMemo(() => {
+    const pathMap = new Map()
 
-      function buildPath(
-        location
-      ) {
-        if (!location) {
-          return []
-        }
-
-        if (
-          pathMap.has(
-            location.id
-          )
-        ) {
-          return pathMap.get(
-            location.id
-          )
-        }
-
-        const path = []
-        const visitedIds =
-          new Set()
-
-        let currentLocation =
-          location
-
-        while (
-          currentLocation &&
-          !visitedIds.has(
-            currentLocation.id
-          )
-        ) {
-          visitedIds.add(
-            currentLocation.id
-          )
-
-          path.unshift(
-            currentLocation
-          )
-
-          currentLocation =
-            currentLocation.parent_id
-              ? locationMap.get(
-                  currentLocation.parent_id
-                )
-              : null
-        }
-
-        pathMap.set(
-          location.id,
-          path
-        )
-
-        return path
+    function buildPath(location) {
+      if (!location) {
+        return []
       }
 
-      locations.forEach(
-        (location) => {
-          buildPath(
-            location
+      if (pathMap.has(location.id)) {
+        return pathMap.get(location.id)
+      }
+
+      const path = []
+      const visitedIds = new Set()
+      let currentLocation = location
+
+      while (
+        currentLocation &&
+        !visitedIds.has(currentLocation.id)
+      ) {
+        visitedIds.add(currentLocation.id)
+        path.unshift(currentLocation)
+
+        currentLocation = currentLocation.parent_id
+          ? locationMap.get(currentLocation.parent_id)
+          : null
+      }
+
+      pathMap.set(location.id, path)
+      return path
+    }
+
+    locations.forEach((location) => {
+      buildPath(location)
+    })
+
+    return pathMap
+  }, [locations, locationMap])
+
+  const sortedLocations = useMemo(() => {
+    return [...locations].sort(
+      (firstLocation, secondLocation) => {
+        if (
+          Number(firstLocation.sequence_number) !==
+          Number(secondLocation.sequence_number)
+        ) {
+          return (
+            Number(firstLocation.sequence_number) -
+            Number(secondLocation.sequence_number)
           )
         }
+
+        return firstLocation.name.localeCompare(
+          secondLocation.name
+        )
+      }
+    )
+  }, [locations])
+
+  const floorLocations = useMemo(() => {
+    return sortedLocations.filter(
+      (location) => location.location_type === 'floor'
+    )
+  }, [sortedLocations])
+
+  const areaCount = useMemo(() => {
+    return locations.filter(
+      (location) =>
+        location.location_type === 'area' ||
+        location.location_type === 'room'
+    ).length
+  }, [locations])
+
+  const zoneCount = useMemo(() => {
+    return locations.filter(
+      (location) => location.location_type === 'zone'
+    ).length
+  }, [locations])
+
+  const filteredLocations = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase()
+
+    if (!normalizedSearch) {
+      return sortedLocations
+    }
+
+    return sortedLocations.filter((location) => {
+      const parentLocation = location.parent_id
+        ? locationMap.get(location.parent_id)
+        : null
+
+      const searchableText = [
+        location.name,
+        location.location_type,
+        location.environment_type,
+        parentLocation?.name,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return searchableText.includes(normalizedSearch)
+    })
+  }, [locationMap, searchTerm, sortedLocations])
+
+  const matrixLocations = useMemo(() => {
+    const candidates = sortedLocations.filter(
+      (location) =>
+        location.location_type === 'area' ||
+        location.location_type === 'room' ||
+        location.location_type === 'custom'
+    )
+
+    const sourceLocations =
+      candidates.length > 0
+        ? candidates
+        : sortedLocations.filter(
+            (location) =>
+              !locations.some(
+                (candidate) =>
+                  candidate.parent_id === location.id
+              )
+          )
+
+    const normalizedSearch = searchTerm.trim().toLowerCase()
+
+    return sourceLocations.filter((location) => {
+      const path = locationPathMap.get(location.id) || []
+
+      const floor = path.find(
+        (pathLocation) =>
+          pathLocation.location_type === 'floor'
       )
 
-      return pathMap
-    }, [
-      locations,
-      locationMap,
-    ])
+      const searchableText = [
+        location.name,
+        location.environment_type,
+        ...path.map((pathLocation) => pathLocation.name),
+        ...projectServices.map(
+          (service) => service.service_name
+        ),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
 
-  const sortedLocations =
-    useMemo(() => {
-      return [
-        ...locations,
-      ].sort(
-        (
-          firstLocation,
-          secondLocation
-        ) => {
-          if (
-            Number(
-              firstLocation.sequence_number
-            ) !==
-            Number(
-              secondLocation.sequence_number
+      const matchesSearch =
+        !normalizedSearch ||
+        searchableText.includes(normalizedSearch)
+
+      const matchesFloor =
+        floorFilter === 'all' || floor?.id === floorFilter
+
+      return matchesSearch && matchesFloor
+    })
+  }, [
+    floorFilter,
+    locationPathMap,
+    locations,
+    projectServices,
+    searchTerm,
+    sortedLocations,
+  ])
+
+  const quantityMap = useMemo(() => {
+    const map = new Map()
+
+    serviceQuantities.forEach((quantityItem) => {
+      map.set(
+        `${quantityItem.location_id}___${quantityItem.service_id}`,
+        quantityItem
+      )
+    })
+
+    return map
+  }, [serviceQuantities])
+
+  const quantificationByDivision = useMemo(() => {
+    return floorLocations
+      .map((floor) => {
+        const zones = sortedLocations
+          .filter(
+            (location) => location.location_type === 'zone'
+          )
+          .filter((zone) => {
+            const path = locationPathMap.get(zone.id) || []
+            return path.some(
+              (pathLocation) => pathLocation.id === floor.id
             )
-          ) {
-            return (
-              Number(
-                firstLocation.sequence_number
-              ) -
-              Number(
-                secondLocation.sequence_number
-              )
-            )
+          })
+
+        const totals = new Map()
+
+        projectServices.forEach((service) => {
+          zones.forEach((zone) => {
+            totals.set(`${service.id}___${zone.id}`, 0)
+          })
+        })
+
+        serviceQuantities.forEach((quantityItem) => {
+          const location = locationMap.get(
+            quantityItem.location_id
+          )
+
+          if (!location) {
+            return
           }
 
-          return firstLocation.name.localeCompare(
-            secondLocation.name
+          const path = locationPathMap.get(location.id) || []
+
+          const floorInPath = path.find(
+            (pathLocation) =>
+              pathLocation.location_type === 'floor'
           )
-        }
-      )
-    }, [locations])
 
-  const floorLocations =
-    useMemo(() => {
-      return sortedLocations.filter(
-        (location) =>
-          location.location_type ===
-          'floor'
-      )
-    }, [sortedLocations])
-
-  const areaCount =
-    useMemo(() => {
-      return locations.filter(
-        (location) =>
-          location.location_type ===
-            'area' ||
-          location.location_type ===
-            'room'
-      ).length
-    }, [locations])
-
-  const zoneCount =
-    useMemo(() => {
-      return locations.filter(
-        (location) =>
-          location.location_type ===
-          'zone'
-      ).length
-    }, [locations])
-
-  const filteredLocations =
-    useMemo(() => {
-      const normalizedSearch =
-        searchTerm
-          .trim()
-          .toLowerCase()
-
-      if (!normalizedSearch) {
-        return sortedLocations
-      }
-
-      return sortedLocations.filter(
-        (location) => {
-          const parentLocation =
-            location.parent_id
-              ? locationMap.get(
-                  location.parent_id
-                )
-              : null
-
-          const searchableText =
-            [
-              location.name,
-              location.location_type,
-              location.environment_type,
-              parentLocation?.name,
-            ]
-              .filter(Boolean)
-              .join(' ')
-              .toLowerCase()
-
-          return searchableText.includes(
-            normalizedSearch
+          const zoneInPath = path.find(
+            (pathLocation) =>
+              pathLocation.location_type === 'zone'
           )
-        }
-      )
-    }, [
-      locationMap,
-      searchTerm,
-      sortedLocations,
-    ])
 
-  const matrixLocations =
-    useMemo(() => {
-      const candidates =
-        sortedLocations.filter(
-          (location) =>
-            location.location_type ===
-              'area' ||
-            location.location_type ===
-              'room' ||
-            location.location_type ===
-              'custom'
-        )
+          if (
+            floorInPath?.id !== floor.id ||
+            !zoneInPath ||
+            !zones.some((zone) => zone.id === zoneInPath.id)
+          ) {
+            return
+          }
 
-      const sourceLocations =
-        candidates.length > 0
-          ? candidates
-          : sortedLocations.filter(
-              (location) =>
-                !locations.some(
-                  (candidate) =>
-                    candidate.parent_id ===
-                    location.id
-                )
-            )
+          const key =
+            `${quantityItem.service_id}___${zoneInPath.id}`
 
-      const normalizedSearch =
-        searchTerm
-          .trim()
-          .toLowerCase()
-
-      return sourceLocations.filter(
-        (location) => {
-          const path =
-            locationPathMap.get(
-              location.id
-            ) || []
-
-          const floor =
-            path.find(
-              (pathLocation) =>
-                pathLocation.location_type ===
-                'floor'
-            )
-
-          const searchableText =
-            [
-              location.name,
-              location.environment_type,
-              ...path.map(
-                (pathLocation) =>
-                  pathLocation.name
-              ),
-              ...projectServices.map(
-                (service) =>
-                  service.service_name
-              ),
-            ]
-              .filter(Boolean)
-              .join(' ')
-              .toLowerCase()
-
-          const matchesSearch =
-            !normalizedSearch ||
-            searchableText.includes(
-              normalizedSearch
-            )
-
-          const matchesFloor =
-            floorFilter === 'all' ||
-            floor?.id ===
-              floorFilter
-
-          return (
-            matchesSearch &&
-            matchesFloor
+          totals.set(
+            key,
+            (totals.get(key) || 0) +
+              (Number(quantityItem.quantity) || 0)
           )
+        })
+
+        return {
+          floor,
+          zones,
+          totals,
         }
-      )
-    }, [
-      floorFilter,
-      locationPathMap,
-      locations,
-      projectServices,
-      searchTerm,
-      sortedLocations,
-    ])
+      })
+      .filter((division) => division.zones.length > 0)
+  }, [
+    floorLocations,
+    locationMap,
+    locationPathMap,
+    projectServices,
+    serviceQuantities,
+    sortedLocations,
+  ])
 
-  const quantityMap =
-    useMemo(() => {
-      const map =
-        new Map()
-
-      serviceQuantities.forEach(
-        (quantityItem) => {
-          map.set(
-            `${quantityItem.location_id}___${quantityItem.service_id}`,
-            quantityItem
-          )
-        }
-      )
-
-      return map
-    }, [serviceQuantities])
-
-  function changeProject(
-    projectId
-  ) {
+  function changeProject(projectId) {
     window.location.href =
       `/dashboard/projects/locations?projectId=${projectId}`
   }
@@ -883,55 +659,35 @@ export default function LocationBreakdownPage() {
   function openNewLocationModal() {
     const nextSequence =
       locations.reduce(
-        (
-          largestSequence,
-          location
-        ) =>
+        (largestSequence, location) =>
           Math.max(
             largestSequence,
-            Number(
-              location.sequence_number
-            ) || 0
+            Number(location.sequence_number) || 0
           ),
         0
       ) + 1
 
     setLocationForm({
       ...emptyLocationForm,
-      sequence_number:
-        String(nextSequence),
+      sequence_number: String(nextSequence),
     })
 
     setErrorMessage('')
-    setIsLocationModalOpen(
-      true
-    )
+    setIsLocationModalOpen(true)
   }
 
-  function openEditLocationModal(
-    location
-  ) {
+  function openEditLocationModal(location) {
     setLocationForm({
       id: location.id,
-      location_type:
-        location.location_type,
+      location_type: location.location_type,
       name: location.name,
-      parent_id:
-        location.parent_id ||
-        '',
-      environment_type:
-        location.environment_type ||
-        '',
-      sequence_number:
-        String(
-          location.sequence_number
-        ),
+      parent_id: location.parent_id || '',
+      environment_type: location.environment_type || '',
+      sequence_number: String(location.sequence_number),
     })
 
     setErrorMessage('')
-    setIsLocationModalOpen(
-      true
-    )
+    setIsLocationModalOpen(true)
   }
 
   function closeLocationModal() {
@@ -939,28 +695,15 @@ export default function LocationBreakdownPage() {
       return
     }
 
-    setIsLocationModalOpen(
-      false
-    )
-
-    setLocationForm(
-      emptyLocationForm
-    )
+    setIsLocationModalOpen(false)
+    setLocationForm(emptyLocationForm)
   }
 
   function openServiceModal() {
-    setServiceForm(
-      emptyServiceForm
-    )
-
-    setServiceCodeWasEdited(
-      false
-    )
-
+    setServiceForm(emptyServiceForm)
+    setServiceCodeWasEdited(false)
     setErrorMessage('')
-    setIsServiceModalOpen(
-      true
-    )
+    setIsServiceModalOpen(true)
   }
 
   function closeServiceModal() {
@@ -968,49 +711,30 @@ export default function LocationBreakdownPage() {
       return
     }
 
-    setIsServiceModalOpen(
-      false
-    )
-
-    setServiceForm(
-      emptyServiceForm
-    )
-
-    setServiceCodeWasEdited(
-      false
-    )
+    setIsServiceModalOpen(false)
+    setServiceForm(emptyServiceForm)
+    setServiceCodeWasEdited(false)
   }
 
-  async function saveLocation(
-    event
-  ) {
+  async function saveLocation(event) {
     event.preventDefault()
 
-    if (
-      !selectedProject ||
-      !userId
-    ) {
+    if (!selectedProject || !userId) {
       return
     }
 
-    const normalizedName =
-      locationForm.name.trim()
+    const normalizedName = locationForm.name.trim()
 
     if (!normalizedName) {
-      setErrorMessage(
-        'Enter a location name.'
-      )
+      setErrorMessage('Enter a location name.')
       return
     }
 
     if (
       locationForm.id &&
-      locationForm.parent_id ===
-        locationForm.id
+      locationForm.parent_id === locationForm.id
     ) {
-      setErrorMessage(
-        'A location cannot be its own parent.'
-      )
+      setErrorMessage('A location cannot be its own parent.')
       return
     }
 
@@ -1018,117 +742,80 @@ export default function LocationBreakdownPage() {
     setErrorMessage('')
 
     const locationPayload = {
-      project_id:
-        selectedProject.id,
-
-      parent_id:
-        locationForm.parent_id ||
-        null,
-
-      name:
-        normalizedName,
-
-      location_type:
-        locationForm.location_type,
-
+      project_id: selectedProject.id,
+      parent_id: locationForm.parent_id || null,
+      name: normalizedName,
+      location_type: locationForm.location_type,
       environment_type:
-        locationForm.environment_type
-          .trim() || null,
-
+        locationForm.environment_type.trim() || null,
       sequence_number:
-        Number(
-          locationForm.sequence_number
-        ) || 0,
+        Number(locationForm.sequence_number) || 0,
     }
 
     let operationResult
 
     if (locationForm.id) {
-      operationResult =
-        await supabase
-          .from('locations')
-          .update(
-            locationPayload
-          )
-          .eq(
-            'id',
-            locationForm.id
-          )
-          .eq(
-            'project_id',
-            selectedProject.id
-          )
-          .select(`
-            id,
-            project_id,
-            parent_id,
-            name,
-            location_type,
-            environment_type,
-            sequence_number,
-            created_at,
-            updated_at
-          `)
-          .single()
+      operationResult = await supabase
+        .from('locations')
+        .update(locationPayload)
+        .eq('id', locationForm.id)
+        .eq('project_id', selectedProject.id)
+        .select(`
+          id,
+          project_id,
+          parent_id,
+          name,
+          location_type,
+          environment_type,
+          sequence_number,
+          created_at,
+          updated_at
+        `)
+        .single()
     } else {
-      operationResult =
-        await supabase
-          .from('locations')
-          .insert({
-            ...locationPayload,
-            created_by:
-              userId,
-          })
-          .select(`
-            id,
-            project_id,
-            parent_id,
-            name,
-            location_type,
-            environment_type,
-            sequence_number,
-            created_at,
-            updated_at
-          `)
-          .single()
+      operationResult = await supabase
+        .from('locations')
+        .insert({
+          ...locationPayload,
+          created_by: userId,
+        })
+        .select(`
+          id,
+          project_id,
+          parent_id,
+          name,
+          location_type,
+          environment_type,
+          sequence_number,
+          created_at,
+          updated_at
+        `)
+        .single()
     }
 
-    if (
-      operationResult.error
-    ) {
-      setErrorMessage(
-        getErrorMessage(
-          operationResult.error
-        )
-      )
-
+    if (operationResult.error) {
+      setErrorMessage(getErrorMessage(operationResult.error))
       setIsSaving(false)
       return
     }
 
     if (locationForm.id) {
-      setLocations(
-        (currentLocations) =>
-          currentLocations.map(
-            (location) =>
-              location.id ===
-              operationResult
-                .data.id
-                ? operationResult.data
-                : location
-          )
+      setLocations((currentLocations) =>
+        currentLocations.map((location) =>
+          location.id === operationResult.data.id
+            ? operationResult.data
+            : location
+        )
       )
 
       setNoticeMessage(
         `${operationResult.data.name} was updated.`
       )
     } else {
-      setLocations(
-        (currentLocations) => [
-          ...currentLocations,
-          operationResult.data,
-        ]
-      )
+      setLocations((currentLocations) => [
+        ...currentLocations,
+        operationResult.data,
+      ])
 
       setNoticeMessage(
         `${operationResult.data.name} was added to the location structure.`
@@ -1136,37 +823,24 @@ export default function LocationBreakdownPage() {
     }
 
     setIsSaving(false)
-    setIsLocationModalOpen(
-      false
-    )
-    setLocationForm(
-      emptyLocationForm
-    )
+    setIsLocationModalOpen(false)
+    setLocationForm(emptyLocationForm)
   }
 
-  async function deleteLocation(
-    location
-  ) {
-    const hasChildLocations =
-      locations.some(
-        (childLocation) =>
-          childLocation.parent_id ===
-          location.id
-      )
+  async function deleteLocation(location) {
+    const hasChildLocations = locations.some(
+      (childLocation) =>
+        childLocation.parent_id === location.id
+    )
 
-    const hasLegacyScopeItems =
-      scopeItems.some(
-        (scopeItem) =>
-          scopeItem.location_id ===
-          location.id
-      )
+    const hasLegacyScopeItems = scopeItems.some(
+      (scopeItem) => scopeItem.location_id === location.id
+    )
 
-    const hasMatrixQuantities =
-      serviceQuantities.some(
-        (quantityItem) =>
-          quantityItem.location_id ===
-          location.id
-      )
+    const hasMatrixQuantities = serviceQuantities.some(
+      (quantityItem) =>
+        quantityItem.location_id === location.id
+    )
 
     if (
       hasChildLocations ||
@@ -1179,10 +853,9 @@ export default function LocationBreakdownPage() {
       return
     }
 
-    const confirmed =
-      window.confirm(
-        `Delete ${location.name}? This action cannot be undone.`
-      )
+    const confirmed = window.confirm(
+      `Delete ${location.name}? This action cannot be undone.`
+    )
 
     if (!confirmed) {
       return
@@ -1190,95 +863,64 @@ export default function LocationBreakdownPage() {
 
     setErrorMessage('')
 
-    const { error } =
-      await supabase
-        .from('locations')
-        .delete()
-        .eq(
-          'id',
-          location.id
-        )
-        .eq(
-          'project_id',
-          selectedProject.id
-        )
+    const { error } = await supabase
+      .from('locations')
+      .delete()
+      .eq('id', location.id)
+      .eq('project_id', selectedProject.id)
 
     if (error) {
-      setErrorMessage(
-        getErrorMessage(error)
-      )
+      setErrorMessage(getErrorMessage(error))
       return
     }
 
-    setLocations(
-      (currentLocations) =>
-        currentLocations.filter(
-          (currentLocation) =>
-            currentLocation.id !==
-            location.id
-        )
+    setLocations((currentLocations) =>
+      currentLocations.filter(
+        (currentLocation) => currentLocation.id !== location.id
+      )
     )
 
-    setNoticeMessage(
-      `${location.name} was deleted.`
-    )
+    setNoticeMessage(`${location.name} was deleted.`)
   }
 
-  async function saveService(
-    event
-  ) {
+  async function saveService(event) {
     event.preventDefault()
 
-    if (
-      !selectedProject ||
-      !userId
-    ) {
+    if (!selectedProject || !userId) {
       return
     }
 
-    const normalizedName =
-      serviceForm.service_name.trim()
+    const normalizedName = serviceForm.service_name.trim()
 
     if (!normalizedName) {
-      setErrorMessage(
-        'Enter a service name.'
-      )
+      setErrorMessage('Enter a service name.')
       return
     }
 
     if (
-      serviceForm.unit ===
-        'OTHER' &&
+      serviceForm.unit === 'OTHER' &&
       !serviceForm.custom_unit.trim()
     ) {
-      setErrorMessage(
-        'Enter a custom unit.'
-      )
+      setErrorMessage('Enter a custom unit.')
       return
     }
 
-    let normalizedCode =
-      normalizeServiceCode(
-        serviceForm.service_code
-      )
+    let normalizedCode = normalizeServiceCode(
+      serviceForm.service_code
+    )
 
     if (!normalizedCode) {
-      normalizedCode =
-        createServiceCode(
-          normalizedName,
-          projectServices
-        )
+      normalizedCode = createServiceCode(
+        normalizedName,
+        projectServices
+      )
     }
 
-    const duplicateName =
-      projectServices.some(
-        (service) =>
-          service.service_name
-            .trim()
-            .toLowerCase() ===
-          normalizedName
-            .toLowerCase()
-      )
+    const duplicateName = projectServices.some(
+      (service) =>
+        service.service_name.trim().toLowerCase() ===
+        normalizedName.toLowerCase()
+    )
 
     if (duplicateName) {
       setErrorMessage(
@@ -1287,14 +929,11 @@ export default function LocationBreakdownPage() {
       return
     }
 
-    const duplicateCode =
-      projectServices.some(
-        (service) =>
-          String(
-            service.service_code
-          ).toUpperCase() ===
-          normalizedCode
-      )
+    const duplicateCode = projectServices.some(
+      (service) =>
+        String(service.service_code).toUpperCase() ===
+        normalizedCode
+    )
 
     if (duplicateCode) {
       setErrorMessage(
@@ -1304,22 +943,16 @@ export default function LocationBreakdownPage() {
     }
 
     const finalUnit =
-      serviceForm.unit ===
-      'OTHER'
+      serviceForm.unit === 'OTHER'
         ? serviceForm.custom_unit.trim()
         : serviceForm.unit
 
     const nextSequence =
       projectServices.reduce(
-        (
-          largestSequence,
-          service
-        ) =>
+        (largestSequence, service) =>
           Math.max(
             largestSequence,
-            Number(
-              service.sequence_number
-            ) || 0
+            Number(service.sequence_number) || 0
           ),
         -1
       ) + 1
@@ -1327,33 +960,16 @@ export default function LocationBreakdownPage() {
     setIsSaving(true)
     setErrorMessage('')
 
-    const {
-      data,
-      error,
-    } = await supabase
-      .from(
-        'project_services'
-      )
+    const { data, error } = await supabase
+      .from('project_services')
       .insert({
-        project_id:
-          selectedProject.id,
-
-        service_code:
-          normalizedCode,
-
-        service_name:
-          normalizedName,
-
-        unit:
-          finalUnit || null,
-
-        sequence_number:
-          nextSequence,
-
+        project_id: selectedProject.id,
+        service_code: normalizedCode,
+        service_name: normalizedName,
+        unit: finalUnit || null,
+        sequence_number: nextSequence,
         is_active: true,
-
-        created_by:
-          userId,
+        created_by: userId,
       })
       .select(`
         id,
@@ -1369,66 +985,37 @@ export default function LocationBreakdownPage() {
       .single()
 
     if (error) {
-      setErrorMessage(
-        getErrorMessage(error)
-      )
-
+      setErrorMessage(getErrorMessage(error))
       setIsSaving(false)
       return
     }
 
-    setProjectServices(
-      (currentServices) => [
-        ...currentServices,
-        data,
-      ]
-    )
+    setProjectServices((currentServices) => [
+      ...currentServices,
+      data,
+    ])
 
     setNoticeMessage(
       `${data.service_name} was added as a new quantity column.`
     )
 
     setIsSaving(false)
-    setIsServiceModalOpen(
-      false
-    )
-    setServiceForm(
-      emptyServiceForm
-    )
-    setServiceCodeWasEdited(
-      false
-    )
+    setIsServiceModalOpen(false)
+    setServiceForm(emptyServiceForm)
+    setServiceCodeWasEdited(false)
   }
 
-  async function saveQuantity(
-    locationId,
-    serviceId
-  ) {
-    if (
-      !selectedProject ||
-      !userId
-    ) {
+  async function saveQuantity(locationId, serviceId) {
+    if (!selectedProject || !userId) {
       return
     }
 
-    const key =
-      `${locationId}___${serviceId}`
+    const key = `${locationId}___${serviceId}`
+    const rawValue = quantityDrafts[key] ?? ''
+    const normalizedText = String(rawValue).trim()
+    const existingRecord = quantityMap.get(key)
 
-    const rawValue =
-      quantityDrafts[key] ??
-      ''
-
-    const normalizedText =
-      String(
-        rawValue
-      ).trim()
-
-    const existingRecord =
-      quantityMap.get(key)
-
-    if (
-      normalizedText === ''
-    ) {
+    if (normalizedText === '') {
       if (!existingRecord) {
         return
       }
@@ -1436,68 +1023,44 @@ export default function LocationBreakdownPage() {
       setSavingCellKey(key)
       setErrorMessage('')
 
-      const { error } =
-        await supabase
-          .from(
-            'location_service_quantities'
-          )
-          .delete()
-          .eq(
-            'id',
-            existingRecord.id
-          )
-          .eq(
-            'project_id',
-            selectedProject.id
-          )
+      const { error } = await supabase
+        .from('location_service_quantities')
+        .delete()
+        .eq('id', existingRecord.id)
+        .eq('project_id', selectedProject.id)
 
       if (error) {
-        setErrorMessage(
-          getErrorMessage(error)
-        )
+        setErrorMessage(getErrorMessage(error))
 
-        setQuantityDrafts(
-          (currentDrafts) => ({
-            ...currentDrafts,
-            [key]:
-              existingRecord.quantity ===
-                null
-                ? ''
-                : String(
-                    existingRecord.quantity
-                  ),
-          })
-        )
+        setQuantityDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [key]:
+            existingRecord.quantity === null
+              ? ''
+              : String(existingRecord.quantity),
+        }))
 
         setSavingCellKey(null)
         return
       }
 
-      setServiceQuantities(
-        (currentQuantities) =>
-          currentQuantities.filter(
-            (quantityItem) =>
-              quantityItem.id !==
-              existingRecord.id
-          )
+      setServiceQuantities((currentQuantities) =>
+        currentQuantities.filter(
+          (quantityItem) =>
+            quantityItem.id !== existingRecord.id
+        )
       )
 
       setSavingCellKey(null)
       return
     }
 
-    const numericValue =
-      Number(
-        normalizedText.replace(
-          ',',
-          '.'
-        )
-      )
+    const numericValue = Number(
+      normalizedText.replace(',', '.')
+    )
 
     if (
-      Number.isNaN(
-        numericValue
-      ) ||
+      Number.isNaN(numericValue) ||
       numericValue < 0
     ) {
       setErrorMessage(
@@ -1505,23 +1068,15 @@ export default function LocationBreakdownPage() {
       )
 
       if (existingRecord) {
-        setQuantityDrafts(
-          (currentDrafts) => ({
-            ...currentDrafts,
-            [key]:
-              String(
-                existingRecord.quantity ??
-                  ''
-              ),
-          })
-        )
+        setQuantityDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [key]: String(existingRecord.quantity ?? ''),
+        }))
       } else {
-        setQuantityDrafts(
-          (currentDrafts) => ({
-            ...currentDrafts,
-            [key]: '',
-          })
-        )
+        setQuantityDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [key]: '',
+        }))
       }
 
       return
@@ -1529,9 +1084,7 @@ export default function LocationBreakdownPage() {
 
     if (
       existingRecord &&
-      Number(
-        existingRecord.quantity
-      ) === numericValue
+      Number(existingRecord.quantity) === numericValue
     ) {
       return
     }
@@ -1540,25 +1093,11 @@ export default function LocationBreakdownPage() {
     setErrorMessage('')
 
     if (existingRecord) {
-      const {
-        data,
-        error,
-      } = await supabase
-        .from(
-          'location_service_quantities'
-        )
-        .update({
-          quantity:
-            numericValue,
-        })
-        .eq(
-          'id',
-          existingRecord.id
-        )
-        .eq(
-          'project_id',
-          selectedProject.id
-        )
+      const { data, error } = await supabase
+        .from('location_service_quantities')
+        .update({ quantity: numericValue })
+        .eq('id', existingRecord.id)
+        .eq('project_id', selectedProject.id)
         .select(`
           id,
           project_id,
@@ -1572,72 +1111,40 @@ export default function LocationBreakdownPage() {
         .single()
 
       if (error) {
-        setErrorMessage(
-          getErrorMessage(error)
-        )
+        setErrorMessage(getErrorMessage(error))
 
-        setQuantityDrafts(
-          (currentDrafts) => ({
-            ...currentDrafts,
-            [key]:
-              String(
-                existingRecord.quantity ??
-                  ''
-              ),
-          })
-        )
+        setQuantityDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [key]: String(existingRecord.quantity ?? ''),
+        }))
 
         setSavingCellKey(null)
         return
       }
 
-      setServiceQuantities(
-        (currentQuantities) =>
-          currentQuantities.map(
-            (quantityItem) =>
-              quantityItem.id ===
-              data.id
-                ? data
-                : quantityItem
-          )
+      setServiceQuantities((currentQuantities) =>
+        currentQuantities.map((quantityItem) =>
+          quantityItem.id === data.id ? data : quantityItem
+        )
       )
 
-      setQuantityDrafts(
-        (currentDrafts) => ({
-          ...currentDrafts,
-          [key]:
-            String(
-              data.quantity
-            ),
-        })
-      )
+      setQuantityDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [key]: String(data.quantity),
+      }))
 
       setSavingCellKey(null)
       return
     }
 
-    const {
-      data,
-      error,
-    } = await supabase
-      .from(
-        'location_service_quantities'
-      )
+    const { data, error } = await supabase
+      .from('location_service_quantities')
       .insert({
-        project_id:
-          selectedProject.id,
-
-        location_id:
-          locationId,
-
-        service_id:
-          serviceId,
-
-        quantity:
-          numericValue,
-
-        created_by:
-          userId,
+        project_id: selectedProject.id,
+        location_id: locationId,
+        service_id: serviceId,
+        quantity: numericValue,
+        created_by: userId,
       })
       .select(`
         id,
@@ -1652,95 +1159,54 @@ export default function LocationBreakdownPage() {
       .single()
 
     if (error) {
-      setErrorMessage(
-        getErrorMessage(error)
-      )
+      setErrorMessage(getErrorMessage(error))
 
-      setQuantityDrafts(
-        (currentDrafts) => ({
-          ...currentDrafts,
-          [key]: '',
-        })
-      )
+      setQuantityDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [key]: '',
+      }))
 
       setSavingCellKey(null)
       return
     }
 
-    setServiceQuantities(
-      (currentQuantities) => [
-        ...currentQuantities,
-        data,
-      ]
-    )
+    setServiceQuantities((currentQuantities) => [
+      ...currentQuantities,
+      data,
+    ])
 
-    setQuantityDrafts(
-      (currentDrafts) => ({
-        ...currentDrafts,
-        [key]:
-          String(
-            data.quantity
-          ),
-      })
-    )
+    setQuantityDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [key]: String(data.quantity),
+    }))
 
     setSavingCellKey(null)
   }
 
   if (isLoading) {
     return (
-      <div
-        className={
-          styles.loadingState
-        }
-      >
-        <span
-          className={
-            styles.loadingSpinner
-          }
-        />
-
-        <p>
-          Loading location workspace...
-        </p>
+      <div className={styles.loadingState}>
+        <span className={styles.loadingSpinner} />
+        <p>Loading location workspace...</p>
       </div>
     )
   }
 
-  if (
-    errorMessage &&
-    projects.length === 0
-  ) {
+  if (errorMessage && projects.length === 0) {
     return (
-      <div
-        className={
-          styles.errorState
-        }
-      >
-        <h1
-          className={
-            styles.errorTitle
-          }
-        >
+      <div className={styles.errorState}>
+        <h1 className={styles.errorTitle}>
           Workspace unavailable
         </h1>
 
-        <p
-          className={
-            styles.errorDescription
-          }
-        >
+        <p className={styles.errorDescription}>
           {errorMessage}
         </p>
 
         <button
           type="button"
-          className={
-            styles.primaryButton
-          }
-          onClick={
-            loadWorkspace
-          }
+          className={styles.primaryButton}
+          onClick={loadWorkspace}
         >
           Try again
         </button>
@@ -1750,193 +1216,98 @@ export default function LocationBreakdownPage() {
 
   if (!selectedProject) {
     return (
-      <div
-        className={
-          styles.container
-        }
-      >
-        <section
-          className={
-            styles.heading
-          }
-        >
-          <div
-            className={
-              styles.headingContent
-            }
-          >
-            <p
-              className={
-                styles.eyebrow
-              }
-            >
+      <div className={styles.container}>
+        <section className={styles.heading}>
+          <div className={styles.headingContent}>
+            <p className={styles.eyebrow}>
               Location-based planning
             </p>
 
-            <h1
-              className={
-                styles.title
-              }
-            >
+            <h1 className={styles.title}>
               Location & Scope Workspace
             </h1>
 
-            <p
-              className={
-                styles.description
-              }
-            >
-              Select a project to define its
-              location breakdown structure,
-              services, and measurable
-              quantities.
+            <p className={styles.description}>
+              Select a project to define its location breakdown
+              structure, services, and measurable quantities.
             </p>
           </div>
 
           <Link
             href="/dashboard/projects"
-            className={
-              styles.backLink
-            }
+            className={styles.backLink}
           >
             ← Back to projects
           </Link>
         </section>
 
-        <article
-          className={
-            styles.panel
-          }
-        >
-          <div
-            className={
-              styles.panelHeader
-            }
-          >
+        <article className={styles.panel}>
+          <div className={styles.panelHeader}>
             <div>
-              <h2
-                className={
-                  styles.panelTitle
-                }
-              >
+              <h2 className={styles.panelTitle}>
                 Select a project
               </h2>
 
-              <p
-                className={
-                  styles.panelDescription
-                }
-              >
-                Every project has an
-                independent location and
+              <p className={styles.panelDescription}>
+                Every project has an independent location and
                 production scope structure.
               </p>
             </div>
 
-            <span
-              className={
-                styles.projectCode
-              }
-            >
+            <span className={styles.projectCode}>
               {projects.length === 1
                 ? '1 project'
                 : `${projects.length} projects`}
             </span>
           </div>
 
-          {projects.length ===
-          0 ? (
-            <div
-              className={
-                styles.emptyState
-              }
-            >
-              <h3
-                className={
-                  styles.emptyTitle
-                }
-              >
+          {projects.length === 0 ? (
+            <div className={styles.emptyState}>
+              <h3 className={styles.emptyTitle}>
                 No projects available.
               </h3>
 
-              <p
-                className={
-                  styles.emptyDescription
-                }
-              >
-                Create a project before
-                defining its location
+              <p className={styles.emptyDescription}>
+                Create a project before defining its location
                 breakdown structure.
               </p>
 
               <Link
                 href="/dashboard/projects"
-                className={
-                  styles.primaryButton
-                }
+                className={styles.primaryButton}
               >
                 Open projects
               </Link>
             </div>
           ) : (
-            <div
-              className={
-                styles.projectGrid
-              }
-            >
-              {projects.map(
-                (project) => (
-                  <button
-                    type="button"
-                    className={
-                      styles.projectCard
-                    }
-                    onClick={() =>
-                      changeProject(
-                        project.id
-                      )
-                    }
-                    key={
-                      project.id
-                    }
-                  >
-                    <div
-                      className={
-                        styles.projectIdentity
-                      }
-                    >
-                      <span
-                        className={
-                          styles.projectName
-                        }
-                      >
-                        {project.name}
-                      </span>
-
-                      <span
-                        className={
-                          styles.projectClient
-                        }
-                      >
-                        {project.code ||
-                          'Unassigned'}{' '}
-                        ·{' '}
-                        {project.client_name ||
-                          'Client not specified'}
-                      </span>
-                    </div>
-
-                    <span
-                      className={
-                        styles.projectArrow
-                      }
-                      aria-hidden="true"
-                    >
-                      →
+            <div className={styles.projectGrid}>
+              {projects.map((project) => (
+                <button
+                  type="button"
+                  className={styles.projectCard}
+                  onClick={() => changeProject(project.id)}
+                  key={project.id}
+                >
+                  <div className={styles.projectIdentity}>
+                    <span className={styles.projectName}>
+                      {project.name}
                     </span>
-                  </button>
-                )
-              )}
+
+                    <span className={styles.projectClient}>
+                      {project.code || 'Unassigned'} ·{' '}
+                      {project.client_name ||
+                        'Client not specified'}
+                    </span>
+                  </div>
+
+                  <span
+                    className={styles.projectArrow}
+                    aria-hidden="true"
+                  >
+                    →
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </article>
@@ -1947,212 +1318,103 @@ export default function LocationBreakdownPage() {
   const summaryItems = [
     {
       label: 'Floors',
-      value:
-        floorLocations.length,
-      detail:
-        'Building levels',
+      value: floorLocations.length,
+      detail: 'Building levels',
     },
     {
       label: 'Zones',
       value: zoneCount,
-      detail:
-        'Production subdivisions',
+      detail: 'Production subdivisions',
     },
     {
       label: 'Areas and rooms',
       value: areaCount,
-      detail:
-        'Assignable locations',
+      detail: 'Assignable locations',
     },
     {
       label: 'Services',
-      value:
-        projectServices.length,
-      detail:
-        'Dynamic quantity columns',
+      value: projectServices.length,
+      detail: 'Dynamic quantity columns',
     },
   ]
 
   return (
-    <div
-      className={
-        styles.container
-      }
-    >
-      <section
-        className={
-          styles.heading
-        }
-      >
-        <div
-          className={
-            styles.headingContent
-          }
-        >
-          <p
-            className={
-              styles.eyebrow
-            }
-          >
-            Location-based planning
-            foundation
+    <div className={styles.container}>
+      <section className={styles.heading}>
+        <div className={styles.headingContent}>
+          <p className={styles.eyebrow}>
+            Location-based planning foundation
           </p>
 
-          <h1
-            className={
-              styles.title
-            }
-          >
+          <h1 className={styles.title}>
             Location & Scope Workspace
           </h1>
 
-          <p
-            className={
-              styles.description
-            }
-          >
-            Build the physical production
-            hierarchy first, then quantify
-            each service across the locations
-            where production will be planned
-            and controlled.
+          <p className={styles.description}>
+            Build the physical production hierarchy first, then
+            quantify each service across the locations where
+            production will be planned and controlled.
           </p>
         </div>
 
-        <div
-          className={
-            styles.projectSelector
-          }
-        >
+        <div className={styles.projectSelector}>
           <label
             htmlFor="active-project"
-            className={
-              styles.projectSelectorLabel
-            }
+            className={styles.projectSelectorLabel}
           >
             Active project
           </label>
 
           <select
             id="active-project"
-            className={
-              styles.projectSelectorInput
-            }
-            value={
-              selectedProject.id
-            }
-            onChange={(
-              event
-            ) =>
-              changeProject(
-                event.target.value
-              )
+            className={styles.projectSelectorInput}
+            value={selectedProject.id}
+            onChange={(event) =>
+              changeProject(event.target.value)
             }
           >
-            {projects.map(
-              (project) => (
-                <option
-                  value={
-                    project.id
-                  }
-                  key={
-                    project.id
-                  }
-                >
-                  {project.code ||
-                    'Unassigned'}{' '}
-                  · {project.name}
-                </option>
-              )
-            )}
+            {projects.map((project) => (
+              <option value={project.id} key={project.id}>
+                {project.code || 'Unassigned'} · {project.name}
+              </option>
+            ))}
           </select>
         </div>
       </section>
 
       <section
-        className={
-          styles.summaryGrid
-        }
+        className={styles.summaryGrid}
         aria-label="Location summary"
       >
-        {summaryItems.map(
-          (item) => (
-            <article
-              className={
-                styles.summaryCard
-              }
-              key={
-                item.label
-              }
-            >
-              <p
-                className={
-                  styles.summaryLabel
-                }
-              >
-                {item.label}
-              </p>
-
-              <p
-                className={
-                  styles.summaryValue
-                }
-              >
-                {item.value}
-              </p>
-
-              <p
-                className={
-                  styles.summaryDetail
-                }
-              >
-                {item.detail}
-              </p>
-            </article>
-          )
-        )}
+        {summaryItems.map((item) => (
+          <article
+            className={styles.summaryCard}
+            key={item.label}
+          >
+            <p className={styles.summaryLabel}>{item.label}</p>
+            <p className={styles.summaryValue}>{item.value}</p>
+            <p className={styles.summaryDetail}>{item.detail}</p>
+          </article>
+        ))}
       </section>
 
-      <section
-        className={
-          styles.panel
-        }
-      >
-        <div
-          className={
-            styles.tabList
-          }
-        >
+      <section className={styles.panel}>
+        <div className={styles.tabList}>
           <button
             type="button"
             className={
-              activeTab ===
-              'locations'
+              activeTab === 'locations'
                 ? `${styles.tabButton} ${styles.tabButtonActive}`
                 : styles.tabButton
             }
             onClick={() => {
-              setActiveTab(
-                'locations'
-              )
+              setActiveTab('locations')
               setSearchTerm('')
             }}
           >
-            <span
-              className={
-                styles.tabNumber
-              }
-            >
-              01
-            </span>
-
+            <span className={styles.tabNumber}>01</span>
             Location Structure
-
-            <span
-              className={
-                styles.tabCount
-              }
-            >
+            <span className={styles.tabCount}>
               {locations.length}
             </span>
           </button>
@@ -2160,54 +1422,27 @@ export default function LocationBreakdownPage() {
           <button
             type="button"
             className={
-              activeTab ===
-              'scope'
+              activeTab === 'scope'
                 ? `${styles.tabButton} ${styles.tabButtonActive}`
                 : styles.tabButton
             }
             onClick={() => {
-              setActiveTab(
-                'scope'
-              )
+              setActiveTab('scope')
               setSearchTerm('')
             }}
           >
-            <span
-              className={
-                styles.tabNumber
-              }
-            >
-              02
-            </span>
-
+            <span className={styles.tabNumber}>02</span>
             Scope & Quantities
-
-            <span
-              className={
-                styles.tabCount
-              }
-            >
-              {
-                projectServices.length
-              }
+            <span className={styles.tabCount}>
+              {projectServices.length}
             </span>
           </button>
         </div>
 
-        <div
-          className={
-            styles.toolbar
-          }
-        >
-          <div
-            className={
-              styles.searchField
-            }
-          >
+        <div className={styles.toolbar}>
+          <div className={styles.searchField}>
             <span
-              className={
-                styles.searchIcon
-              }
+              className={styles.searchIcon}
               aria-hidden="true"
             >
               ⌕
@@ -2215,306 +1450,167 @@ export default function LocationBreakdownPage() {
 
             <input
               type="search"
-              className={
-                styles.searchInput
-              }
+              className={styles.searchInput}
               placeholder={
-                activeTab ===
-                'locations'
+                activeTab === 'locations'
                   ? 'Search locations...'
                   : 'Search locations or services...'
               }
-              value={
-                searchTerm
-              }
-              onChange={(
-                event
-              ) =>
-                setSearchTerm(
-                  event.target.value
-                )
+              value={searchTerm}
+              onChange={(event) =>
+                setSearchTerm(event.target.value)
               }
             />
           </div>
 
-          {activeTab ===
-            'scope' && (
+          {activeTab === 'scope' && (
             <select
-              className={
-                styles.filterSelect
-              }
-              value={
-                floorFilter
-              }
-              onChange={(
-                event
-              ) =>
-                setFloorFilter(
-                  event.target.value
-                )
+              className={styles.filterSelect}
+              value={floorFilter}
+              onChange={(event) =>
+                setFloorFilter(event.target.value)
               }
               aria-label="Filter matrix by floor"
             >
-              <option value="all">
-                All divisions
-              </option>
+              <option value="all">All divisions</option>
 
-              {floorLocations.map(
-                (floor) => (
-                  <option
-                    value={
-                      floor.id
-                    }
-                    key={
-                      floor.id
-                    }
-                  >
-                    {floor.name}
-                  </option>
-                )
-              )}
+              {floorLocations.map((floor) => (
+                <option value={floor.id} key={floor.id}>
+                  {floor.name}
+                </option>
+              ))}
             </select>
           )}
 
           <button
             type="button"
-            className={
-              styles.primaryButton
-            }
+            className={styles.primaryButton}
             onClick={
-              activeTab ===
-              'locations'
+              activeTab === 'locations'
                 ? openNewLocationModal
                 : openServiceModal
             }
             disabled={
-              activeTab ===
-                'scope' &&
-              locations.length ===
-                0
+              activeTab === 'scope' && locations.length === 0
             }
           >
-            {activeTab ===
-            'locations'
+            {activeTab === 'locations'
               ? '+ Add location'
               : '+ Add service'}
           </button>
         </div>
 
         {errorMessage && (
-          <div
-            className={
-              styles.inlineError
-            }
-            role="alert"
-          >
+          <div className={styles.inlineError} role="alert">
             {errorMessage}
           </div>
         )}
 
-        {activeTab ===
-        'locations' ? (
-          <div
-            className={
-              styles.tableContainer
-            }
-          >
-            <table
-              className={
-                styles.table
-              }
-            >
+        {activeTab === 'locations' ? (
+          <div className={styles.tableContainer}>
+            <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>
-                    Sequence
-                  </th>
-
-                  <th>
-                    Location type
-                  </th>
-
-                  <th>
-                    Location name
-                  </th>
-
-                  <th>
-                    Parent location
-                  </th>
-
-                  <th>
-                    Environment type
-                  </th>
-
-                  <th
-                    className={
-                      styles.actionsHeader
-                    }
-                  >
+                  <th>Sequence</th>
+                  <th>Location type</th>
+                  <th>Location name</th>
+                  <th>Parent location</th>
+                  <th>Environment type</th>
+                  <th className={styles.actionsHeader}>
                     Actions
                   </th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredLocations.map(
-                  (
-                    location
-                  ) => {
-                    const parentLocation =
-                      location.parent_id
-                        ? locationMap.get(
-                            location.parent_id
-                          )
-                        : null
+                {filteredLocations.map((location) => {
+                  const parentLocation = location.parent_id
+                    ? locationMap.get(location.parent_id)
+                    : null
 
-                    const path =
-                      locationPathMap.get(
-                        location.id
-                      ) || []
+                  const path =
+                    locationPathMap.get(location.id) || []
 
-                    const depth =
-                      Math.max(
-                        path.length -
-                          1,
-                        0
-                      )
+                  const depth = Math.max(path.length - 1, 0)
 
-                    return (
-                      <tr
-                        key={
-                          location.id
-                        }
-                      >
-                        <td
-                          className={
-                            styles.sequenceCell
-                          }
+                  return (
+                    <tr key={location.id}>
+                      <td className={styles.sequenceCell}>
+                        {String(
+                          location.sequence_number
+                        ).padStart(2, '0')}
+                      </td>
+
+                      <td>
+                        <span
+                          className={`${styles.locationTypeBadge} ${
+                            styles[
+                              `locationType_${location.location_type}`
+                            ] || ''
+                          }`}
                         >
-                          {String(
-                            location.sequence_number
-                          ).padStart(
-                            2,
-                            '0'
+                          {getLocationTypeLabel(
+                            location.location_type
                           )}
-                        </td>
+                        </span>
+                      </td>
 
-                        <td>
-                          <span
-                            className={`${styles.locationTypeBadge} ${
-                              styles[
-                                `locationType_${location.location_type}`
-                              ] ||
-                              ''
-                            }`}
-                          >
-                            {getLocationTypeLabel(
-                              location.location_type
-                            )}
-                          </span>
-                        </td>
+                      <td>
+                        <div
+                          className={styles.locationNameCell}
+                          style={{
+                            paddingLeft: `${Math.min(
+                              depth,
+                              4
+                            ) * 18}px`,
+                          }}
+                        >
+                          <span className={styles.locationNode} />
+                          <strong>{location.name}</strong>
+                        </div>
+                      </td>
 
-                        <td>
-                          <div
-                            className={
-                              styles.locationNameCell
-                            }
-                            style={{
-                              paddingLeft:
-                                `${Math.min(
-                                  depth,
-                                  4
-                                ) * 18}px`,
-                            }}
-                          >
-                            <span
-                              className={
-                                styles.locationNode
-                              }
-                            />
+                      <td className={styles.mutedCell}>
+                        {parentLocation?.name || '—'}
+                      </td>
 
-                            <strong>
-                              {
-                                location.name
-                              }
-                            </strong>
-                          </div>
-                        </td>
+                      <td>
+                        {location.environment_type || '—'}
+                      </td>
 
-                        <td
-                          className={
-                            styles.mutedCell
+                      <td className={styles.actionsCell}>
+                        <button
+                          type="button"
+                          className={styles.tableAction}
+                          onClick={() =>
+                            openEditLocationModal(location)
                           }
                         >
-                          {parentLocation?.name ||
-                            '—'}
-                        </td>
+                          Edit
+                        </button>
 
-                        <td>
-                          {location.environment_type ||
-                            '—'}
-                        </td>
-
-                        <td
-                          className={
-                            styles.actionsCell
-                          }
+                        <button
+                          type="button"
+                          className={`${styles.tableAction} ${styles.deleteAction}`}
+                          onClick={() => deleteLocation(location)}
                         >
-                          <button
-                            type="button"
-                            className={
-                              styles.tableAction
-                            }
-                            onClick={() =>
-                              openEditLocationModal(
-                                location
-                              )
-                            }
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            className={`${styles.tableAction} ${styles.deleteAction}`}
-                            onClick={() =>
-                              deleteLocation(
-                                location
-                              )
-                            }
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  }
-                )}
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
 
-            {filteredLocations.length ===
-              0 && (
-              <div
-                className={
-                  styles.emptyState
-                }
-              >
-                <h3
-                  className={
-                    styles.emptyTitle
-                  }
-                >
+            {filteredLocations.length === 0 && (
+              <div className={styles.emptyState}>
+                <h3 className={styles.emptyTitle}>
                   No locations found.
                 </h3>
 
-                <p
-                  className={
-                    styles.emptyDescription
-                  }
-                >
-                  Add the first project
-                  location or adjust the
+                <p className={styles.emptyDescription}>
+                  Add the first project location or adjust the
                   current search.
                 </p>
               </div>
@@ -2522,9 +1618,7 @@ export default function LocationBreakdownPage() {
           </div>
         ) : (
           <div
-            className={
-              styles.tableContainer
-            }
+            className={styles.tableContainer}
             style={{
               overflowX: 'auto',
               maxHeight: '520px',
@@ -2532,21 +1626,17 @@ export default function LocationBreakdownPage() {
             }}
           >
             <table
-              className={
-                styles.table
-              }
+              className={styles.table}
               style={{
                 width: 'max-content',
                 minWidth: '100%',
-                borderCollapse:
-                  'separate',
+                borderCollapse: 'separate',
                 borderSpacing: 0,
               }}
             >
               <thead
                 style={{
-                  position:
-                    'sticky',
+                  position: 'sticky',
                   top: 0,
                   zIndex: 20,
                 }}
@@ -2554,374 +1644,221 @@ export default function LocationBreakdownPage() {
                 <tr>
                   <th
                     style={{
-                      minWidth:
-                        '200px',
-                      position:
-                        'sticky',
+                      minWidth: '200px',
+                      position: 'sticky',
                       left: 0,
                       zIndex: 25,
-                      background:
-                        '#2a4365',
+                      background: '#2a4365',
                     }}
                   >
                     LOCATION
                   </th>
 
-                  <th
-                    style={{
-                      minWidth:
-                        '120px',
-                    }}
-                  >
-                    TYPE
-                  </th>
-
-                  <th
-                    style={{
-                      minWidth:
-                        '110px',
-                    }}
-                  >
-                    DIVISION
-                  </th>
-
-                  <th
-                    style={{
-                      minWidth:
-                        '125px',
-                    }}
-                  >
+                  <th style={{ minWidth: '120px' }}>TYPE</th>
+                  <th style={{ minWidth: '110px' }}>DIVISION</th>
+                  <th style={{ minWidth: '125px' }}>
                     SUBDIVISION
                   </th>
 
-                  {projectServices.map(
-                    (
-                      service
-                    ) => (
-                      <th
-                        key={
-                          service.id
-                        }
+                  {projectServices.map((service) => (
+                    <th
+                      key={service.id}
+                      style={{
+                        minWidth: '135px',
+                        maxWidth: '165px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <div
                         style={{
-                          minWidth:
-                            '135px',
-                          maxWidth:
-                            '165px',
-                          textAlign:
-                            'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '3px',
+                          alignItems: 'center',
                         }}
                       >
-                        <div
-                          style={{
-                            display:
-                              'flex',
-                            flexDirection:
-                              'column',
-                            gap: '3px',
-                            alignItems:
-                              'center',
-                          }}
-                        >
-                          <span>
-                            {service.service_name.toUpperCase()}
-                          </span>
+                        <span>
+                          {service.service_name.toUpperCase()}
+                        </span>
 
-                          {service.unit && (
-                            <span
-                              style={{
-                                fontSize:
-                                  '0.68rem',
-                                opacity:
-                                  0.72,
-                                fontWeight:
-                                  500,
-                              }}
-                            >
-                              {
-                                service.unit
-                              }
-                            </span>
-                          )}
-                        </div>
-                      </th>
-                    )
-                  )}
+                        {service.unit && (
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              opacity: 0.72,
+                              fontWeight: 500,
+                            }}
+                          >
+                            {service.unit}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
               <tbody>
-                {matrixLocations.map(
-                  (
-                    location
-                  ) => {
-                    const path =
-                      locationPathMap.get(
-                        location.id
-                      ) || []
+                {matrixLocations.map((location) => {
+                  const path =
+                    locationPathMap.get(location.id) || []
 
-                    const floor =
-                      path.find(
-                        (
-                          pathLocation
-                        ) =>
-                          pathLocation.location_type ===
-                          'floor'
-                      )
+                  const floor = path.find(
+                    (pathLocation) =>
+                      pathLocation.location_type === 'floor'
+                  )
 
-                    const zone =
-                      path.find(
-                        (
-                          pathLocation
-                        ) =>
-                          pathLocation.location_type ===
-                          'zone'
-                      )
+                  const zone = path.find(
+                    (pathLocation) =>
+                      pathLocation.location_type === 'zone'
+                  )
 
-                    const rowColor =
-                      getZoneColor(
-                        zone?.name
-                      )
+                  const rowColor = getZoneColor(zone?.name)
 
-                    return (
-                      <tr
-                        key={
-                          location.id
-                        }
+                  return (
+                    <tr
+                      key={location.id}
+                      style={{ backgroundColor: rowColor }}
+                    >
+                      <td
                         style={{
-                          backgroundColor:
-                            rowColor,
+                          minWidth: '200px',
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 10,
+                          backgroundColor: rowColor,
+                          fontWeight: 700,
+                          borderRight: '1px solid #cbd5e0',
                         }}
                       >
-                        <td
-                          style={{
-                            minWidth:
-                              '200px',
-                            position:
-                              'sticky',
-                            left: 0,
-                            zIndex: 10,
-                            backgroundColor:
-                              rowColor,
-                            fontWeight:
-                              700,
-                            borderRight:
-                              '1px solid #cbd5e0',
-                          }}
-                        >
-                          {
-                            location.name
-                          }
-                        </td>
+                        {location.name}
+                      </td>
 
-                        <td
-                          style={{
-                            textAlign:
-                              'center',
-                            backgroundColor:
-                              rowColor,
-                          }}
-                        >
-                          <span
-                            className={
-                              styles.locationTypeBadge
-                            }
+                      <td
+                        style={{
+                          textAlign: 'center',
+                          backgroundColor: rowColor,
+                        }}
+                      >
+                        <span className={styles.locationTypeBadge}>
+                          {location.environment_type ||
+                            getLocationTypeLabel(
+                              location.location_type
+                            )}
+                        </span>
+                      </td>
+
+                      <td
+                        style={{
+                          textAlign: 'center',
+                          backgroundColor: rowColor,
+                        }}
+                      >
+                        {floor?.name || '—'}
+                      </td>
+
+                      <td
+                        style={{
+                          textAlign: 'center',
+                          fontWeight: 700,
+                          backgroundColor: rowColor,
+                        }}
+                      >
+                        {zone?.name || '—'}
+                      </td>
+
+                      {projectServices.map((service) => {
+                        const cellKey =
+                          `${location.id}___${service.id}`
+
+                        const value = quantityDrafts[cellKey] ?? ''
+                        const isCellSaving =
+                          savingCellKey === cellKey
+
+                        return (
+                          <td
+                            key={service.id}
+                            style={{
+                              minWidth: '135px',
+                              textAlign: 'center',
+                              backgroundColor: rowColor,
+                            }}
                           >
-                            {location.environment_type ||
-                              getLocationTypeLabel(
-                                location.location_type
-                              )}
-                          </span>
-                        </td>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              inputMode="decimal"
+                              value={value}
+                              onChange={(event) => {
+                                const nextValue =
+                                  event.target.value
 
-                        <td
-                          style={{
-                            textAlign:
-                              'center',
-                            backgroundColor:
-                              rowColor,
-                          }}
-                        >
-                          {floor?.name ||
-                            '—'}
-                        </td>
-
-                        <td
-                          style={{
-                            textAlign:
-                              'center',
-                            fontWeight:
-                              700,
-                            backgroundColor:
-                              rowColor,
-                          }}
-                        >
-                          {zone?.name ||
-                            '—'}
-                        </td>
-
-                        {projectServices.map(
-                          (
-                            service
-                          ) => {
-                            const cellKey =
-                              `${location.id}___${service.id}`
-
-                            const value =
-                              quantityDrafts[
-                                cellKey
-                              ] ?? ''
-
-                            const isCellSaving =
-                              savingCellKey ===
-                              cellKey
-
-                            return (
-                              <td
-                                key={
+                                setQuantityDrafts(
+                                  (currentDrafts) => ({
+                                    ...currentDrafts,
+                                    [cellKey]: nextValue,
+                                  })
+                                )
+                              }}
+                              onBlur={() =>
+                                saveQuantity(
+                                  location.id,
                                   service.id
+                                )
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.currentTarget.blur()
                                 }
-                                style={{
-                                  minWidth:
-                                    '135px',
-                                  textAlign:
-                                    'center',
-                                  backgroundColor:
-                                    rowColor,
-                                }}
-                              >
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  inputMode="decimal"
-                                  value={
-                                    value
-                                  }
-                                  onChange={(
-                                    event
-                                  ) => {
-                                    const nextValue =
-                                      event
-                                        .target
-                                        .value
-
-                                    setQuantityDrafts(
-                                      (
-                                        currentDrafts
-                                      ) => ({
-                                        ...currentDrafts,
-                                        [cellKey]:
-                                          nextValue,
-                                      })
-                                    )
-                                  }}
-                                  onBlur={() =>
-                                    saveQuantity(
-                                      location.id,
-                                      service.id
-                                    )
-                                  }
-                                  onKeyDown={(
-                                    event
-                                  ) => {
-                                    if (
-                                      event.key ===
-                                      'Enter'
-                                    ) {
-                                      event.currentTarget.blur()
-                                    }
-                                  }}
-                                  disabled={
-                                    isCellSaving
-                                  }
-                                  aria-label={`Quantity of ${service.service_name} at ${location.name}`}
-                                  style={{
-                                    width:
-                                      '88px',
-                                    maxWidth:
-                                      '100%',
-                                    padding:
-                                      '7px 8px',
-                                    textAlign:
-                                      'center',
-                                    backgroundColor:
-                                      isCellSaving
-                                        ? '#edf2f7'
-                                        : '#ffffff',
-                                    border:
-                                      '1px solid #cbd5e0',
-                                    borderRadius:
-                                      '6px',
-                                    fontSize:
-                                      '0.84rem',
-                                    outline:
-                                      'none',
-                                  }}
-                                />
-                              </td>
-                            )
-                          }
-                        )}
-                      </tr>
-                    )
-                  }
-                )}
+                              }}
+                              disabled={isCellSaving}
+                              aria-label={`Quantity of ${service.service_name} at ${location.name}`}
+                              style={{
+                                width: '88px',
+                                maxWidth: '100%',
+                                padding: '7px 8px',
+                                textAlign: 'center',
+                                backgroundColor: isCellSaving
+                                  ? '#edf2f7'
+                                  : '#ffffff',
+                                border: '1px solid #cbd5e0',
+                                borderRadius: '6px',
+                                fontSize: '0.84rem',
+                                outline: 'none',
+                              }}
+                            />
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
 
-            {matrixLocations.length ===
-              0 && (
-              <div
-                className={
-                  styles.emptyState
-                }
-              >
-                <h3
-                  className={
-                    styles.emptyTitle
-                  }
-                >
-                  No production locations
-                  found.
+            {matrixLocations.length === 0 && (
+              <div className={styles.emptyState}>
+                <h3 className={styles.emptyTitle}>
+                  No production locations found.
                 </h3>
 
-                <p
-                  className={
-                    styles.emptyDescription
-                  }
-                >
-                  Add Area or Room
-                  locations to build the
+                <p className={styles.emptyDescription}>
+                  Add Area or Room locations to build the
                   quantity matrix.
                 </p>
               </div>
             )}
 
-            {matrixLocations.length >
-              0 &&
-              projectServices.length ===
-                0 && (
-                <div
-                  className={
-                    styles.emptyState
-                  }
-                >
-                  <h3
-                    className={
-                      styles.emptyTitle
-                    }
-                  >
-                    No services have been
-                    added.
+            {matrixLocations.length > 0 &&
+              projectServices.length === 0 && (
+                <div className={styles.emptyState}>
+                  <h3 className={styles.emptyTitle}>
+                    No services have been added.
                   </h3>
 
-                  <p
-                    className={
-                      styles.emptyDescription
-                    }
-                  >
-                    Click Add service to
-                    create the first dynamic
+                  <p className={styles.emptyDescription}>
+                    Click Add service to create the first dynamic
                     quantity column.
                   </p>
                 </div>
@@ -2929,72 +1866,282 @@ export default function LocationBreakdownPage() {
           </div>
         )}
 
-        <div
-          className={
-            styles.tableFooter
-          }
-        >
+        <div className={styles.tableFooter}>
           <span>
-            {activeTab ===
-            'locations'
+            {activeTab === 'locations'
               ? filteredLocations.length
               : matrixLocations.length}{' '}
-            {activeTab ===
-            'locations'
+            {activeTab === 'locations'
               ? 'records shown'
               : 'locations shown'}
           </span>
 
-          {activeTab ===
-            'scope' && (
+          {activeTab === 'scope' && (
             <span>
-              {
-                projectServices.length
-              }{' '}
-              {projectServices.length ===
-              1
+              {projectServices.length}{' '}
+              {projectServices.length === 1
                 ? 'service column'
                 : 'service columns'}
             </span>
           )}
 
           <span>
-            Project:{' '}
-            {selectedProject.code ||
-              selectedProject.name}
+            Project: {selectedProject.code || selectedProject.name}
           </span>
         </div>
       </section>
 
-      {noticeMessage && (
-        <div
-          className={
-            styles.notice
-          }
-          role="status"
+      {activeTab === 'scope' && (
+        <section
+          className={styles.panel}
+          style={{ marginTop: '28px' }}
         >
-          <span
-            className={
-              styles.noticeIcon
-            }
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '16px',
+              marginBottom: showQuantification ? '18px' : 0,
+            }}
           >
-            ✓
-          </span>
+            <div>
+              <p
+                className={styles.eyebrow}
+                style={{ marginBottom: '6px' }}
+              >
+                Quantity consolidation
+              </p>
 
-          <span>
-            {noticeMessage}
-          </span>
+              <h2
+                className={styles.panelTitle}
+                style={{ margin: 0 }}
+              >
+                Quantification by Location
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() =>
+                setShowQuantification(
+                  (currentValue) => !currentValue
+                )
+              }
+            >
+              {showQuantification ? 'Hide ▲' : 'Show ▼'}
+            </button>
+          </div>
+
+          {showQuantification && (
+            <div
+              style={{
+                border: '1px solid #cbd5e0',
+                borderRadius: '8px',
+                overflowX: 'auto',
+                background: '#ffffff',
+              }}
+            >
+              {quantificationByDivision.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <h3 className={styles.emptyTitle}>
+                    No division totals available.
+                  </h3>
+
+                  <p className={styles.emptyDescription}>
+                    Create Floor and Zone locations and enter
+                    service quantities to generate this table.
+                  </p>
+                </div>
+              ) : (
+                quantificationByDivision.map(
+                  ({ floor, zones, totals }) => (
+                    <div
+                      key={floor.id}
+                      style={{
+                        marginBottom: '24px',
+                      }}
+                    >
+                      <table
+                        style={{
+                          width: '100%',
+                          minWidth: `${Math.max(
+                            680,
+                            360 + zones.length * 180
+                          )}px`,
+                          borderCollapse: 'collapse',
+                          fontSize: '0.86rem',
+                        }}
+                      >
+                        <thead>
+                          <tr
+                            style={{
+                              backgroundColor: '#2a4365',
+                              color: '#ffffff',
+                            }}
+                          >
+                            <th
+                              style={{
+                                width: '34%',
+                                padding: '12px 14px',
+                                border: '1px solid #1a365d',
+                                textAlign: 'left',
+                                fontWeight: 800,
+                              }}
+                            >
+                              {floor.name}
+                            </th>
+
+                            <th
+                              colSpan={zones.length}
+                              style={{
+                                padding: '12px 14px',
+                                border: '1px solid #1a365d',
+                                textAlign: 'center',
+                                fontWeight: 800,
+                                letterSpacing: '0.06em',
+                              }}
+                            >
+                              ZONES
+                            </th>
+                          </tr>
+
+                          <tr
+                            style={{
+                              backgroundColor: '#e2e8f0',
+                              color: '#1a365d',
+                            }}
+                          >
+                            <th
+                              style={{
+                                padding: '10px 14px',
+                                border: '1px solid #cbd5e0',
+                                textAlign: 'left',
+                                fontStyle: 'italic',
+                                fontWeight: 800,
+                              }}
+                            >
+                              DESCRIPTION
+                            </th>
+
+                            {zones.map((zone) => (
+                              <th
+                                key={zone.id}
+                                style={{
+                                  padding: '10px 14px',
+                                  border: '1px solid #cbd5e0',
+                                  textAlign: 'center',
+                                  fontWeight: 800,
+                                  backgroundColor: getZoneColor(
+                                    zone.name
+                                  ),
+                                }}
+                              >
+                                {zone.name}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {projectServices.map(
+                            (service, serviceIndex) => (
+                              <tr
+                                key={service.id}
+                                style={{
+                                  backgroundColor:
+                                    serviceIndex % 2 === 0
+                                      ? '#ffffff'
+                                      : '#f8fafc',
+                                }}
+                              >
+                                <td
+                                  style={{
+                                    padding: '11px 14px',
+                                    border: '1px solid #cbd5e0',
+                                    textAlign: 'left',
+                                    fontWeight: 800,
+                                    color: '#1a365d',
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'baseline',
+                                      gap: '8px',
+                                      flexWrap: 'wrap',
+                                    }}
+                                  >
+                                    <span>
+                                      {service.service_name.toUpperCase()}
+                                    </span>
+
+                                    {service.unit && (
+                                      <span
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          color: '#718096',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {service.unit}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {zones.map((zone) => {
+                                  const total =
+                                    totals.get(
+                                      `${service.id}___${zone.id}`
+                                    ) || 0
+
+                                  return (
+                                    <td
+                                      key={zone.id}
+                                      style={{
+                                        padding: '11px 14px',
+                                        border: '1px solid #cbd5e0',
+                                        textAlign: 'center',
+                                        fontWeight: total > 0 ? 700 : 500,
+                                        color:
+                                          total > 0
+                                            ? '#1a202c'
+                                            : '#a0aec0',
+                                        backgroundColor:
+                                          total > 0
+                                            ? getZoneColor(zone.name)
+                                            : undefined,
+                                      }}
+                                    >
+                                      {formatQuantity(total)}
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                )
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {noticeMessage && (
+        <div className={styles.notice} role="status">
+          <span className={styles.noticeIcon}>✓</span>
+          <span>{noticeMessage}</span>
 
           <button
             type="button"
-            className={
-              styles.noticeClose
-            }
-            onClick={() =>
-              setNoticeMessage(
-                ''
-              )
-            }
+            className={styles.noticeClose}
+            onClick={() => setNoticeMessage('')}
             aria-label="Close notification"
           >
             ×
@@ -3004,47 +2151,21 @@ export default function LocationBreakdownPage() {
 
       {isLocationModalOpen && (
         <div
-          className={
-            styles.modalBackdrop
-          }
-          onMouseDown={(
-            event
-          ) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
+          className={styles.modalBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
               closeLocationModal()
             }
           }}
         >
-          <form
-            className={
-              styles.modal
-            }
-            onSubmit={
-              saveLocation
-            }
-          >
-            <div
-              className={
-                styles.modalHeader
-              }
-            >
+          <form className={styles.modal} onSubmit={saveLocation}>
+            <div className={styles.modalHeader}>
               <div>
-                <p
-                  className={
-                    styles.modalEyebrow
-                  }
-                >
+                <p className={styles.modalEyebrow}>
                   Location structure
                 </p>
 
-                <h2
-                  className={
-                    styles.modalTitle
-                  }
-                >
+                <h2 className={styles.modalTitle}>
                   {locationForm.id
                     ? 'Edit location'
                     : 'Add a new location'}
@@ -3053,299 +2174,152 @@ export default function LocationBreakdownPage() {
 
               <button
                 type="button"
-                className={
-                  styles.modalClose
-                }
-                onClick={
-                  closeLocationModal
-                }
+                className={styles.modalClose}
+                onClick={closeLocationModal}
                 aria-label="Close modal"
               >
                 ×
               </button>
             </div>
 
-            <p
-              className={
-                styles.modalDescription
-              }
-            >
-              Define the location level and
-              its relationship to the physical
-              production hierarchy.
+            <p className={styles.modalDescription}>
+              Define the location level and its relationship to
+              the physical production hierarchy.
             </p>
 
-            <div
-              className={
-                styles.formGrid
-              }
-            >
-              <label
-                className={
-                  styles.formField
-                }
-              >
-                <span>
-                  Location type
-                </span>
+            <div className={styles.formGrid}>
+              <label className={styles.formField}>
+                <span>Location type</span>
 
                 <select
-                  value={
-                    locationForm.location_type
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setLocationForm(
-                      (
-                        currentForm
-                      ) => ({
-                        ...currentForm,
-                        location_type:
-                          event.target
-                            .value,
-                      })
-                    )
+                  value={locationForm.location_type}
+                  onChange={(event) =>
+                    setLocationForm((currentForm) => ({
+                      ...currentForm,
+                      location_type: event.target.value,
+                    }))
                   }
                 >
-                  {locationTypeOptions.map(
-                    (
-                      option
-                    ) => (
-                      <option
-                        value={
-                          option.value
-                        }
-                        key={
-                          option.value
-                        }
-                      >
-                        {
-                          option.label
-                        }
-                      </option>
-                    )
-                  )}
+                  {locationTypeOptions.map((option) => (
+                    <option
+                      value={option.value}
+                      key={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </label>
 
-              <label
-                className={
-                  styles.formField
-                }
-              >
-                <span>
-                  Location name
-                </span>
+              <label className={styles.formField}>
+                <span>Location name</span>
 
                 <input
                   type="text"
                   required
                   autoFocus
-                  value={
-                    locationForm.name
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setLocationForm(
-                      (
-                        currentForm
-                      ) => ({
-                        ...currentForm,
-                        name:
-                          event.target
-                            .value,
-                      })
-                    )
+                  value={locationForm.name}
+                  onChange={(event) =>
+                    setLocationForm((currentForm) => ({
+                      ...currentForm,
+                      name: event.target.value,
+                    }))
                   }
                   placeholder="Example: East Wing"
                 />
               </label>
 
-              <label
-                className={
-                  styles.formField
-                }
-              >
-                <span>
-                  Parent location
-                </span>
+              <label className={styles.formField}>
+                <span>Parent location</span>
 
                 <select
-                  value={
-                    locationForm.parent_id
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setLocationForm(
-                      (
-                        currentForm
-                      ) => ({
-                        ...currentForm,
-                        parent_id:
-                          event.target
-                            .value,
-                      })
-                    )
+                  value={locationForm.parent_id}
+                  onChange={(event) =>
+                    setLocationForm((currentForm) => ({
+                      ...currentForm,
+                      parent_id: event.target.value,
+                    }))
                   }
                 >
-                  <option value="">
-                    No parent location
-                  </option>
+                  <option value="">No parent location</option>
 
                   {sortedLocations
                     .filter(
-                      (
-                        location
-                      ) =>
-                        location.id !==
-                        locationForm.id
+                      (location) => location.id !== locationForm.id
                     )
-                    .map(
-                      (
-                        location
-                      ) => (
-                        <option
-                          value={
-                            location.id
-                          }
-                          key={
-                            location.id
-                          }
-                        >
-                          {(
-                            locationPathMap.get(
-                              location.id
-                            ) || []
+                    .map((location) => (
+                      <option
+                        value={location.id}
+                        key={location.id}
+                      >
+                        {(
+                          locationPathMap.get(location.id) || []
+                        )
+                          .map(
+                            (pathLocation) => pathLocation.name
                           )
-                            .map(
-                              (
-                                pathLocation
-                              ) =>
-                                pathLocation.name
-                            )
-                            .join(
-                              ' / '
-                            )}
-                        </option>
-                      )
-                    )}
+                          .join(' / ')}
+                      </option>
+                    ))}
                 </select>
               </label>
 
-              <label
-                className={
-                  styles.formField
-                }
-              >
-                <span>
-                  Environment type
-                </span>
+              <label className={styles.formField}>
+                <span>Environment type</span>
 
                 <input
                   type="text"
-                  value={
-                    locationForm.environment_type
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setLocationForm(
-                      (
-                        currentForm
-                      ) => ({
-                        ...currentForm,
-                        environment_type:
-                          event.target
-                            .value,
-                      })
-                    )
+                  value={locationForm.environment_type}
+                  onChange={(event) =>
+                    setLocationForm((currentForm) => ({
+                      ...currentForm,
+                      environment_type: event.target.value,
+                    }))
                   }
                   placeholder="Example: Internal"
                 />
               </label>
 
-              <label
-                className={
-                  styles.formField
-                }
-              >
-                <span>
-                  Sequence
-                </span>
+              <label className={styles.formField}>
+                <span>Sequence</span>
 
                 <input
                   type="number"
                   min="0"
                   required
-                  value={
-                    locationForm.sequence_number
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setLocationForm(
-                      (
-                        currentForm
-                      ) => ({
-                        ...currentForm,
-                        sequence_number:
-                          event.target
-                            .value,
-                      })
-                    )
+                  value={locationForm.sequence_number}
+                  onChange={(event) =>
+                    setLocationForm((currentForm) => ({
+                      ...currentForm,
+                      sequence_number: event.target.value,
+                    }))
                   }
                 />
               </label>
             </div>
 
             {errorMessage && (
-              <div
-                className={
-                  styles.modalError
-                }
-                role="alert"
-              >
-                {
-                  errorMessage
-                }
+              <div className={styles.modalError} role="alert">
+                {errorMessage}
               </div>
             )}
 
-            <div
-              className={
-                styles.modalActions
-              }
-            >
+            <div className={styles.modalActions}>
               <button
                 type="button"
-                className={
-                  styles.secondaryButton
-                }
-                onClick={
-                  closeLocationModal
-                }
-                disabled={
-                  isSaving
-                }
+                className={styles.secondaryButton}
+                onClick={closeLocationModal}
+                disabled={isSaving}
               >
                 Cancel
               </button>
 
               <button
                 type="submit"
-                className={
-                  styles.primaryButton
-                }
-                disabled={
-                  isSaving
-                }
+                className={styles.primaryButton}
+                disabled={isSaving}
               >
-                {isSaving
-                  ? 'Saving...'
-                  : 'Save location'}
+                {isSaving ? 'Saving...' : 'Save location'}
               </button>
             </div>
           </form>
@@ -3354,253 +2328,128 @@ export default function LocationBreakdownPage() {
 
       {isServiceModalOpen && (
         <div
-          className={
-            styles.modalBackdrop
-          }
-          onMouseDown={(
-            event
-          ) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
+          className={styles.modalBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
               closeServiceModal()
             }
           }}
         >
-          <form
-            className={
-              styles.modal
-            }
-            onSubmit={
-              saveService
-            }
-          >
-            <div
-              className={
-                styles.modalHeader
-              }
-            >
+          <form className={styles.modal} onSubmit={saveService}>
+            <div className={styles.modalHeader}>
               <div>
-                <p
-                  className={
-                    styles.modalEyebrow
-                  }
-                >
+                <p className={styles.modalEyebrow}>
                   Production scope
                 </p>
 
-                <h2
-                  className={
-                    styles.modalTitle
-                  }
-                >
+                <h2 className={styles.modalTitle}>
                   Add service column
                 </h2>
               </div>
 
               <button
                 type="button"
-                className={
-                  styles.modalClose
-                }
-                onClick={
-                  closeServiceModal
-                }
+                className={styles.modalClose}
+                onClick={closeServiceModal}
                 aria-label="Close modal"
               >
                 ×
               </button>
             </div>
 
-            <p
-              className={
-                styles.modalDescription
-              }
-            >
-              Create a service once and use it
-              as a quantity column across every
-              production location in the
+            <p className={styles.modalDescription}>
+              Create a service once and use it as a quantity
+              column across every production location in the
               project.
             </p>
 
-            <div
-              className={
-                styles.formGrid
-              }
-            >
+            <div className={styles.formGrid}>
               <label
                 className={`${styles.formField} ${styles.formFieldFull}`}
               >
-                <span>
-                  Service name
-                </span>
+                <span>Service name</span>
 
                 <input
                   type="text"
                   required
                   autoFocus
-                  value={
-                    serviceForm.service_name
-                  }
-                  onChange={(
-                    event
-                  ) => {
-                    const nextName =
-                      event.target
-                        .value
+                  value={serviceForm.service_name}
+                  onChange={(event) => {
+                    const nextName = event.target.value
 
-                    setServiceForm(
-                      (
-                        currentForm
-                      ) => ({
-                        ...currentForm,
-
-                        service_name:
-                          nextName,
-
-                        service_code:
-                          serviceCodeWasEdited
-                            ? currentForm.service_code
-                            : createServiceCode(
-                                nextName,
-                                projectServices
-                              ),
-                      })
-                    )
+                    setServiceForm((currentForm) => ({
+                      ...currentForm,
+                      service_name: nextName,
+                      service_code: serviceCodeWasEdited
+                        ? currentForm.service_code
+                        : createServiceCode(
+                            nextName,
+                            projectServices
+                          ),
+                    }))
                   }}
                   placeholder="Example: Drywall"
                 />
               </label>
 
-              <label
-                className={
-                  styles.formField
-                }
-              >
-                <span>
-                  Service code
-                </span>
+              <label className={styles.formField}>
+                <span>Service code</span>
 
                 <input
                   type="text"
-                  value={
-                    serviceForm.service_code
-                  }
-                  onChange={(
-                    event
-                  ) => {
-                    setServiceCodeWasEdited(
-                      true
-                    )
+                  value={serviceForm.service_code}
+                  onChange={(event) => {
+                    setServiceCodeWasEdited(true)
 
-                    setServiceForm(
-                      (
-                        currentForm
-                      ) => ({
-                        ...currentForm,
-                        service_code:
-                          normalizeServiceCode(
-                            event.target
-                              .value
-                          ),
-                      })
-                    )
+                    setServiceForm((currentForm) => ({
+                      ...currentForm,
+                      service_code: normalizeServiceCode(
+                        event.target.value
+                      ),
+                    }))
                   }}
                   placeholder="Example: DRYWALL"
                 />
               </label>
 
-              <label
-                className={
-                  styles.formField
-                }
-              >
-                <span>
-                  Unit
-                </span>
+              <label className={styles.formField}>
+                <span>Unit</span>
 
                 <select
-                  value={
-                    serviceForm.unit
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setServiceForm(
-                      (
-                        currentForm
-                      ) => ({
-                        ...currentForm,
-
-                        unit:
-                          event.target
-                            .value,
-
-                        custom_unit:
-                          event.target
-                            .value ===
-                          'OTHER'
-                            ? currentForm.custom_unit
-                            : '',
-                      })
-                    )
+                  value={serviceForm.unit}
+                  onChange={(event) =>
+                    setServiceForm((currentForm) => ({
+                      ...currentForm,
+                      unit: event.target.value,
+                      custom_unit:
+                        event.target.value === 'OTHER'
+                          ? currentForm.custom_unit
+                          : '',
+                    }))
                   }
                 >
-                  {unitOptions.map(
-                    (unit) => (
-                      <option
-                        value={
-                          unit
-                        }
-                        key={
-                          unit
-                        }
-                      >
-                        {unit ===
-                        'OTHER'
-                          ? 'Other...'
-                          : unit}
-                      </option>
-                    )
-                  )}
+                  {unitOptions.map((unit) => (
+                    <option value={unit} key={unit}>
+                      {unit === 'OTHER' ? 'Other...' : unit}
+                    </option>
+                  ))}
                 </select>
               </label>
 
-              {serviceForm.unit ===
-                'OTHER' && (
-                <label
-                  className={
-                    styles.formField
-                  }
-                >
-                  <span>
-                    Custom unit
-                  </span>
+              {serviceForm.unit === 'OTHER' && (
+                <label className={styles.formField}>
+                  <span>Custom unit</span>
 
                   <input
                     type="text"
                     required
-                    maxLength={
-                      20
-                    }
-                    value={
-                      serviceForm.custom_unit
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setServiceForm(
-                        (
-                          currentForm
-                        ) => ({
-                          ...currentForm,
-
-                          custom_unit:
-                            event.target
-                              .value,
-                        })
-                      )
+                    maxLength={20}
+                    value={serviceForm.custom_unit}
+                    onChange={(event) =>
+                      setServiceForm((currentForm) => ({
+                        ...currentForm,
+                        custom_unit: event.target.value,
+                      }))
                     }
                     placeholder="Example: box"
                   />
@@ -3609,50 +2458,27 @@ export default function LocationBreakdownPage() {
             </div>
 
             {errorMessage && (
-              <div
-                className={
-                  styles.modalError
-                }
-                role="alert"
-              >
-                {
-                  errorMessage
-                }
+              <div className={styles.modalError} role="alert">
+                {errorMessage}
               </div>
             )}
 
-            <div
-              className={
-                styles.modalActions
-              }
-            >
+            <div className={styles.modalActions}>
               <button
                 type="button"
-                className={
-                  styles.secondaryButton
-                }
-                onClick={
-                  closeServiceModal
-                }
-                disabled={
-                  isSaving
-                }
+                className={styles.secondaryButton}
+                onClick={closeServiceModal}
+                disabled={isSaving}
               >
                 Cancel
               </button>
 
               <button
                 type="submit"
-                className={
-                  styles.primaryButton
-                }
-                disabled={
-                  isSaving
-                }
+                className={styles.primaryButton}
+                disabled={isSaving}
               >
-                {isSaving
-                  ? 'Adding...'
-                  : 'Add service'}
+                {isSaving ? 'Adding...' : 'Add service'}
               </button>
             </div>
           </form>
