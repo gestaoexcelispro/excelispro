@@ -67,7 +67,9 @@ function createEmptyProductionEntry() {
 
     plannedQuantity: '',
     actualQuantity: '',
-    cumulativeQuantity: '',
+
+    previousCumulativeQuantity: 0,
+    calculatedCumulativeQuantity: 0,
 
     varianceReason: '',
     varianceNotes: '',
@@ -417,84 +419,130 @@ export default function DailyReportProductionPage() {
       setProjectServices(loadedServices);
       setServiceQuantities(loadedQuantities);
 
-      const nextEntries =
-        loadedProduction.map(
-          (item) => {
-            const scopeQuantity =
-              loadedQuantities.find(
-                (quantity) =>
-                  quantity.id ===
-                  item.location_service_quantity_id
-              );
+      const nextEntries = [];
 
-            return {
-              localId: item.id,
-              id: item.id,
+      for (const item of loadedProduction) {
+        const scopeQuantity =
+          loadedQuantities.find(
+            (quantity) =>
+              quantity.id ===
+              item.location_service_quantity_id
+          );
 
-              locationId:
-                item.location_id || '',
+        const {
+          data: previousProduction,
+          error: previousProductionError,
+        } = await supabase
+          .from('daily_report_production')
+          .select(`
+            actual_quantity,
+            daily_reports!inner(
+              report_date
+            )
+          `)
+          .eq(
+            'location_id',
+            item.location_id
+          )
+          .eq(
+            'project_service_id',
+            item.project_service_id
+          )
+          .lt(
+            'daily_reports.report_date',
+            reportData.report_date
+          );
 
-              projectServiceId:
-                item.project_service_id || '',
+        if (previousProductionError) {
+          setErrorMessage(
+            previousProductionError.message
+          );
 
-              locationServiceQuantityId:
-                item.location_service_quantity_id || '',
+          setIsLoading(false);
+          return;
+        }
 
-              locationName:
-                item.location_name || '',
+        const previousCumulative =
+          (previousProduction || []).reduce(
+            (total, previousItem) =>
+              total +
+              (Number(
+                previousItem.actual_quantity
+              ) || 0),
+            0
+          );
 
-              serviceCode:
-                item.service_code || '',
+        const actualToday =
+          Number(
+            item.actual_quantity || 0
+          );
 
-              serviceName:
-                item.service_name || '',
+        nextEntries.push({
+          localId: item.id,
+          id: item.id,
 
-              unit:
-                item.unit || '',
+          locationId:
+            item.location_id || '',
 
-              scopeQuantity:
-                scopeQuantity?.quantity !== null &&
-                scopeQuantity?.quantity !== undefined
-                  ? String(
-                      scopeQuantity.quantity
-                    )
-                  : '',
+          projectServiceId:
+            item.project_service_id || '',
 
-              plannedQuantity:
-                item.planned_quantity !== null &&
-                item.planned_quantity !== undefined
-                  ? String(
-                      item.planned_quantity
-                    )
-                  : '',
+          locationServiceQuantityId:
+            item.location_service_quantity_id || '',
 
-              actualQuantity:
-                item.actual_quantity !== null &&
-                item.actual_quantity !== undefined
-                  ? String(
-                      item.actual_quantity
-                    )
-                  : '',
+          locationName:
+            item.location_name || '',
 
-              cumulativeQuantity:
-                item.cumulative_quantity !== null &&
-                item.cumulative_quantity !== undefined
-                  ? String(
-                      item.cumulative_quantity
-                    )
-                  : '',
+          serviceCode:
+            item.service_code || '',
 
-              varianceReason:
-                item.variance_reason || '',
+          serviceName:
+            item.service_name || '',
 
-              varianceNotes:
-                item.variance_notes || '',
+          unit:
+            item.unit || '',
 
-              notes:
-                item.notes || '',
-            };
-          }
-        );
+          scopeQuantity:
+            scopeQuantity?.quantity !== null &&
+            scopeQuantity?.quantity !== undefined
+              ? String(
+                  scopeQuantity.quantity
+                )
+              : '',
+
+          plannedQuantity:
+            item.planned_quantity !== null &&
+            item.planned_quantity !== undefined
+              ? String(
+                  item.planned_quantity
+                )
+              : '',
+
+          actualQuantity:
+            item.actual_quantity !== null &&
+            item.actual_quantity !== undefined
+              ? String(
+                  item.actual_quantity
+                )
+              : '',
+
+          previousCumulativeQuantity:
+            previousCumulative,
+
+          calculatedCumulativeQuantity:
+            previousCumulative +
+            actualToday,
+
+          varianceReason:
+            item.variance_reason || '',
+
+          varianceNotes:
+            item.variance_notes || '',
+
+          notes:
+            item.notes || '',
+        });
+      }
 
       setEntries(nextEntries);
 
@@ -579,6 +627,113 @@ export default function DailyReportProductionPage() {
     locationMap,
   ]);
 
+  const productionLocations = useMemo(() => {
+    const validLocationIds =
+      new Set(
+        serviceQuantities.map(
+          (item) => item.location_id
+        )
+      );
+
+    return locations.filter(
+      (location) =>
+        validLocationIds.has(
+          location.id
+        )
+    );
+  }, [
+    locations,
+    serviceQuantities,
+  ]);
+
+  function getAvailableServices(
+    locationId
+  ) {
+    if (!locationId) {
+      return [];
+    }
+
+    const quantityRows =
+      serviceQuantities.filter(
+        (quantity) =>
+          quantity.location_id ===
+          locationId
+      );
+
+    return quantityRows
+      .map((quantity) => {
+        const service =
+          projectServices.find(
+            (item) =>
+              item.id ===
+              quantity.service_id
+          );
+
+        if (!service) {
+          return null;
+        }
+
+        return {
+          ...service,
+          locationServiceQuantityId:
+            quantity.id,
+          scopeQuantity:
+            quantity.quantity,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  async function calculatePreviousCumulative(
+    locationId,
+    projectServiceId
+  ) {
+    if (
+      !locationId ||
+      !projectServiceId ||
+      !report
+    ) {
+      return 0;
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('daily_report_production')
+      .select(`
+        actual_quantity,
+        daily_reports!inner(
+          report_date
+        )
+      `)
+      .eq(
+        'location_id',
+        locationId
+      )
+      .eq(
+        'project_service_id',
+        projectServiceId
+      )
+      .lt(
+        'daily_reports.report_date',
+        report.report_date
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    return (data || []).reduce(
+      (total, item) =>
+        total +
+        (Number(
+          item.actual_quantity
+        ) || 0),
+      0
+    );
+  }
+
   function addProductionEntry() {
     setEntries(
       (currentEntries) => [
@@ -598,13 +753,29 @@ export default function DailyReportProductionPage() {
     setEntries(
       (currentEntries) =>
         currentEntries.map(
-          (entry) =>
-            entry.localId === localId
-              ? {
-                  ...entry,
-                  [field]: value,
-                }
-              : entry
+          (entry) => {
+            if (
+              entry.localId !==
+              localId
+            ) {
+              return entry;
+            }
+
+            const updatedEntry = {
+              ...entry,
+              [field]: value,
+            };
+
+            if (
+              field === 'actualQuantity'
+            ) {
+              updatedEntry.calculatedCumulativeQuantity =
+                updatedEntry.previousCumulativeQuantity +
+                (numericValue(value) || 0);
+            }
+
+            return updatedEntry;
+          }
         )
     );
 
@@ -656,6 +827,12 @@ export default function DailyReportProductionPage() {
 
                   scopeQuantity:
                     '',
+
+                  previousCumulativeQuantity:
+                    0,
+
+                  calculatedCumulativeQuantity:
+                    0,
                 }
               : currentEntry
         )
@@ -664,45 +841,7 @@ export default function DailyReportProductionPage() {
     setSuccessMessage('');
   }
 
-  function getAvailableServices(
-    locationId
-  ) {
-    if (!locationId) {
-      return [];
-    }
-
-    const quantityRows =
-      serviceQuantities.filter(
-        (quantity) =>
-          quantity.location_id ===
-          locationId
-      );
-
-    return quantityRows
-      .map((quantity) => {
-        const service =
-          projectServices.find(
-            (item) =>
-              item.id ===
-              quantity.service_id
-          );
-
-        if (!service) {
-          return null;
-        }
-
-        return {
-          ...service,
-          locationServiceQuantityId:
-            quantity.id,
-          scopeQuantity:
-            quantity.quantity,
-        };
-      })
-      .filter(Boolean);
-  }
-
-  function selectService(
+  async function selectService(
     entry,
     serviceId
   ) {
@@ -717,56 +856,83 @@ export default function DailyReportProductionPage() {
           service.id === serviceId
       );
 
-    setEntries(
-      (currentEntries) =>
-        currentEntries.map(
-          (currentEntry) =>
-            currentEntry.localId ===
-            entry.localId
-              ? {
-                  ...currentEntry,
+    if (!selectedService) {
+      return;
+    }
 
-                  projectServiceId:
-                    selectedService?.id ||
-                    '',
-
-                  locationServiceQuantityId:
-                    selectedService
-                      ?.locationServiceQuantityId ||
-                    '',
-
-                  serviceCode:
-                    selectedService
-                      ?.service_code ||
-                    '',
-
-                  serviceName:
-                    selectedService
-                      ?.service_name ||
-                    '',
-
-                  unit:
-                    selectedService
-                      ?.unit ||
-                    '',
-
-                  scopeQuantity:
-                    selectedService
-                      ?.scopeQuantity !==
-                      null &&
-                    selectedService
-                      ?.scopeQuantity !==
-                      undefined
-                      ? String(
-                          selectedService.scopeQuantity
-                        )
-                      : '',
-                }
-              : currentEntry
-        )
-    );
-
+    setErrorMessage('');
     setSuccessMessage('');
+
+    try {
+      const previousCumulative =
+        await calculatePreviousCumulative(
+          entry.locationId,
+          selectedService.id
+        );
+
+      const actualToday =
+        numericValue(
+          entry.actualQuantity
+        ) || 0;
+
+      setEntries(
+        (currentEntries) =>
+          currentEntries.map(
+            (currentEntry) =>
+              currentEntry.localId ===
+              entry.localId
+                ? {
+                    ...currentEntry,
+
+                    projectServiceId:
+                      selectedService.id,
+
+                    locationServiceQuantityId:
+                      selectedService
+                        .locationServiceQuantityId,
+
+                    serviceCode:
+                      selectedService
+                        .service_code ||
+                      '',
+
+                    serviceName:
+                      selectedService
+                        .service_name ||
+                      '',
+
+                    unit:
+                      selectedService
+                        .unit ||
+                      '',
+
+                    scopeQuantity:
+                      selectedService
+                        .scopeQuantity !==
+                        null &&
+                      selectedService
+                        .scopeQuantity !==
+                        undefined
+                        ? String(
+                            selectedService.scopeQuantity
+                          )
+                        : '',
+
+                    previousCumulativeQuantity:
+                      previousCumulative,
+
+                    calculatedCumulativeQuantity:
+                      previousCumulative +
+                      actualToday,
+                  }
+                : currentEntry
+          )
+      );
+    } catch (error) {
+      setErrorMessage(
+        error.message
+      );
+    }
   }
 
   async function removeEntry(
@@ -868,11 +1034,6 @@ export default function DailyReportProductionPage() {
           entry.actualQuantity
         );
 
-      const cumulativeQuantity =
-        numericValue(
-          entry.cumulativeQuantity
-        );
-
       if (
         plannedQuantity !== null &&
         plannedQuantity < 0
@@ -897,17 +1058,15 @@ export default function DailyReportProductionPage() {
         return;
       }
 
-      if (
-        cumulativeQuantity !== null &&
-        cumulativeQuantity < 0
-      ) {
-        setErrorMessage(
-          `${entry.serviceName}: cumulative quantity cannot be negative.`
+      const previousCumulative =
+        await calculatePreviousCumulative(
+          entry.locationId,
+          entry.projectServiceId
         );
 
-        setIsSaving(false);
-        return;
-      }
+      const calculatedCumulative =
+        previousCumulative +
+        (actualQuantity || 0);
 
       const scopeQuantity =
         numericValue(
@@ -915,9 +1074,8 @@ export default function DailyReportProductionPage() {
         );
 
       if (
-        cumulativeQuantity !== null &&
         scopeQuantity !== null &&
-        cumulativeQuantity >
+        calculatedCumulative >
           scopeQuantity
       ) {
         setErrorMessage(
@@ -929,6 +1087,42 @@ export default function DailyReportProductionPage() {
 
         setIsSaving(false);
         return;
+      }
+
+      const variance =
+        plannedQuantity !== null &&
+        actualQuantity !== null
+          ? actualQuantity -
+            plannedQuantity
+          : null;
+
+      let productionStatus = 'not_started';
+
+      if (
+        actualQuantity !== null &&
+        actualQuantity > 0
+      ) {
+        productionStatus =
+          'in_progress';
+      }
+
+      if (
+        scopeQuantity !== null &&
+        calculatedCumulative >=
+          scopeQuantity
+      ) {
+        productionStatus =
+          'completed';
+      }
+
+      if (
+        variance !== null &&
+        variance < 0 &&
+        productionStatus !==
+          'completed'
+      ) {
+        productionStatus =
+          'behind_plan';
       }
 
       const payload = {
@@ -968,7 +1162,10 @@ export default function DailyReportProductionPage() {
           actualQuantity,
 
         cumulative_quantity:
-          cumulativeQuantity,
+          calculatedCumulative,
+
+        production_status:
+          productionStatus,
 
         variance_reason:
           entry.varianceReason.trim() ||
@@ -995,28 +1192,7 @@ export default function DailyReportProductionPage() {
             'id',
             entry.id
           )
-          .select(`
-            id,
-            daily_report_id,
-            location_id,
-            project_service_id,
-            location_service_quantity_id,
-            location_name,
-            service_code,
-            service_name,
-            unit,
-            planned_quantity,
-            actual_quantity,
-            cumulative_quantity,
-            production_status,
-            variance_reason,
-            variance_notes,
-            notes,
-            source,
-            created_by,
-            created_at,
-            updated_at
-          `)
+          .select('id')
           .single();
       } else {
         result = await supabase
@@ -1028,28 +1204,7 @@ export default function DailyReportProductionPage() {
             created_by:
               userId,
           })
-          .select(`
-            id,
-            daily_report_id,
-            location_id,
-            project_service_id,
-            location_service_quantity_id,
-            location_name,
-            service_code,
-            service_name,
-            unit,
-            planned_quantity,
-            actual_quantity,
-            cumulative_quantity,
-            production_status,
-            variance_reason,
-            variance_notes,
-            notes,
-            source,
-            created_by,
-            created_at,
-            updated_at
-          `)
+          .select('id')
           .single();
       }
 
@@ -1076,6 +1231,12 @@ export default function DailyReportProductionPage() {
 
                     localId:
                       result.data.id,
+
+                    previousCumulativeQuantity:
+                      previousCumulative,
+
+                    calculatedCumulativeQuantity:
+                      calculatedCumulative,
                   }
                 : currentEntry
           )
@@ -1164,18 +1325,6 @@ export default function DailyReportProductionPage() {
           <p className={styles.integrationText}>
             {errorMessage}
           </p>
-
-          <button
-            type="button"
-            className={styles.secondaryButton}
-            onClick={() =>
-              router.push(
-                '/dashboard/projects/daily-reports'
-              )
-            }
-          >
-            ← Daily Report Center
-          </button>
         </section>
       </main>
     );
@@ -1308,112 +1457,92 @@ export default function DailyReportProductionPage() {
             marginTop: '16px',
           }}
         >
-          <div
-            style={{
-              padding: '14px',
-              border:
-                '1px solid #e2e8f0',
-              borderRadius: '9px',
-              background: '#f8fafc',
-            }}
-          >
+          <div style={{
+            padding: '14px',
+            border: '1px solid #e2e8f0',
+            borderRadius: '9px',
+            background: '#f8fafc',
+          }}>
             <div style={labelStyle}>
               RECORDS
             </div>
 
-            <div
-              style={{
-                marginTop: '5px',
-                color: '#061b2f',
-                fontSize: '1.35rem',
-                fontWeight: 800,
-              }}
-            >
+            <div style={{
+              marginTop: '5px',
+              color: '#061b2f',
+              fontSize: '1.35rem',
+              fontWeight: 800,
+            }}>
               {entries.length}
             </div>
           </div>
 
-          <div
-            style={{
-              padding: '14px',
-              border:
-                '1px solid #e2e8f0',
-              borderRadius: '9px',
-              background: '#f8fafc',
-            }}
-          >
+          <div style={{
+            padding: '14px',
+            border: '1px solid #e2e8f0',
+            borderRadius: '9px',
+            background: '#f8fafc',
+          }}>
             <div style={labelStyle}>
               PLANNED TODAY
             </div>
 
-            <div
-              style={{
-                marginTop: '5px',
-                color: '#061b2f',
-                fontSize: '1.35rem',
-                fontWeight: 800,
-              }}
-            >
+            <div style={{
+              marginTop: '5px',
+              color: '#061b2f',
+              fontSize: '1.35rem',
+              fontWeight: 800,
+            }}>
               {formatQuantity(
                 totalPlanned
               )}
             </div>
           </div>
 
-          <div
-            style={{
-              padding: '14px',
-              border:
-                '1px solid #e2e8f0',
-              borderRadius: '9px',
-              background: '#f8fafc',
-            }}
-          >
+          <div style={{
+            padding: '14px',
+            border: '1px solid #e2e8f0',
+            borderRadius: '9px',
+            background: '#f8fafc',
+          }}>
             <div style={labelStyle}>
               ACTUAL TODAY
             </div>
 
-            <div
-              style={{
-                marginTop: '5px',
-                color: '#061b2f',
-                fontSize: '1.35rem',
-                fontWeight: 800,
-              }}
-            >
+            <div style={{
+              marginTop: '5px',
+              color: '#061b2f',
+              fontSize: '1.35rem',
+              fontWeight: 800,
+            }}>
               {formatQuantity(
                 totalActual
               )}
             </div>
           </div>
 
-          <div
-            style={{
-              padding: '14px',
-              border:
-                '1px solid #e2e8f0',
-              borderRadius: '9px',
-              background:
-                entriesWithVariance > 0
-                  ? '#fffaf0'
-                  : '#f2fbf9',
-            }}
-          >
+          <div style={{
+            padding: '14px',
+            border: '1px solid #e2e8f0',
+            borderRadius: '9px',
+            background:
+              entriesWithVariance > 0
+                ? '#fffaf0'
+                : '#f2fbf9',
+          }}>
             <div style={labelStyle}>
               VARIANCES
             </div>
 
-            <div
-              style={{
-                marginTop: '5px',
-                color:
-                  entriesWithVariance > 0
-                    ? '#9a6700'
-                    : '#087f73',
-                fontSize: '1.35rem',
-                fontWeight: 800,
-              }}
-            >
+            <div style={{
+              marginTop: '5px',
+              color:
+                entriesWithVariance > 0
+                  ? '#9a6700'
+                  : '#087f73',
+              fontSize: '1.35rem',
+              fontWeight: 800,
+            }}>
               {entriesWithVariance}
             </div>
           </div>
@@ -1423,7 +1552,512 @@ export default function DailyReportProductionPage() {
       <form
         onSubmit={saveProduction}
       >
-        {entries.length === 0 ? (
+        {entries.map(
+          (entry, index) => {
+            const availableServices =
+              getAvailableServices(
+                entry.locationId
+              );
+
+            const planned =
+              numericValue(
+                entry.plannedQuantity
+              );
+
+            const actual =
+              numericValue(
+                entry.actualQuantity
+              );
+
+            const variance =
+              planned !== null &&
+              actual !== null
+                ? actual - planned
+                : null;
+
+            const scopeQuantity =
+              numericValue(
+                entry.scopeQuantity
+              );
+
+            const cumulative =
+              entry.calculatedCumulativeQuantity;
+
+            const progress =
+              scopeQuantity &&
+              cumulative !== null
+                ? Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      (cumulative /
+                        scopeQuantity) *
+                        100
+                    )
+                  )
+                : null;
+
+            return (
+              <section
+                key={
+                  entry.localId
+                }
+                className={
+                  styles.infoCard
+                }
+                style={{
+                  marginTop:
+                    '14px',
+                }}
+              >
+                <div
+                  className={
+                    styles.infoCardHeader
+                  }
+                >
+                  <div>
+                    <p
+                      className={
+                        styles.sectionEyebrow
+                      }
+                    >
+                      PRODUCTION{' '}
+                      {String(
+                        index + 1
+                      ).padStart(
+                        2,
+                        '0'
+                      )}
+                    </p>
+
+                    <h2
+                      className={
+                        styles.sectionTitle
+                      }
+                    >
+                      {entry.serviceName ||
+                        'New Production Record'}
+                    </h2>
+                  </div>
+
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      style={
+                        dangerButtonStyle
+                      }
+                      onClick={() =>
+                        removeEntry(
+                          entry
+                        )
+                      }
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(2, minmax(0, 1fr))',
+                    gap: '16px',
+                  }}
+                >
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>
+                      Location
+                    </span>
+
+                    <select
+                      value={
+                        entry.locationId
+                      }
+                      onChange={(event) =>
+                        selectLocation(
+                          entry,
+                          event.target.value
+                        )
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      style={
+                        inputStyle
+                      }
+                    >
+                      <option value="">
+                        Select location
+                      </option>
+
+                      {productionLocations.map(
+                        (location) => (
+                          <option
+                            key={
+                              location.id
+                            }
+                            value={
+                              location.id
+                            }
+                          >
+                            {locationPathMap.get(
+                              location.id
+                            ) ||
+                              location.name}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>
+                      Service
+                    </span>
+
+                    <select
+                      value={
+                        entry.projectServiceId
+                      }
+                      onChange={(event) =>
+                        selectService(
+                          entry,
+                          event.target.value
+                        )
+                      }
+                      disabled={
+                        isReadOnly ||
+                        !entry.locationId
+                      }
+                      style={
+                        inputStyle
+                      }
+                    >
+                      <option value="">
+                        Select service
+                      </option>
+
+                      {availableServices.map(
+                        (service) => (
+                          <option
+                            key={
+                              service.id
+                            }
+                            value={
+                              service.id
+                            }
+                          >
+                            {
+                              service.service_name
+                            }
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+                </div>
+
+                {entry.projectServiceId && (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns:
+                        'repeat(4, minmax(0, 1fr))',
+                      gap: '12px',
+                      marginTop: '16px',
+                    }}
+                  >
+                    <div style={{
+                      padding: '12px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      background: '#f8fafc',
+                    }}>
+                      <div style={labelStyle}>
+                        SCOPE QUANTITY
+                      </div>
+
+                      <strong>
+                        {formatQuantity(
+                          entry.scopeQuantity,
+                          entry.unit
+                        )}
+                      </strong>
+                    </div>
+
+                    <div style={{
+                      padding: '12px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      background: '#f8fafc',
+                    }}>
+                      <div style={labelStyle}>
+                        PREVIOUS CUMULATIVE
+                      </div>
+
+                      <strong>
+                        {formatQuantity(
+                          entry.previousCumulativeQuantity,
+                          entry.unit
+                        )}
+                      </strong>
+                    </div>
+
+                    <div style={{
+                      padding: '12px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      background: '#f8fafc',
+                    }}>
+                      <div style={labelStyle}>
+                        DAILY VARIANCE
+                      </div>
+
+                      <strong
+                        style={{
+                          color:
+                            variance === null
+                              ? '#64748b'
+                              : variance < 0
+                                ? '#9f2929'
+                                : variance > 0
+                                  ? '#087f73'
+                                  : '#061b2f',
+                        }}
+                      >
+                        {variance === null
+                          ? '—'
+                          : formatQuantity(
+                              variance,
+                              entry.unit
+                            )}
+                      </strong>
+                    </div>
+
+                    <div style={{
+                      padding: '12px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      background: '#f8fafc',
+                    }}>
+                      <div style={labelStyle}>
+                        PROGRESS
+                      </div>
+
+                      <strong>
+                        {progress === null
+                          ? '—'
+                          : `${progress.toFixed(
+                              1
+                            )}%`}
+                      </strong>
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(3, minmax(0, 1fr))',
+                    gap: '16px',
+                    marginTop: '18px',
+                  }}
+                >
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>
+                      Planned today
+                      {entry.unit
+                        ? ` (${entry.unit})`
+                        : ''}
+                    </span>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={
+                        entry.plannedQuantity
+                      }
+                      onChange={(event) =>
+                        updateEntry(
+                          entry.localId,
+                          'plannedQuantity',
+                          event.target.value
+                        )
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      placeholder="0"
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </label>
+
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>
+                      Actual today
+                      {entry.unit
+                        ? ` (${entry.unit})`
+                        : ''}
+                    </span>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={
+                        entry.actualQuantity
+                      }
+                      onChange={(event) =>
+                        updateEntry(
+                          entry.localId,
+                          'actualQuantity',
+                          event.target.value
+                        )
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      placeholder="0"
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </label>
+
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>
+                      Cumulative quantity
+                      {entry.unit
+                        ? ` (${entry.unit})`
+                        : ''}
+                    </span>
+
+                    <input
+                      type="text"
+                      value={formatQuantity(
+                        entry.calculatedCumulativeQuantity
+                      )}
+                      disabled
+                      style={{
+                        ...inputStyle,
+                        color: '#087f73',
+                        background: '#f2fbf9',
+                        fontWeight: 800,
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      '1fr 2fr',
+                    gap: '16px',
+                    marginTop: '18px',
+                  }}
+                >
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>
+                      Variance reason
+                    </span>
+
+                    <input
+                      type="text"
+                      value={
+                        entry.varianceReason
+                      }
+                      onChange={(event) =>
+                        updateEntry(
+                          entry.localId,
+                          'varianceReason',
+                          event.target.value
+                        )
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      placeholder="Example: Material delay"
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </label>
+
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>
+                      Variance details
+                    </span>
+
+                    <input
+                      type="text"
+                      value={
+                        entry.varianceNotes
+                      }
+                      onChange={(event) =>
+                        updateEntry(
+                          entry.localId,
+                          'varianceNotes',
+                          event.target.value
+                        )
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      placeholder="Describe why actual production differed from plan..."
+                      style={
+                        inputStyle
+                      }
+                    />
+                  </label>
+                </div>
+
+                <label
+                  style={{
+                    ...fieldStyle,
+                    marginTop: '18px',
+                  }}
+                >
+                  <span style={labelStyle}>
+                    Production notes
+                  </span>
+
+                  <textarea
+                    rows={3}
+                    value={
+                      entry.notes
+                    }
+                    onChange={(event) =>
+                      updateEntry(
+                        entry.localId,
+                        'notes',
+                        event.target.value
+                      )
+                    }
+                    disabled={
+                      isReadOnly
+                    }
+                    placeholder="Additional field production observations..."
+                    style={{
+                      ...inputStyle,
+                      minHeight: '84px',
+                      padding: '10px 12px',
+                      lineHeight: 1.5,
+                      resize: 'vertical',
+                    }}
+                  />
+                </label>
+              </section>
+            );
+          }
+        )}
+
+        {entries.length === 0 && (
           <section
             className={styles.infoCard}
             style={{
@@ -1432,43 +2066,19 @@ export default function DailyReportProductionPage() {
               padding: '38px 24px',
             }}
           >
-            <p
-              className={
-                styles.sectionEyebrow
-              }
-            >
+            <p className={styles.sectionEyebrow}>
               NO PRODUCTION RECORDED
             </p>
 
-            <h2
-              className={
-                styles.sectionTitle
-              }
-            >
+            <h2 className={styles.sectionTitle}>
               Add the first production record
             </h2>
 
-            <p
-              className={
-                styles.integrationText
-              }
-            >
-              Select a project location and
-              service to record planned and
-              actual production for the day.
-            </p>
-
             {!isReadOnly && (
-              <div
-                style={{
-                  marginTop: '18px',
-                }}
-              >
+              <div style={{ marginTop: '18px' }}>
                 <button
                   type="button"
-                  className={
-                    styles.primaryButton
-                  }
+                  className={styles.primaryButton}
                   onClick={
                     addProductionEntry
                   }
@@ -1478,519 +2088,6 @@ export default function DailyReportProductionPage() {
               </div>
             )}
           </section>
-        ) : (
-          entries.map(
-            (entry, index) => {
-              const availableServices =
-                getAvailableServices(
-                  entry.locationId
-                );
-
-              const planned =
-                numericValue(
-                  entry.plannedQuantity
-                );
-
-              const actual =
-                numericValue(
-                  entry.actualQuantity
-                );
-
-              const variance =
-                planned !== null &&
-                actual !== null
-                  ? actual - planned
-                  : null;
-
-              const scopeQuantity =
-                numericValue(
-                  entry.scopeQuantity
-                );
-
-              const cumulative =
-                numericValue(
-                  entry.cumulativeQuantity
-                );
-
-              const progress =
-                scopeQuantity &&
-                cumulative !== null
-                  ? Math.min(
-                      100,
-                      Math.max(
-                        0,
-                        (cumulative /
-                          scopeQuantity) *
-                          100
-                      )
-                    )
-                  : null;
-
-              return (
-                <section
-                  key={
-                    entry.localId
-                  }
-                  className={
-                    styles.infoCard
-                  }
-                  style={{
-                    marginTop:
-                      '14px',
-                  }}
-                >
-                  <div
-                    className={
-                      styles.infoCardHeader
-                    }
-                  >
-                    <div>
-                      <p
-                        className={
-                          styles.sectionEyebrow
-                        }
-                      >
-                        PRODUCTION{' '}
-                        {String(
-                          index + 1
-                        ).padStart(
-                          2,
-                          '0'
-                        )}
-                      </p>
-
-                      <h2
-                        className={
-                          styles.sectionTitle
-                        }
-                      >
-                        {entry.serviceName ||
-                          'New Production Record'}
-                      </h2>
-                    </div>
-
-                    {!isReadOnly && (
-                      <button
-                        type="button"
-                        style={
-                          dangerButtonStyle
-                        }
-                        onClick={() =>
-                          removeEntry(
-                            entry
-                          )
-                        }
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns:
-                        'repeat(2, minmax(0, 1fr))',
-                      gap: '16px',
-                    }}
-                  >
-                    <label style={fieldStyle}>
-                      <span style={labelStyle}>
-                        Location
-                      </span>
-
-                      <select
-                        value={
-                          entry.locationId
-                        }
-                        onChange={(event) =>
-                          selectLocation(
-                            entry,
-                            event.target.value
-                          )
-                        }
-                        disabled={
-                          isReadOnly
-                        }
-                        style={
-                          inputStyle
-                        }
-                      >
-                        <option value="">
-                          Select location
-                        </option>
-
-                        {locations.map(
-                          (location) => (
-                            <option
-                              key={
-                                location.id
-                              }
-                              value={
-                                location.id
-                              }
-                            >
-                              {locationPathMap.get(
-                                location.id
-                              ) ||
-                                location.name}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </label>
-
-                    <label style={fieldStyle}>
-                      <span style={labelStyle}>
-                        Service
-                      </span>
-
-                      <select
-                        value={
-                          entry.projectServiceId
-                        }
-                        onChange={(event) =>
-                          selectService(
-                            entry,
-                            event.target.value
-                          )
-                        }
-                        disabled={
-                          isReadOnly ||
-                          !entry.locationId
-                        }
-                        style={
-                          inputStyle
-                        }
-                      >
-                        <option value="">
-                          Select service
-                        </option>
-
-                        {availableServices.map(
-                          (service) => (
-                            <option
-                              key={
-                                service.id
-                              }
-                              value={
-                                service.id
-                              }
-                            >
-                              {service.service_code
-                                ? `${service.service_code} · `
-                                : ''}
-                              {
-                                service.service_name
-                              }
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </label>
-                  </div>
-
-                  {entry.projectServiceId && (
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns:
-                          'repeat(3, minmax(0, 1fr))',
-                        gap: '12px',
-                        marginTop: '16px',
-                      }}
-                    >
-                      <div
-                        style={{
-                          padding: '12px',
-                          border:
-                            '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          background:
-                            '#f8fafc',
-                        }}
-                      >
-                        <div style={labelStyle}>
-                          SCOPE QUANTITY
-                        </div>
-
-                        <strong>
-                          {formatQuantity(
-                            entry.scopeQuantity,
-                            entry.unit
-                          )}
-                        </strong>
-                      </div>
-
-                      <div
-                        style={{
-                          padding: '12px',
-                          border:
-                            '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          background:
-                            '#f8fafc',
-                        }}
-                      >
-                        <div style={labelStyle}>
-                          DAILY VARIANCE
-                        </div>
-
-                        <strong
-                          style={{
-                            color:
-                              variance === null
-                                ? '#64748b'
-                                : variance < 0
-                                  ? '#9f2929'
-                                  : variance > 0
-                                    ? '#087f73'
-                                    : '#061b2f',
-                          }}
-                        >
-                          {variance === null
-                            ? '—'
-                            : formatQuantity(
-                                variance,
-                                entry.unit
-                              )}
-                        </strong>
-                      </div>
-
-                      <div
-                        style={{
-                          padding: '12px',
-                          border:
-                            '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          background:
-                            '#f8fafc',
-                        }}
-                      >
-                        <div style={labelStyle}>
-                          PROGRESS
-                        </div>
-
-                        <strong>
-                          {progress === null
-                            ? '—'
-                            : `${progress.toFixed(
-                                1
-                              )}%`}
-                        </strong>
-                      </div>
-                    </div>
-                  )}
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns:
-                        'repeat(3, minmax(0, 1fr))',
-                      gap: '16px',
-                      marginTop: '18px',
-                    }}
-                  >
-                    <label style={fieldStyle}>
-                      <span style={labelStyle}>
-                        Planned today
-                        {entry.unit
-                          ? ` (${entry.unit})`
-                          : ''}
-                      </span>
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={
-                          entry.plannedQuantity
-                        }
-                        onChange={(event) =>
-                          updateEntry(
-                            entry.localId,
-                            'plannedQuantity',
-                            event.target.value
-                          )
-                        }
-                        disabled={
-                          isReadOnly
-                        }
-                        placeholder="0"
-                        style={
-                          inputStyle
-                        }
-                      />
-                    </label>
-
-                    <label style={fieldStyle}>
-                      <span style={labelStyle}>
-                        Actual today
-                        {entry.unit
-                          ? ` (${entry.unit})`
-                          : ''}
-                      </span>
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={
-                          entry.actualQuantity
-                        }
-                        onChange={(event) =>
-                          updateEntry(
-                            entry.localId,
-                            'actualQuantity',
-                            event.target.value
-                          )
-                        }
-                        disabled={
-                          isReadOnly
-                        }
-                        placeholder="0"
-                        style={
-                          inputStyle
-                        }
-                      />
-                    </label>
-
-                    <label style={fieldStyle}>
-                      <span style={labelStyle}>
-                        Cumulative quantity
-                        {entry.unit
-                          ? ` (${entry.unit})`
-                          : ''}
-                      </span>
-
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={
-                          entry.cumulativeQuantity
-                        }
-                        onChange={(event) =>
-                          updateEntry(
-                            entry.localId,
-                            'cumulativeQuantity',
-                            event.target.value
-                          )
-                        }
-                        disabled={
-                          isReadOnly
-                        }
-                        placeholder="0"
-                        style={
-                          inputStyle
-                        }
-                      />
-                    </label>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns:
-                        '1fr 2fr',
-                      gap: '16px',
-                      marginTop: '18px',
-                    }}
-                  >
-                    <label style={fieldStyle}>
-                      <span style={labelStyle}>
-                        Variance reason
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          entry.varianceReason
-                        }
-                        onChange={(event) =>
-                          updateEntry(
-                            entry.localId,
-                            'varianceReason',
-                            event.target.value
-                          )
-                        }
-                        disabled={
-                          isReadOnly
-                        }
-                        placeholder="Example: Material delay"
-                        style={
-                          inputStyle
-                        }
-                      />
-                    </label>
-
-                    <label style={fieldStyle}>
-                      <span style={labelStyle}>
-                        Variance details
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          entry.varianceNotes
-                        }
-                        onChange={(event) =>
-                          updateEntry(
-                            entry.localId,
-                            'varianceNotes',
-                            event.target.value
-                          )
-                        }
-                        disabled={
-                          isReadOnly
-                        }
-                        placeholder="Describe why actual production differed from plan..."
-                        style={
-                          inputStyle
-                        }
-                      />
-                    </label>
-                  </div>
-
-                  <label
-                    style={{
-                      ...fieldStyle,
-                      marginTop: '18px',
-                    }}
-                  >
-                    <span style={labelStyle}>
-                      Production notes
-                    </span>
-
-                    <textarea
-                      rows={3}
-                      value={
-                        entry.notes
-                      }
-                      onChange={(event) =>
-                        updateEntry(
-                          entry.localId,
-                          'notes',
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      placeholder="Additional field production observations..."
-                      style={{
-                        ...inputStyle,
-                        minHeight: '84px',
-                        padding: '10px 12px',
-                        lineHeight: 1.5,
-                        resize: 'vertical',
-                      }}
-                    />
-                  </label>
-                </section>
-              );
-            }
-          )
         )}
 
         <div
