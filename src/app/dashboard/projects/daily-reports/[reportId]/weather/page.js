@@ -5,6 +5,58 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '../../../../../../lib/supabase/client';
 import styles from '../../daily-reports.module.css';
 
+const PERIODS = [
+  {
+    key: 'morning',
+    label: 'Morning',
+  },
+  {
+    key: 'afternoon',
+    label: 'Afternoon',
+  },
+  {
+    key: 'evening',
+    label: 'Evening',
+  },
+];
+
+const WEATHER_OPTIONS = [
+  'clear',
+  'partly_cloudy',
+  'cloudy',
+  'light_rain',
+  'rain',
+  'heavy_rain',
+  'storm',
+  'snow',
+  'fog',
+  'other',
+];
+
+const WIND_OPTIONS = [
+  'calm',
+  'light',
+  'moderate',
+  'strong',
+  'severe',
+];
+
+const SITE_OPTIONS = [
+  'dry',
+  'damp',
+  'wet',
+  'muddy',
+  'frozen',
+  'restricted',
+];
+
+const IMPACT_OPTIONS = [
+  'none',
+  'minor',
+  'moderate',
+  'severe',
+];
+
 const fieldStyle = {
   display: 'flex',
   flexDirection: 'column',
@@ -30,11 +82,42 @@ const inputStyle = {
   boxSizing: 'border-box',
 };
 
+function createEmptyPeriod() {
+  return {
+    id: null,
+    condition: '',
+    temperatureMin: '',
+    temperatureMax: '',
+    temperatureUnit: 'F',
+    rainfall: '',
+    windCondition: '',
+    siteCondition: '',
+    productionImpact: 'none',
+    impactHours: '',
+    notes: '',
+  };
+}
+
+function createInitialWeatherState() {
+  return {
+    morning: createEmptyPeriod(),
+    afternoon: createEmptyPeriod(),
+    evening: createEmptyPeriod(),
+  };
+}
+
 function formatDate(value) {
-  if (!value) return '—';
+  if (!value) {
+    return '—';
+  }
 
   const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
+
+  const date = new Date(
+    year,
+    month - 1,
+    day
+  );
 
   return new Intl.DateTimeFormat('en-US', {
     month: 'long',
@@ -54,20 +137,54 @@ function formatStatus(status) {
   return labels[status] || status || 'Draft';
 }
 
-function getStatusClass(status, styles) {
+function getStatusClass(status, stylesObject) {
   if (status === 'approved') {
-    return styles.statusApproved;
+    return stylesObject.statusApproved;
   }
 
-  if (status === 'submitted' || status === 'reviewed') {
-    return styles.statusSubmitted;
+  if (
+    status === 'submitted' ||
+    status === 'reviewed'
+  ) {
+    return stylesObject.statusSubmitted;
   }
 
-  return styles.statusDraft;
+  return stylesObject.statusDraft;
+}
+
+function formatOptionLabel(value) {
+  if (!value) {
+    return '';
+  }
+
+  return value
+    .replaceAll('_', ' ')
+    .replace(
+      /\b\w/g,
+      (character) => character.toUpperCase()
+    );
+}
+
+function hasPeriodContent(periodData) {
+  return Boolean(
+    periodData.condition ||
+      periodData.temperatureMin !== '' ||
+      periodData.temperatureMax !== '' ||
+      periodData.rainfall !== '' ||
+      periodData.windCondition ||
+      periodData.siteCondition ||
+      periodData.productionImpact !== 'none' ||
+      periodData.impactHours !== '' ||
+      periodData.notes.trim()
+  );
 }
 
 export default function DailyReportWeatherPage() {
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(
+    () => createClient(),
+    []
+  );
+
   const params = useParams();
   const router = useRouter();
 
@@ -75,40 +192,49 @@ export default function DailyReportWeatherPage() {
 
   const [report, setReport] = useState(null);
   const [project, setProject] = useState(null);
-  const [weatherRecord, setWeatherRecord] = useState(null);
 
-  const [condition, setCondition] = useState('');
-  const [temperatureMin, setTemperatureMin] = useState('');
-  const [temperatureMax, setTemperatureMax] = useState('');
-  const [rainfall, setRainfall] = useState('');
-  const [windCondition, setWindCondition] = useState('');
-  const [siteCondition, setSiteCondition] = useState('');
-  const [productionImpact, setProductionImpact] = useState('none');
-  const [impactHours, setImpactHours] = useState('');
-  const [notes, setNotes] = useState('');
+  const [weather, setWeather] = useState(
+    createInitialWeatherState
+  );
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [activePeriod, setActivePeriod] =
+    useState('morning');
 
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [isLoading, setIsLoading] =
+    useState(true);
+
+  const [isSaving, setIsSaving] =
+    useState(false);
+
+  const [errorMessage, setErrorMessage] =
+    useState('');
+
+  const [successMessage, setSuccessMessage] =
+    useState('');
 
   useEffect(() => {
     async function loadWeather() {
-      if (!reportId) return;
+      if (!reportId) {
+        return;
+      }
 
       setIsLoading(true);
       setErrorMessage('');
+      setSuccessMessage('');
 
       const {
         data: userData,
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError || !userData?.user) {
+      if (
+        userError ||
+        !userData?.user
+      ) {
         setErrorMessage(
           'Your authenticated session could not be verified.'
         );
+
         setIsLoading(false);
         return;
       }
@@ -129,10 +255,15 @@ export default function DailyReportWeatherPage() {
         .eq('id', reportId)
         .single();
 
-      if (reportError || !reportData) {
+      if (
+        reportError ||
+        !reportData
+      ) {
         setErrorMessage(
-          reportError?.message || 'Daily Report not found.'
+          reportError?.message ||
+            'Daily Report not found.'
         );
+
         setIsLoading(false);
         return;
       }
@@ -149,155 +280,504 @@ export default function DailyReportWeatherPage() {
           client_name,
           organization_id
         `)
-        .eq('id', reportData.project_id)
+        .eq(
+          'id',
+          reportData.project_id
+        )
         .single();
 
-      if (projectError || !projectData) {
+      if (
+        projectError ||
+        !projectData
+      ) {
         setErrorMessage(
-          projectError?.message || 'Project not found.'
+          projectError?.message ||
+            'Project not found.'
         );
+
         setIsLoading(false);
         return;
       }
-
-      setReport(reportData);
-      setProject(projectData);
 
       const {
         data: weatherData,
         error: weatherError,
       } = await supabase
         .from('daily_report_weather')
-        .select('*')
-        .eq('daily_report_id', reportId)
-        .maybeSingle();
+        .select(`
+          id,
+          daily_report_id,
+          period,
+          weather_condition,
+          temperature,
+          temperature_unit,
+          site_condition,
+          production_impact,
+          impact_notes,
+          condition,
+          organization_id,
+          project_id,
+          temperature_min,
+          temperature_max,
+          rainfall,
+          wind_condition,
+          impact_hours,
+          notes,
+          created_at,
+          updated_at
+        `)
+        .eq(
+          'daily_report_id',
+          reportId
+        )
+        .order('period', {
+          ascending: true,
+        });
 
       if (weatherError) {
-        setErrorMessage(weatherError.message);
+        setErrorMessage(
+          weatherError.message
+        );
+
         setIsLoading(false);
         return;
       }
 
-      if (weatherData) {
-        setWeatherRecord(weatherData);
-        setCondition(weatherData.condition || '');
-        setTemperatureMin(
-          weatherData.temperature_min ?? ''
-        );
-        setTemperatureMax(
-          weatherData.temperature_max ?? ''
-        );
-        setRainfall(weatherData.rainfall ?? '');
-        setWindCondition(weatherData.wind_condition || '');
-        setSiteCondition(weatherData.site_condition || '');
-        setProductionImpact(
-          weatherData.production_impact || 'none'
-        );
-        setImpactHours(weatherData.impact_hours ?? '');
-        setNotes(weatherData.notes || '');
-      }
+      const nextWeather =
+        createInitialWeatherState();
+
+      (weatherData || []).forEach(
+        (item) => {
+          if (
+            !item.period ||
+            !nextWeather[item.period]
+          ) {
+            return;
+          }
+
+          nextWeather[item.period] = {
+            id: item.id,
+
+            condition:
+              item.condition ||
+              item.weather_condition ||
+              '',
+
+            temperatureMin:
+              item.temperature_min !== null &&
+              item.temperature_min !== undefined
+                ? String(
+                    item.temperature_min
+                  )
+                : item.temperature !== null &&
+                    item.temperature !== undefined
+                  ? String(
+                      item.temperature
+                    )
+                  : '',
+
+            temperatureMax:
+              item.temperature_max !== null &&
+              item.temperature_max !== undefined
+                ? String(
+                    item.temperature_max
+                  )
+                : '',
+
+            temperatureUnit:
+              item.temperature_unit ||
+              'F',
+
+            rainfall:
+              item.rainfall !== null &&
+              item.rainfall !== undefined
+                ? String(item.rainfall)
+                : '',
+
+            windCondition:
+              item.wind_condition ||
+              '',
+
+            siteCondition:
+              item.site_condition ||
+              '',
+
+            productionImpact:
+              item.production_impact ||
+              'none',
+
+            impactHours:
+              item.impact_hours !== null &&
+              item.impact_hours !== undefined
+                ? String(
+                    item.impact_hours
+                  )
+                : '',
+
+            notes:
+              item.notes ||
+              item.impact_notes ||
+              '',
+          };
+        }
+      );
+
+      setReport(reportData);
+      setProject(projectData);
+      setWeather(nextWeather);
 
       setIsLoading(false);
     }
 
     loadWeather();
-  }, [reportId, supabase]);
+  }, [
+    reportId,
+    supabase,
+  ]);
 
-  async function saveWeather(event) {
+  function updatePeriodField(
+    period,
+    field,
+    value
+  ) {
+    setWeather(
+      (currentWeather) => ({
+        ...currentWeather,
+
+        [period]: {
+          ...currentWeather[period],
+          [field]: value,
+        },
+      })
+    );
+
+    setSuccessMessage('');
+  }
+
+  async function saveWeather(
+    event
+  ) {
     event.preventDefault();
 
-    if (!report || isSaving) return;
+    if (
+      !report ||
+      isSaving
+    ) {
+      return;
+    }
 
     setIsSaving(true);
     setErrorMessage('');
     setSuccessMessage('');
 
-    const payload = {
-      organization_id: report.organization_id,
-      project_id: report.project_id,
-      daily_report_id: report.id,
-      condition: condition || null,
-      temperature_min:
-        temperatureMin === '' ? null : Number(temperatureMin),
-      temperature_max:
-        temperatureMax === '' ? null : Number(temperatureMax),
-      rainfall:
-        rainfall === '' ? null : Number(rainfall),
-      wind_condition: windCondition || null,
-      site_condition: siteCondition || null,
-      production_impact: productionImpact || 'none',
-      impact_hours:
-        impactHours === '' ? null : Number(impactHours),
-      notes: notes.trim() || null,
-    };
+    for (
+      const periodDefinition
+      of PERIODS
+    ) {
+      const period =
+        periodDefinition.key;
 
-    let result;
+      const periodData =
+        weather[period];
 
-    if (weatherRecord?.id) {
-      result = await supabase
-        .from('daily_report_weather')
-        .update(payload)
-        .eq('id', weatherRecord.id)
-        .select('*')
+      const hasContent =
+        hasPeriodContent(
+          periodData
+        );
+
+      if (
+        !hasContent &&
+        !periodData.id
+      ) {
+        continue;
+      }
+
+      if (
+        !hasContent &&
+        periodData.id
+      ) {
+        const {
+          error: deleteError,
+        } = await supabase
+          .from(
+            'daily_report_weather'
+          )
+          .delete()
+          .eq(
+            'id',
+            periodData.id
+          );
+
+        if (deleteError) {
+          setErrorMessage(
+            deleteError.message
+          );
+
+          setIsSaving(false);
+          return;
+        }
+
+        continue;
+      }
+
+      const temperatureMin =
+        periodData.temperatureMin ===
+        ''
+          ? null
+          : Number(
+              periodData.temperatureMin
+            );
+
+      const temperatureMax =
+        periodData.temperatureMax ===
+        ''
+          ? null
+          : Number(
+              periodData.temperatureMax
+            );
+
+      const rainfall =
+        periodData.rainfall === ''
+          ? null
+          : Number(
+              periodData.rainfall
+            );
+
+      const impactHours =
+        periodData.impactHours ===
+        ''
+          ? null
+          : Number(
+              periodData.impactHours
+            );
+
+      if (
+        temperatureMin !== null &&
+        temperatureMax !== null &&
+        temperatureMax <
+          temperatureMin
+      ) {
+        setErrorMessage(
+          `${periodDefinition.label}: maximum temperature cannot be lower than minimum temperature.`
+        );
+
+        setActivePeriod(period);
+
+        setIsSaving(false);
+        return;
+      }
+
+      const payload = {
+        daily_report_id:
+          report.id,
+
+        period,
+
+        organization_id:
+          report.organization_id,
+
+        project_id:
+          report.project_id,
+
+        condition:
+          periodData.condition ||
+          null,
+
+        weather_condition:
+          periodData.condition ||
+          null,
+
+        temperature:
+          temperatureMin,
+
+        temperature_unit:
+          periodData.temperatureUnit ||
+          'F',
+
+        temperature_min:
+          temperatureMin,
+
+        temperature_max:
+          temperatureMax,
+
+        rainfall,
+
+        wind_condition:
+          periodData.windCondition ||
+          null,
+
+        site_condition:
+          periodData.siteCondition ||
+          null,
+
+        production_impact:
+          periodData.productionImpact ||
+          'none',
+
+        impact_hours:
+          impactHours,
+
+        notes:
+          periodData.notes.trim() ||
+          null,
+
+        impact_notes:
+          periodData.notes.trim() ||
+          null,
+      };
+
+      const {
+        data: savedRecord,
+        error: saveError,
+      } = await supabase
+        .from(
+          'daily_report_weather'
+        )
+        .upsert(
+          payload,
+          {
+            onConflict:
+              'daily_report_id,period',
+          }
+        )
+        .select(`
+          id,
+          daily_report_id,
+          period,
+          weather_condition,
+          temperature,
+          temperature_unit,
+          site_condition,
+          production_impact,
+          impact_notes,
+          condition,
+          organization_id,
+          project_id,
+          temperature_min,
+          temperature_max,
+          rainfall,
+          wind_condition,
+          impact_hours,
+          notes
+        `)
         .single();
-    } else {
-      result = await supabase
-        .from('daily_report_weather')
-        .insert(payload)
-        .select('*')
-        .single();
+
+      if (saveError) {
+        setErrorMessage(
+          saveError.message
+        );
+
+        setActivePeriod(period);
+
+        setIsSaving(false);
+        return;
+      }
+
+      setWeather(
+        (currentWeather) => ({
+          ...currentWeather,
+
+          [period]: {
+            ...currentWeather[
+              period
+            ],
+
+            id:
+              savedRecord.id,
+          },
+        })
+      );
     }
 
-    if (result.error) {
-      setErrorMessage(result.error.message);
-      setIsSaving(false);
-      return;
-    }
-
-    setWeatherRecord(result.data);
     setSuccessMessage(
       'Weather and site conditions saved successfully.'
     );
+
     setIsSaving(false);
   }
 
   if (isLoading) {
     return (
-      <main className={styles.page}>
-        <section className={styles.infoCard}>
-          <p className={styles.sectionEyebrow}>
+      <main
+        className={
+          styles.page
+        }
+      >
+        <section
+          className={
+            styles.infoCard
+          }
+        >
+          <p
+            className={
+              styles.sectionEyebrow
+            }
+          >
             DAILY REPORT
           </p>
 
-          <h1 className={styles.sectionTitle}>
-            Loading Weather & Site Conditions...
+          <h1
+            className={
+              styles.sectionTitle
+            }
+          >
+            Loading Weather & Site
+            Conditions...
           </h1>
         </section>
       </main>
     );
   }
 
-  if (errorMessage && (!report || !project)) {
+  if (
+    errorMessage &&
+    (!report || !project)
+  ) {
     return (
-      <main className={styles.page}>
-        <section className={styles.infoCard}>
-          <p className={styles.sectionEyebrow}>
+      <main
+        className={
+          styles.page
+        }
+      >
+        <section
+          className={
+            styles.infoCard
+          }
+        >
+          <p
+            className={
+              styles.sectionEyebrow
+            }
+          >
             DAILY REPORT
           </p>
 
-          <h1 className={styles.sectionTitle}>
-            Weather information unavailable
+          <h1
+            className={
+              styles.sectionTitle
+            }
+          >
+            Weather information
+            unavailable
           </h1>
 
-          <p className={styles.integrationText}>
+          <p
+            className={
+              styles.integrationText
+            }
+          >
             {errorMessage}
           </p>
 
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={
+              styles.secondaryButton
+            }
             onClick={() =>
-              router.push('/dashboard/projects/daily-reports')
+              router.push(
+                '/dashboard/projects/daily-reports'
+              )
             }
           >
             ← Daily Report Center
@@ -307,21 +787,56 @@ export default function DailyReportWeatherPage() {
     );
   }
 
+  const currentPeriod =
+    weather[activePeriod];
+
+  const isReadOnly =
+    report.status !== 'draft';
+
   return (
-    <main className={styles.page}>
-      <section className={styles.pageHeader}>
+    <main
+      className={styles.page}
+    >
+      <section
+        className={
+          styles.pageHeader
+        }
+      >
         <div>
-          <p className={styles.eyebrow}>
-            DAILY REPORT · WEATHER & SITE CONDITIONS
+          <p
+            className={
+              styles.eyebrow
+            }
+          >
+            DAILY REPORT · WEATHER &
+            SITE CONDITIONS
           </p>
 
-          <h1 className={styles.title}>
-            DR-{String(report.report_number).padStart(4, '0')}
+          <h1
+            className={
+              styles.title
+            }
+          >
+            DR-
+            {String(
+              report.report_number
+            ).padStart(
+              4,
+              '0'
+            )}
           </h1>
 
-          <p className={styles.description}>
-            {project.code || 'Unassigned'} · {project.name} ·{' '}
-            {formatDate(report.report_date)}
+          <p
+            className={
+              styles.description
+            }
+          >
+            {project.code ||
+              'Unassigned'}{' '}
+            · {project.name} ·{' '}
+            {formatDate(
+              report.report_date
+            )}
           </p>
         </div>
 
@@ -338,12 +853,16 @@ export default function DailyReportWeatherPage() {
               styles
             )}`}
           >
-            {formatStatus(report.status)}
+            {formatStatus(
+              report.status
+            )}
           </span>
 
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={
+              styles.secondaryButton
+            }
             onClick={() =>
               router.push(
                 `/dashboard/projects/daily-reports/${report.id}`
@@ -358,11 +877,14 @@ export default function DailyReportWeatherPage() {
       {errorMessage && (
         <div
           style={{
-            padding: '12px 14px',
+            padding:
+              '12px 14px',
             color: '#9f2929',
-            border: '1px solid #fecaca',
+            border:
+              '1px solid #fecaca',
             borderRadius: '9px',
-            background: '#fff5f5',
+            background:
+              '#fff5f5',
             fontSize: '0.76rem',
           }}
         >
@@ -373,11 +895,14 @@ export default function DailyReportWeatherPage() {
       {successMessage && (
         <div
           style={{
-            padding: '12px 14px',
+            padding:
+              '12px 14px',
             color: '#087f73',
-            border: '1px solid #b7eee6',
+            border:
+              '1px solid #b7eee6',
             borderRadius: '9px',
-            background: '#effcf9',
+            background:
+              '#effcf9',
             fontSize: '0.76rem',
             fontWeight: 700,
           }}
@@ -386,24 +911,183 @@ export default function DailyReportWeatherPage() {
         </div>
       )}
 
-      <form onSubmit={saveWeather}>
-        <section className={styles.infoCard}>
-          <div className={styles.infoCardHeader}>
+      <form
+        onSubmit={
+          saveWeather
+        }
+      >
+        <section
+          className={
+            styles.infoCard
+          }
+        >
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
             <div>
-              <p className={styles.sectionEyebrow}>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
                 02 · WEATHER
               </p>
 
-              <h2 className={styles.sectionTitle}>
-                Weather conditions
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Weather period
               </h2>
             </div>
 
             <span
               className={`${styles.statusBadge} ${styles.statusDraft}`}
             >
-              Field record
+              {
+                PERIODS.find(
+                  (item) =>
+                    item.key ===
+                    activePeriod
+                )?.label
+              }
             </span>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(3, minmax(0, 1fr))',
+              gap: '10px',
+            }}
+          >
+            {PERIODS.map(
+              (period) => {
+                const isActive =
+                  activePeriod ===
+                  period.key;
+
+                const hasData =
+                  hasPeriodContent(
+                    weather[
+                      period.key
+                    ]
+                  );
+
+                return (
+                  <button
+                    key={
+                      period.key
+                    }
+                    type="button"
+                    onClick={() =>
+                      setActivePeriod(
+                        period.key
+                      )
+                    }
+                    style={{
+                      minHeight:
+                        '58px',
+                      padding:
+                        '10px 14px',
+                      color:
+                        isActive
+                          ? '#ffffff'
+                          : '#061b2f',
+                      border:
+                        isActive
+                          ? '1px solid #082a4a'
+                          : '1px solid #cbd5e1',
+                      borderRadius:
+                        '9px',
+                      background:
+                        isActive
+                          ? '#082a4a'
+                          : '#ffffff',
+                      cursor:
+                        'pointer',
+                      fontFamily:
+                        'inherit',
+                      fontSize:
+                        '0.78rem',
+                      fontWeight:
+                        800,
+                      textAlign:
+                        'left',
+                    }}
+                  >
+                    <span
+                      style={{
+                        display:
+                          'block',
+                      }}
+                    >
+                      {
+                        period.label
+                      }
+                    </span>
+
+                    <span
+                      style={{
+                        display:
+                          'block',
+                        marginTop:
+                          '3px',
+                        color:
+                          isActive
+                            ? '#b7d7e9'
+                            : '#94a3b8',
+                        fontSize:
+                          '0.64rem',
+                        fontWeight:
+                          600,
+                      }}
+                    >
+                      {hasData
+                        ? 'Data recorded'
+                        : 'No data yet'}
+                    </span>
+                  </button>
+                );
+              }
+            )}
+          </div>
+        </section>
+
+        <section
+          className={
+            styles.infoCard
+          }
+          style={{
+            marginTop: '14px',
+          }}
+        >
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
+            <div>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
+                {activePeriod.toUpperCase()}
+              </p>
+
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Weather conditions
+              </h2>
+            </div>
           </div>
 
           <div
@@ -414,79 +1098,193 @@ export default function DailyReportWeatherPage() {
               gap: '16px',
             }}
           >
-            <label style={fieldStyle}>
-              <span style={labelStyle}>
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
                 General condition
               </span>
 
               <select
-                value={condition}
-                onChange={(event) =>
-                  setCondition(event.target.value)
+                value={
+                  currentPeriod.condition
                 }
-                disabled={report.status !== 'draft'}
-                style={inputStyle}
+                onChange={(
+                  event
+                ) =>
+                  updatePeriodField(
+                    activePeriod,
+                    'condition',
+                    event.target
+                      .value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
               >
                 <option value="">
                   Select condition
                 </option>
-                <option value="clear">Clear</option>
-                <option value="partly_cloudy">
-                  Partly cloudy
-                </option>
-                <option value="cloudy">Cloudy</option>
-                <option value="light_rain">
-                  Light rain
-                </option>
-                <option value="rain">Rain</option>
-                <option value="heavy_rain">
-                  Heavy rain
-                </option>
-                <option value="storm">Storm</option>
-                <option value="snow">Snow</option>
-                <option value="fog">Fog</option>
-                <option value="other">Other</option>
+
+                {WEATHER_OPTIONS.map(
+                  (option) => (
+                    <option
+                      key={
+                        option
+                      }
+                      value={
+                        option
+                      }
+                    >
+                      {formatOptionLabel(
+                        option
+                      )}
+                    </option>
+                  )
+                )}
               </select>
             </label>
 
-            <label style={fieldStyle}>
-              <span style={labelStyle}>
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
                 Minimum temperature
               </span>
 
               <input
                 type="number"
                 step="0.1"
-                value={temperatureMin}
-                onChange={(event) =>
-                  setTemperatureMin(event.target.value)
+                value={
+                  currentPeriod.temperatureMin
                 }
-                disabled={report.status !== 'draft'}
-                placeholder="°F / °C"
-                style={inputStyle}
+                onChange={(
+                  event
+                ) =>
+                  updatePeriodField(
+                    activePeriod,
+                    'temperatureMin',
+                    event.target
+                      .value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
               />
             </label>
 
-            <label style={fieldStyle}>
-              <span style={labelStyle}>
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
                 Maximum temperature
               </span>
 
               <input
                 type="number"
                 step="0.1"
-                value={temperatureMax}
-                onChange={(event) =>
-                  setTemperatureMax(event.target.value)
+                value={
+                  currentPeriod.temperatureMax
                 }
-                disabled={report.status !== 'draft'}
-                placeholder="°F / °C"
-                style={inputStyle}
+                onChange={(
+                  event
+                ) =>
+                  updatePeriodField(
+                    activePeriod,
+                    'temperatureMax',
+                    event.target
+                      .value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
               />
             </label>
 
-            <label style={fieldStyle}>
-              <span style={labelStyle}>
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
+                Temperature unit
+              </span>
+
+              <select
+                value={
+                  currentPeriod.temperatureUnit
+                }
+                onChange={(
+                  event
+                ) =>
+                  updatePeriodField(
+                    activePeriod,
+                    'temperatureUnit',
+                    event.target
+                      .value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
+              >
+                <option value="F">
+                  Fahrenheit (°F)
+                </option>
+
+                <option value="C">
+                  Celsius (°C)
+                </option>
+              </select>
+            </label>
+
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
                 Rainfall
               </span>
 
@@ -494,126 +1292,211 @@ export default function DailyReportWeatherPage() {
                 type="number"
                 min="0"
                 step="0.01"
-                value={rainfall}
-                onChange={(event) =>
-                  setRainfall(event.target.value)
+                value={
+                  currentPeriod.rainfall
                 }
-                disabled={report.status !== 'draft'}
+                onChange={(
+                  event
+                ) =>
+                  updatePeriodField(
+                    activePeriod,
+                    'rainfall',
+                    event.target
+                      .value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
                 placeholder="0.00"
-                style={inputStyle}
+                style={
+                  inputStyle
+                }
               />
             </label>
 
-            <label style={fieldStyle}>
-              <span style={labelStyle}>
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
                 Wind condition
               </span>
 
               <select
-                value={windCondition}
-                onChange={(event) =>
-                  setWindCondition(event.target.value)
+                value={
+                  currentPeriod.windCondition
                 }
-                disabled={report.status !== 'draft'}
-                style={inputStyle}
+                onChange={(
+                  event
+                ) =>
+                  updatePeriodField(
+                    activePeriod,
+                    'windCondition',
+                    event.target
+                      .value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
               >
                 <option value="">
-                  Select wind condition
+                  Select wind
+                  condition
                 </option>
-                <option value="calm">Calm</option>
-                <option value="light">Light</option>
-                <option value="moderate">Moderate</option>
-                <option value="strong">Strong</option>
-                <option value="severe">Severe</option>
+
+                {WIND_OPTIONS.map(
+                  (option) => (
+                    <option
+                      key={
+                        option
+                      }
+                      value={
+                        option
+                      }
+                    >
+                      {formatOptionLabel(
+                        option
+                      )}
+                    </option>
+                  )
+                )}
               </select>
             </label>
 
-            <label style={fieldStyle}>
-              <span style={labelStyle}>
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
                 Site condition
               </span>
 
               <select
-                value={siteCondition}
-                onChange={(event) =>
-                  setSiteCondition(event.target.value)
+                value={
+                  currentPeriod.siteCondition
                 }
-                disabled={report.status !== 'draft'}
-                style={inputStyle}
+                onChange={(
+                  event
+                ) =>
+                  updatePeriodField(
+                    activePeriod,
+                    'siteCondition',
+                    event.target
+                      .value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
               >
                 <option value="">
-                  Select site condition
+                  Select site
+                  condition
                 </option>
-                <option value="dry">Dry</option>
-                <option value="damp">Damp</option>
-                <option value="wet">Wet</option>
-                <option value="muddy">Muddy</option>
-                <option value="frozen">Frozen</option>
-                <option value="restricted">
-                  Restricted
-                </option>
+
+                {SITE_OPTIONS.map(
+                  (option) => (
+                    <option
+                      key={
+                        option
+                      }
+                      value={
+                        option
+                      }
+                    >
+                      {formatOptionLabel(
+                        option
+                      )}
+                    </option>
+                  )
+                )}
               </select>
             </label>
-          </div>
-        </section>
 
-        <section
-          className={styles.infoCard}
-          style={{ marginTop: '14px' }}
-        >
-          <div className={styles.infoCardHeader}>
-            <div>
-              <p className={styles.sectionEyebrow}>
-                PRODUCTION IMPACT
-              </p>
-
-              <h2 className={styles.sectionTitle}>
-                Weather impact on field operations
-              </h2>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns:
-                '2fr 1fr',
-              gap: '16px',
-            }}
-          >
-            <label style={fieldStyle}>
-              <span style={labelStyle}>
-                Impact level
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
+                Production impact
               </span>
 
               <select
-                value={productionImpact}
-                onChange={(event) =>
-                  setProductionImpact(event.target.value)
+                value={
+                  currentPeriod.productionImpact
                 }
-                disabled={report.status !== 'draft'}
-                style={inputStyle}
+                onChange={(
+                  event
+                ) =>
+                  updatePeriodField(
+                    activePeriod,
+                    'productionImpact',
+                    event.target
+                      .value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
               >
-                <option value="none">
-                  No impact
-                </option>
-                <option value="minor">
-                  Minor impact
-                </option>
-                <option value="partial">
-                  Partial disruption
-                </option>
-                <option value="major">
-                  Major disruption
-                </option>
-                <option value="shutdown">
-                  Work shutdown
-                </option>
+                {IMPACT_OPTIONS.map(
+                  (option) => (
+                    <option
+                      key={
+                        option
+                      }
+                      value={
+                        option
+                      }
+                    >
+                      {option ===
+                      'none'
+                        ? 'No impact'
+                        : formatOptionLabel(
+                            option
+                          )}
+                    </option>
+                  )
+                )}
               </select>
             </label>
 
-            <label style={fieldStyle}>
-              <span style={labelStyle}>
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
                 Impact hours
               </span>
 
@@ -621,53 +1504,103 @@ export default function DailyReportWeatherPage() {
                 type="number"
                 min="0"
                 step="0.25"
-                value={impactHours}
-                onChange={(event) =>
-                  setImpactHours(event.target.value)
+                value={
+                  currentPeriod.impactHours
                 }
-                disabled={report.status !== 'draft'}
+                onChange={(
+                  event
+                ) =>
+                  updatePeriodField(
+                    activePeriod,
+                    'impactHours',
+                    event.target
+                      .value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
                 placeholder="0.00"
-                style={inputStyle}
+                style={
+                  inputStyle
+                }
               />
             </label>
           </div>
         </section>
 
         <section
-          className={styles.infoCard}
-          style={{ marginTop: '14px' }}
+          className={
+            styles.infoCard
+          }
+          style={{
+            marginTop: '14px',
+          }}
         >
-          <div className={styles.infoCardHeader}>
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
             <div>
-              <p className={styles.sectionEyebrow}>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
                 FIELD NOTES
               </p>
 
-              <h2 className={styles.sectionTitle}>
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
                 Weather observations
               </h2>
             </div>
           </div>
 
-          <label style={fieldStyle}>
-            <span style={labelStyle}>
+          <label
+            style={
+              fieldStyle
+            }
+          >
+            <span
+              style={
+                labelStyle
+              }
+            >
               Notes
             </span>
 
             <textarea
               rows={6}
-              value={notes}
-              onChange={(event) =>
-                setNotes(event.target.value)
+              value={
+                currentPeriod.notes
               }
-              disabled={report.status !== 'draft'}
-              placeholder="Describe weather changes, site conditions, interruptions or other relevant observations..."
+              onChange={(
+                event
+              ) =>
+                updatePeriodField(
+                  activePeriod,
+                  'notes',
+                  event.target
+                    .value
+                )
+              }
+              disabled={
+                isReadOnly
+              }
+              placeholder="Describe weather changes, site conditions, interruptions or relevant observations for this period..."
               style={{
                 ...inputStyle,
-                minHeight: '140px',
+                minHeight:
+                  '140px',
                 padding: '12px',
                 lineHeight: 1.55,
-                resize: 'vertical',
+                resize:
+                  'vertical',
               }}
             />
           </label>
@@ -676,15 +1609,19 @@ export default function DailyReportWeatherPage() {
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            justifyContent:
+              'space-between',
+            alignItems:
+              'center',
             gap: '12px',
             marginTop: '18px',
           }}
         >
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={
+              styles.secondaryButton
+            }
             onClick={() =>
               router.push(
                 `/dashboard/projects/daily-reports/${report.id}/general`
@@ -696,9 +1633,11 @@ export default function DailyReportWeatherPage() {
 
           <button
             type="submit"
-            className={styles.primaryButton}
+            className={
+              styles.primaryButton
+            }
             disabled={
-              report.status !== 'draft' ||
+              isReadOnly ||
               isSaving
             }
           >
