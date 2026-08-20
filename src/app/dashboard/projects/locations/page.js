@@ -918,8 +918,13 @@ export default function LocationBreakdownPage() {
     setNoticeMessage(
       `${libraryItem.service_name} productivity was applied to ${floor.name}.`
     )
+
     setIsSaving(false)
-    closeProductivityModal()
+    setIsProductivityModalOpen(false)
+    setProductivityTarget(null)
+    setProductivitySearch('')
+    setProductivityMode('select')
+    setProductivityForm(emptyProductivityForm)
   }
 
   async function createProductivity(event) {
@@ -1077,6 +1082,15 @@ export default function LocationBreakdownPage() {
         ? ''
         : String(data.effective),
     }))
+
+    const savedFloor = locationMap.get(floorId)
+    const savedService = projectServices.find(
+      (service) => service.id === serviceId
+    )
+
+    setNoticeMessage(
+      `Effective workforce saved${savedService ? ` for ${savedService.service_name}` : ''}${savedFloor ? ` on ${savedFloor.name}` : ''}.`
+    )
   }
 
   async function saveLocation(event) {
@@ -2538,14 +2552,34 @@ export default function LocationBreakdownPage() {
           </div>
 
           {showTaktPresizing && (
-            <div
-              style={{
-                border: '1px solid #cbd5e0',
-                borderRadius: '8px',
-                overflowX: 'auto',
-                background: '#ffffff',
-              }}
-            >
+            <>
+              <div
+                style={{
+                  marginBottom: '14px',
+                  padding: '12px 14px',
+                  border: '1px solid #dbe7f3',
+                  borderRadius: '8px',
+                  background: '#f8fbff',
+                  color: '#4a5568',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                Select a productivity from the organization library, or create
+                a new one, then enter the effective workforce. Zone durations
+                are calculated automatically from the quantities in
+                Quantification by Location using: Quantity ÷ (Productivity ×
+                Effective).
+              </div>
+
+              <div
+                style={{
+                  border: '1px solid #cbd5e0',
+                  borderRadius: '8px',
+                  overflowX: 'auto',
+                  background: '#ffffff',
+                }}
+              >
               {quantificationByDivision.length === 0 ? (
                 <div className={styles.emptyState}>
                   <h3 className={styles.emptyTitle}>
@@ -2706,7 +2740,7 @@ export default function LocationBreakdownPage() {
                                 >
                                   {productivity > 0
                                     ? `${formatQuantity(productivity)} ${setup?.quantity_unit || service.unit || ''}`
-                                    : 'Select...'}
+                                    : 'Search productivity'}
                                 </button>
                               </td>
 
@@ -2784,7 +2818,8 @@ export default function LocationBreakdownPage() {
                   </div>
                 ))
               )}
-            </div>
+              </div>
+            </>
           )}
         </section>
       )}
@@ -3015,8 +3050,10 @@ export default function LocationBreakdownPage() {
             {productivityMode === 'select' ? (
               <>
                 <p className={styles.modalDescription}>
-                  Search the organization productivity library or create a new
-                  productivity without leaving the project.
+                  Search the organization productivity library and select the
+                  rate to use for this division and service. If the rate does
+                  not exist yet, create it here and RitsuFlow will save it in
+                  Supabase and apply it immediately to this project.
                 </p>
 
                 <div className={styles.searchField} style={{ marginBottom: '14px' }}>
