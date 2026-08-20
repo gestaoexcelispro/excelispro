@@ -38,14 +38,19 @@ const locationTypeOptions = [
 ]
 
 const unitOptions = [
+  'm²',
+  'm³',
+  'm',
+  'EA',
+  'kg',
+  't',
+  'L',
+  'HR',
+  'DAY',
   'SF',
   'LF',
   'CY',
-  'EA',
-  'HR',
-  'DAY',
-  'TON',
-  'GAL',
+  'OTHER',
 ]
 
 const emptyLocationForm = {
@@ -60,7 +65,8 @@ const emptyLocationForm = {
 const emptyServiceForm = {
   service_name: '',
   service_code: '',
-  unit: 'SF',
+  unit: 'm²',
+  custom_unit: '',
 }
 
 function getLocationTypeLabel(locationType) {
@@ -78,24 +84,15 @@ function getErrorMessage(error) {
   }
 
   if (error.code === '23505') {
-    return (
-      'A record with the same identifying information ' +
-      'already exists.'
-    )
+    return 'A record with the same identifying information already exists.'
   }
 
   if (error.code === '23503') {
-    return (
-      'This record is connected to other project ' +
-      'information and cannot be changed.'
-    )
+    return 'This record is connected to other project information and cannot be changed.'
   }
 
   if (error.code === '42501') {
-    return (
-      'Your account does not have permission to ' +
-      'perform this action.'
-    )
+    return 'Your account does not have permission to perform this action.'
   }
 
   return (
@@ -224,13 +221,6 @@ export default function LocationBreakdownPage() {
   const [locations, setLocations] =
     useState([])
 
-  /*
-   * scopeItems remains loaded only as a
-   * compatibility/safety reference.
-   *
-   * The new quantity matrix does not write
-   * to scope_items.
-   */
   const [scopeItems, setScopeItems] =
     useState([])
 
@@ -792,12 +782,6 @@ export default function LocationBreakdownPage() {
               'custom'
         )
 
-      /*
-       * If the project currently has no
-       * Area / Room / Custom locations,
-       * fall back to leaf locations so
-       * the matrix is still usable.
-       */
       const sourceLocations =
         candidates.length > 0
           ? candidates
@@ -1262,6 +1246,17 @@ export default function LocationBreakdownPage() {
       return
     }
 
+    if (
+      serviceForm.unit ===
+        'OTHER' &&
+      !serviceForm.custom_unit.trim()
+    ) {
+      setErrorMessage(
+        'Enter a custom unit.'
+      )
+      return
+    }
+
     let normalizedCode =
       normalizeServiceCode(
         serviceForm.service_code
@@ -1308,6 +1303,12 @@ export default function LocationBreakdownPage() {
       return
     }
 
+    const finalUnit =
+      serviceForm.unit ===
+      'OTHER'
+        ? serviceForm.custom_unit.trim()
+        : serviceForm.unit
+
     const nextSequence =
       projectServices.reduce(
         (
@@ -1344,8 +1345,7 @@ export default function LocationBreakdownPage() {
           normalizedName,
 
         unit:
-          serviceForm.unit ||
-          null,
+          finalUnit || null,
 
         sequence_number:
           nextSequence,
@@ -1527,10 +1527,6 @@ export default function LocationBreakdownPage() {
       return
     }
 
-    /*
-     * Avoid an unnecessary database update
-     * when the cell value did not change.
-     */
     if (
       existingRecord &&
       Number(
@@ -3459,6 +3455,7 @@ export default function LocationBreakdownPage() {
                         currentForm
                       ) => ({
                         ...currentForm,
+
                         service_name:
                           nextName,
 
@@ -3519,7 +3516,9 @@ export default function LocationBreakdownPage() {
                   styles.formField
                 }
               >
-                <span>Unit</span>
+                <span>
+                  Unit
+                </span>
 
                 <select
                   value={
@@ -3533,9 +3532,17 @@ export default function LocationBreakdownPage() {
                         currentForm
                       ) => ({
                         ...currentForm,
+
                         unit:
                           event.target
                             .value,
+
+                        custom_unit:
+                          event.target
+                            .value ===
+                          'OTHER'
+                            ? currentForm.custom_unit
+                            : '',
                       })
                     )
                   }
@@ -3550,12 +3557,55 @@ export default function LocationBreakdownPage() {
                           unit
                         }
                       >
-                        {unit}
+                        {unit ===
+                        'OTHER'
+                          ? 'Other...'
+                          : unit}
                       </option>
                     )
                   )}
                 </select>
               </label>
+
+              {serviceForm.unit ===
+                'OTHER' && (
+                <label
+                  className={
+                    styles.formField
+                  }
+                >
+                  <span>
+                    Custom unit
+                  </span>
+
+                  <input
+                    type="text"
+                    required
+                    maxLength={
+                      20
+                    }
+                    value={
+                      serviceForm.custom_unit
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setServiceForm(
+                        (
+                          currentForm
+                        ) => ({
+                          ...currentForm,
+
+                          custom_unit:
+                            event.target
+                              .value,
+                        })
+                      )
+                    }
+                    placeholder="Example: box"
+                  />
+                </label>
+              )}
             </div>
 
             {errorMessage && (
