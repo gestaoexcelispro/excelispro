@@ -2785,7 +2785,7 @@ export default function LocationBreakdownPage() {
                                 <input
                                   type="number"
                                   min="0"
-                                  step="1"
+                                  step="any"
                                   value={effectiveDrafts[key] ?? ''}
                                   onChange={(event) =>
                                     setEffectiveDrafts((currentDrafts) => ({
@@ -3206,7 +3206,7 @@ export default function LocationBreakdownPage() {
                     <input
                       type="number"
                       min="0.0001"
-                      step="0.01"
+                      step="any"
                       required
                       value={productivityForm.productivity_rate}
                       onChange={(event) =>
