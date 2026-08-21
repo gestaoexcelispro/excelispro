@@ -37,168 +37,26 @@ const inputStyle = {
 
 const textareaStyle = {
   ...inputStyle,
-  minHeight: '96px',
+  minHeight: '100px',
   padding: '10px 12px',
   lineHeight: 1.5,
   resize: 'vertical',
 };
 
-const dangerButtonStyle = {
-  minHeight: '36px',
-  padding: '0 12px',
-  color: '#9f2929',
-  border: '1px solid #fecaca',
-  borderRadius: '8px',
-  background: '#fff5f5',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  fontSize: '0.72rem',
-  fontWeight: 800,
-};
-
-const SAFETY_TYPES = [
-  'toolbox_talk',
-  'inspection',
-  'observation',
-  'near_miss',
-  'incident',
-  'first_aid',
-  'stop_work',
-  'other',
-];
-
-const SEVERITIES = [
-  'low',
-  'medium',
-  'high',
-  'critical',
-];
-
-const STATUSES = [
-  'open',
-  'in_progress',
-  'resolved',
-  'closed',
-];
-
-function createTemporaryId() {
-  return `temp-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
-}
-
-function createEmptySafetyItem() {
-  return {
-    localId: createTemporaryId(),
-    id: null,
-
-    safetyType: 'observation',
-    title: '',
-    description: '',
-
-    severity: 'low',
-    status: 'open',
-
-    locationId: '',
-    locationName: '',
-
-    responsibleParty: '',
-    correctiveAction: '',
-
-    peopleInvolved: '',
-    lostTime: false,
-
-    resolvedAt: '',
-  };
-}
-
-function formatSafetyType(value) {
+function formatSafetyStatus(value) {
   const labels = {
-    toolbox_talk: 'Toolbox Talk',
-    inspection: 'Safety Inspection',
-    observation: 'Safety Observation',
-    near_miss: 'Near Miss',
-    incident: 'Incident',
-    first_aid: 'First Aid',
-    stop_work: 'Stop Work',
-    other: 'Other',
-  };
-
-  return labels[value] || value;
-}
-
-function formatSeverity(value) {
-  const labels = {
-    low: 'Low',
-    medium: 'Medium',
-    high: 'High',
+    normal: 'Normal',
+    attention: 'Attention',
     critical: 'Critical',
   };
 
   return labels[value] || value;
 }
 
-function formatStatus(value) {
-  const labels = {
-    open: 'Open',
-    in_progress: 'In Progress',
-    resolved: 'Resolved',
-    closed: 'Closed',
-  };
-
-  return labels[value] || value;
-}
-
-function getLocalDateTime() {
-  const now = new Date();
-
-  const offset =
-    now.getTimezoneOffset();
-
-  const localDate =
-    new Date(
-      now.getTime() -
-        offset * 60 * 1000
-    );
-
-  return localDate
-    .toISOString()
-    .slice(0, 16);
-}
-
-function formatDatabaseDateTime(value) {
-  if (!value) {
-    return '';
-  }
-
-  const date =
-    new Date(value);
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return '';
-  }
-
-  const offset =
-    date.getTimezoneOffset();
-
-  const localDate =
-    new Date(
-      date.getTime() -
-        offset * 60 * 1000
-    );
-
-  return localDate
-    .toISOString()
-    .slice(0, 16);
-}
-
 function SummaryCard({
   label,
   value,
+  helper,
   emphasis,
 }) {
   let background =
@@ -207,10 +65,7 @@ function SummaryCard({
   let color =
     '#061b2f';
 
-  if (
-    emphasis ===
-    'success'
-  ) {
+  if (emphasis === 'success') {
     background =
       '#f2fbf9';
 
@@ -218,10 +73,7 @@ function SummaryCard({
       '#087f73';
   }
 
-  if (
-    emphasis ===
-    'warning'
-  ) {
+  if (emphasis === 'warning') {
     background =
       '#fffbeb';
 
@@ -229,10 +81,7 @@ function SummaryCard({
       '#9a6700';
   }
 
-  if (
-    emphasis ===
-    'critical'
-  ) {
+  if (emphasis === 'critical') {
     background =
       '#fff5f5';
 
@@ -244,29 +93,45 @@ function SummaryCard({
     <div
       style={{
         padding: '14px',
-        border: '1px solid #e2e8f0',
-        borderRadius: '9px',
+        border:
+          '1px solid #e2e8f0',
+        borderRadius:
+          '9px',
         background,
       }}
     >
-      <div
-        style={
-          labelStyle
-        }
-      >
+      <div style={labelStyle}>
         {label}
       </div>
 
       <div
         style={{
-          marginTop: '5px',
+          marginTop:
+            '5px',
           color,
-          fontSize: '1.35rem',
-          fontWeight: 800,
+          fontSize:
+            '1.35rem',
+          fontWeight:
+            800,
         }}
       >
         {value}
       </div>
+
+      {helper && (
+        <div
+          style={{
+            marginTop:
+              '3px',
+            color:
+              '#64748b',
+            fontSize:
+              '0.66rem',
+          }}
+        >
+          {helper}
+        </div>
+      )}
     </div>
   );
 }
@@ -286,23 +151,89 @@ export default function SafetySection({
   const reportId =
     report?.id;
 
-  const projectId =
-    project?.id;
-
   const [
     userId,
     setUserId,
   ] = useState(null);
 
   const [
-    locations,
-    setLocations,
-  ] = useState([]);
+    safetyId,
+    setSafetyId,
+  ] = useState(null);
 
   const [
-    safetyItems,
-    setSafetyItems,
-  ] = useState([]);
+    overallStatus,
+    setOverallStatus,
+  ] = useState(
+    'normal'
+  );
+
+  const [
+    toolboxTalkHeld,
+    setToolboxTalkHeld,
+  ] = useState(false);
+
+  const [
+    toolboxTalkTopic,
+    setToolboxTalkTopic,
+  ] = useState('');
+
+  const [
+    toolboxTalkAttendees,
+    setToolboxTalkAttendees,
+  ] = useState('');
+
+  const [
+    safetyInspectionCompleted,
+    setSafetyInspectionCompleted,
+  ] = useState(false);
+
+  const [
+    inspectorName,
+    setInspectorName,
+  ] = useState('');
+
+  const [
+    ppeCompliance,
+    setPpeCompliance,
+  ] = useState(
+    'compliant'
+  );
+
+  const [
+    incidentsCount,
+    setIncidentsCount,
+  ] = useState('0');
+
+  const [
+    nearMissesCount,
+    setNearMissesCount,
+  ] = useState('0');
+
+  const [
+    unsafeConditionsCount,
+    setUnsafeConditionsCount,
+  ] = useState('0');
+
+  const [
+    stopWorkEvent,
+    setStopWorkEvent,
+  ] = useState(false);
+
+  const [
+    stopWorkDescription,
+    setStopWorkDescription,
+  ] = useState('');
+
+  const [
+    correctiveActionsSummary,
+    setCorrectiveActionsSummary,
+  ] = useState('');
+
+  const [
+    generalNotes,
+    setGeneralNotes,
+  ] = useState('');
 
   const [
     isLoading,
@@ -326,11 +257,11 @@ export default function SafetySection({
 
   useEffect(() => {
     async function loadSafety() {
-      if (
-        !reportId ||
-        !projectId
-      ) {
-        setIsLoading(false);
+      if (!reportId) {
+        setIsLoading(
+          false
+        );
+
         return;
       }
 
@@ -339,8 +270,11 @@ export default function SafetySection({
       setSuccessMessage('');
 
       const {
-        data: userData,
-        error: userError,
+        data:
+          userData,
+
+        error:
+          userError,
       } =
         await supabase.auth.getUser();
 
@@ -360,145 +294,151 @@ export default function SafetySection({
         userData.user.id
       );
 
-      const [
-        locationsResult,
-        safetyResult,
-      ] =
-        await Promise.all([
-          supabase
-            .from('locations')
-            .select(`
-              id,
-              project_id,
-              parent_id,
-              name,
-              location_type,
-              environment_type,
-              sequence_number
-            `)
-            .eq(
-              'project_id',
-              projectId
-            )
-            .order(
-              'sequence_number',
-              {
-                ascending: true,
-              }
-            )
-            .order(
-              'name',
-              {
-                ascending: true,
-              }
-            ),
+      const {
+        data:
+          safetyData,
 
-          supabase
-            .from(
-              'daily_report_safety'
-            )
-            .select('*')
-            .eq(
-              'daily_report_id',
-              reportId
-            )
-            .order(
-              'created_at',
-              {
-                ascending: true,
-              }
-            ),
-        ]);
+        error:
+          safetyError,
+      } =
+        await supabase
+          .from(
+            'daily_report_safety'
+          )
+          .select(`
+            id,
+            daily_report_id,
+            overall_status,
+            toolbox_talk_held,
+            toolbox_talk_topic,
+            toolbox_talk_attendees,
+            safety_inspection_completed,
+            inspector_name,
+            ppe_compliance,
+            incidents_count,
+            near_misses_count,
+            unsafe_conditions_count,
+            stop_work_event,
+            stop_work_description,
+            corrective_actions_summary,
+            general_notes,
+            created_by,
+            created_at,
+            updated_at
+          `)
+          .eq(
+            'daily_report_id',
+            reportId
+          )
+          .maybeSingle();
 
-      const loadError =
-        locationsResult.error ||
-        safetyResult.error;
-
-      if (loadError) {
+      if (safetyError) {
         setErrorMessage(
-          loadError.message
+          safetyError.message
         );
 
         setIsLoading(false);
         return;
       }
 
-      const loadedItems =
-        (
-          safetyResult.data ||
-          []
-        ).map(
-          (item) => ({
-            localId:
-              item.id,
-
-            id:
-              item.id,
-
-            safetyType:
-              item.safety_type ||
-              'observation',
-
-            title:
-              item.title ||
-              '',
-
-            description:
-              item.description ||
-              '',
-
-            severity:
-              item.severity ||
-              'low',
-
-            status:
-              item.status ||
-              'open',
-
-            locationId:
-              item.location_id ||
-              '',
-
-            locationName:
-              item.location_name ||
-              '',
-
-            responsibleParty:
-              item.responsible_party ||
-              '',
-
-            correctiveAction:
-              item.corrective_action ||
-              '',
-
-            peopleInvolved:
-              item.people_involved ||
-              '',
-
-            lostTime:
-              Boolean(
-                item.lost_time
-              ),
-
-            resolvedAt:
-              formatDatabaseDateTime(
-                item.resolved_at
-              ),
-          })
+      if (safetyData) {
+        setSafetyId(
+          safetyData.id
         );
 
-      setLocations(
-        locationsResult.data ||
-          []
-      );
+        setOverallStatus(
+          safetyData.overall_status ||
+            'normal'
+        );
 
-      setSafetyItems(
-        loadedItems
-      );
+        setToolboxTalkHeld(
+          Boolean(
+            safetyData.toolbox_talk_held
+          )
+        );
 
-      onCountChange?.(
-        loadedItems.length
-      );
+        setToolboxTalkTopic(
+          safetyData.toolbox_talk_topic ||
+            ''
+        );
+
+        setToolboxTalkAttendees(
+          safetyData.toolbox_talk_attendees !==
+            null &&
+          safetyData.toolbox_talk_attendees !==
+            undefined
+            ? String(
+                safetyData.toolbox_talk_attendees
+              )
+            : ''
+        );
+
+        setSafetyInspectionCompleted(
+          Boolean(
+            safetyData.safety_inspection_completed
+          )
+        );
+
+        setInspectorName(
+          safetyData.inspector_name ||
+            ''
+        );
+
+        setPpeCompliance(
+          safetyData.ppe_compliance ||
+            'compliant'
+        );
+
+        setIncidentsCount(
+          String(
+            safetyData.incidents_count ??
+              0
+          )
+        );
+
+        setNearMissesCount(
+          String(
+            safetyData.near_misses_count ??
+              0
+          )
+        );
+
+        setUnsafeConditionsCount(
+          String(
+            safetyData.unsafe_conditions_count ??
+              0
+          )
+        );
+
+        setStopWorkEvent(
+          Boolean(
+            safetyData.stop_work_event
+          )
+        );
+
+        setStopWorkDescription(
+          safetyData.stop_work_description ||
+            ''
+        );
+
+        setCorrectiveActionsSummary(
+          safetyData.corrective_actions_summary ||
+            ''
+        );
+
+        setGeneralNotes(
+          safetyData.general_notes ||
+            ''
+        );
+
+        onCountChange?.(
+          1
+        );
+      } else {
+        onCountChange?.(
+          0
+        );
+      }
 
       setIsLoading(false);
     }
@@ -506,297 +446,9 @@ export default function SafetySection({
     loadSafety();
   }, [
     reportId,
-    projectId,
     supabase,
     onCountChange,
   ]);
-
-  const locationMap =
-    useMemo(
-      () =>
-        new Map(
-          locations.map(
-            (location) => [
-              location.id,
-              location,
-            ]
-          )
-        ),
-      [locations]
-    );
-
-  const locationPathMap =
-    useMemo(() => {
-      const result =
-        new Map();
-
-      function buildPath(
-        location
-      ) {
-        if (!location) {
-          return '';
-        }
-
-        if (
-          result.has(
-            location.id
-          )
-        ) {
-          return result.get(
-            location.id
-          );
-        }
-
-        const names = [];
-        const visited =
-          new Set();
-
-        let current =
-          location;
-
-        while (
-          current &&
-          !visited.has(
-            current.id
-          )
-        ) {
-          visited.add(
-            current.id
-          );
-
-          names.unshift(
-            current.name
-          );
-
-          current =
-            current.parent_id
-              ? locationMap.get(
-                  current.parent_id
-                )
-              : null;
-        }
-
-        const path =
-          names.join(' / ');
-
-        result.set(
-          location.id,
-          path
-        );
-
-        return path;
-      }
-
-      locations.forEach(
-        (location) => {
-          buildPath(
-            location
-          );
-        }
-      );
-
-      return result;
-    }, [
-      locations,
-      locationMap,
-    ]);
-
-  const sortedLocations =
-    useMemo(
-      () =>
-        [
-          ...locations,
-        ].sort(
-          (a, b) => {
-            const pathA =
-              locationPathMap.get(
-                a.id
-              ) ||
-              a.name;
-
-            const pathB =
-              locationPathMap.get(
-                b.id
-              ) ||
-              b.name;
-
-            return pathA.localeCompare(
-              pathB
-            );
-          }
-        ),
-      [
-        locations,
-        locationPathMap,
-      ]
-    );
-
-  function addSafetyItem() {
-    setSafetyItems(
-      (current) => [
-        ...current,
-        createEmptySafetyItem(),
-      ]
-    );
-
-    setSuccessMessage('');
-  }
-
-  function updateSafetyItem(
-    localId,
-    field,
-    value
-  ) {
-    setSafetyItems(
-      (current) =>
-        current.map(
-          (item) => {
-            if (
-              item.localId !==
-              localId
-            ) {
-              return item;
-            }
-
-            const nextItem = {
-              ...item,
-              [field]: value,
-            };
-
-            if (
-              field ===
-              'status'
-            ) {
-              if (
-                value ===
-                  'resolved' ||
-                value ===
-                  'closed'
-              ) {
-                if (
-                  !nextItem.resolvedAt
-                ) {
-                  nextItem.resolvedAt =
-                    getLocalDateTime();
-                }
-              } else {
-                nextItem.resolvedAt =
-                  '';
-              }
-            }
-
-            return nextItem;
-          }
-        )
-    );
-
-    setSuccessMessage('');
-  }
-
-  function selectLocation(
-    item,
-    locationId
-  ) {
-    const location =
-      locationMap.get(
-        locationId
-      );
-
-    setSafetyItems(
-      (current) =>
-        current.map(
-          (currentItem) =>
-            currentItem.localId ===
-            item.localId
-              ? {
-                  ...currentItem,
-
-                  locationId,
-
-                  locationName:
-                    location
-                      ? locationPathMap.get(
-                          location.id
-                        ) ||
-                        location.name
-                      : '',
-                }
-              : currentItem
-        )
-    );
-
-    setSuccessMessage('');
-  }
-
-  async function removeSafetyItem(
-    item
-  ) {
-    if (
-      isSaving ||
-      report?.status !==
-        'draft'
-    ) {
-      return;
-    }
-
-    setErrorMessage('');
-    setSuccessMessage('');
-
-    if (item.id) {
-      const confirmed =
-        window.confirm(
-          `Remove "${
-            item.title ||
-            formatSafetyType(
-              item.safetyType
-            )
-          }" from the Daily Report?`
-        );
-
-      if (!confirmed) {
-        return;
-      }
-
-      const {
-        error:
-          deleteError,
-      } =
-        await supabase
-          .from(
-            'daily_report_safety'
-          )
-          .delete()
-          .eq(
-            'id',
-            item.id
-          );
-
-      if (deleteError) {
-        setErrorMessage(
-          deleteError.message
-        );
-
-        return;
-      }
-    }
-
-    setSafetyItems(
-      (current) => {
-        const next =
-          current.filter(
-            (currentItem) =>
-              currentItem.localId !==
-              item.localId
-          );
-
-        onCountChange?.(
-          next.length
-        );
-
-        return next;
-      }
-    );
-  }
 
   async function saveSafety(
     event
@@ -817,147 +469,236 @@ export default function SafetySection({
     setErrorMessage('');
     setSuccessMessage('');
 
-    for (
-      const item
-      of safetyItems
-    ) {
-      const title =
-        item.title.trim();
+    const attendees =
+      toolboxTalkAttendees ===
+      ''
+        ? null
+        : Number(
+            toolboxTalkAttendees
+          );
 
-      const description =
-        item.description.trim();
-
-      if (
-        !title &&
-        !description
-      ) {
-        setErrorMessage(
-          'Every safety record must contain a title or description.'
-        );
-
-        setIsSaving(false);
-        return;
-      }
-
-      const payload = {
-        daily_report_id:
-          report.id,
-
-        safety_type:
-          item.safetyType,
-
-        title:
-          title || null,
-
-        description:
-          description ||
-          null,
-
-        severity:
-          item.severity,
-
-        status:
-          item.status,
-
-        location_id:
-          item.locationId ||
-          null,
-
-        location_name:
-          item.locationName ||
-          null,
-
-        responsible_party:
-          item.responsibleParty
-            .trim() ||
-          null,
-
-        corrective_action:
-          item.correctiveAction
-            .trim() ||
-          null,
-
-        people_involved:
-          item.peopleInvolved
-            .trim() ||
-          null,
-
-        lost_time:
-          item.lostTime,
-
-        resolved_at:
-          item.resolvedAt
-            ? new Date(
-                item.resolvedAt
-              ).toISOString()
-            : null,
-      };
-
-      let result;
-
-      if (item.id) {
-        result =
-          await supabase
-            .from(
-              'daily_report_safety'
-            )
-            .update(
-              payload
-            )
-            .eq(
-              'id',
-              item.id
-            )
-            .select('id')
-            .single();
-      } else {
-        result =
-          await supabase
-            .from(
-              'daily_report_safety'
-            )
-            .insert({
-              ...payload,
-              created_by:
-                userId,
-            })
-            .select('id')
-            .single();
-      }
-
-      if (
-        result.error
-      ) {
-        setErrorMessage(
-          result.error.message
-        );
-
-        setIsSaving(false);
-        return;
-      }
-
-      setSafetyItems(
-        (current) =>
-          current.map(
-            (currentItem) =>
-              currentItem.localId ===
-              item.localId
-                ? {
-                    ...currentItem,
-
-                    id:
-                      result.data.id,
-
-                    localId:
-                      result.data.id,
-                  }
-                : currentItem
-          )
+    const incidents =
+      Number(
+        incidentsCount
       );
+
+    const nearMisses =
+      Number(
+        nearMissesCount
+      );
+
+    const unsafeConditions =
+      Number(
+        unsafeConditionsCount
+      );
+
+    if (
+      attendees !== null &&
+      (
+        !Number.isInteger(
+          attendees
+        ) ||
+        attendees < 0
+      )
+    ) {
+      setErrorMessage(
+        'Toolbox talk attendees must be a whole number equal to or greater than zero.'
+      );
+
+      setIsSaving(false);
+      return;
     }
 
+    if (
+      !Number.isInteger(
+        incidents
+      ) ||
+      incidents < 0
+    ) {
+      setErrorMessage(
+        'Incidents count must be a whole number equal to or greater than zero.'
+      );
+
+      setIsSaving(false);
+      return;
+    }
+
+    if (
+      !Number.isInteger(
+        nearMisses
+      ) ||
+      nearMisses < 0
+    ) {
+      setErrorMessage(
+        'Near misses count must be a whole number equal to or greater than zero.'
+      );
+
+      setIsSaving(false);
+      return;
+    }
+
+    if (
+      !Number.isInteger(
+        unsafeConditions
+      ) ||
+      unsafeConditions < 0
+    ) {
+      setErrorMessage(
+        'Unsafe conditions count must be a whole number equal to or greater than zero.'
+      );
+
+      setIsSaving(false);
+      return;
+    }
+
+    if (
+      toolboxTalkHeld &&
+      !toolboxTalkTopic.trim()
+    ) {
+      setErrorMessage(
+        'Enter the toolbox talk topic.'
+      );
+
+      setIsSaving(false);
+      return;
+    }
+
+    if (
+      safetyInspectionCompleted &&
+      !inspectorName.trim()
+    ) {
+      setErrorMessage(
+        'Enter the safety inspector name.'
+      );
+
+      setIsSaving(false);
+      return;
+    }
+
+    if (
+      stopWorkEvent &&
+      !stopWorkDescription.trim()
+    ) {
+      setErrorMessage(
+        'Describe the Stop Work event.'
+      );
+
+      setIsSaving(false);
+      return;
+    }
+
+    const payload = {
+      daily_report_id:
+        report.id,
+
+      overall_status:
+        overallStatus,
+
+      toolbox_talk_held:
+        toolboxTalkHeld,
+
+      toolbox_talk_topic:
+        toolboxTalkHeld
+          ? toolboxTalkTopic.trim() ||
+            null
+          : null,
+
+      toolbox_talk_attendees:
+        toolboxTalkHeld
+          ? attendees
+          : null,
+
+      safety_inspection_completed:
+        safetyInspectionCompleted,
+
+      inspector_name:
+        safetyInspectionCompleted
+          ? inspectorName.trim() ||
+            null
+          : null,
+
+      ppe_compliance:
+        ppeCompliance,
+
+      incidents_count:
+        incidents,
+
+      near_misses_count:
+        nearMisses,
+
+      unsafe_conditions_count:
+        unsafeConditions,
+
+      stop_work_event:
+        stopWorkEvent,
+
+      stop_work_description:
+        stopWorkEvent
+          ? stopWorkDescription.trim() ||
+            null
+          : null,
+
+      corrective_actions_summary:
+        correctiveActionsSummary.trim() ||
+        null,
+
+      general_notes:
+        generalNotes.trim() ||
+        null,
+    };
+
+    let result;
+
+    if (safetyId) {
+      result =
+        await supabase
+          .from(
+            'daily_report_safety'
+          )
+          .update(
+            payload
+          )
+          .eq(
+            'id',
+            safetyId
+          )
+          .select(
+            'id'
+          )
+          .single();
+    } else {
+      result =
+        await supabase
+          .from(
+            'daily_report_safety'
+          )
+          .insert({
+            ...payload,
+
+            created_by:
+              userId,
+          })
+          .select(
+            'id'
+          )
+          .single();
+    }
+
+    if (result.error) {
+      setErrorMessage(
+        result.error.message
+      );
+
+      setIsSaving(false);
+      return;
+    }
+
+    setSafetyId(
+      result.data.id
+    );
+
     onCountChange?.(
-      safetyItems.length
+      1
     );
 
     setSuccessMessage(
@@ -967,40 +708,19 @@ export default function SafetySection({
     setIsSaving(false);
   }
 
-  const incidents =
-    safetyItems.filter(
-      (item) =>
-        [
-          'incident',
-          'first_aid',
-        ].includes(
-          item.safetyType
-        )
-    ).length;
-
-  const nearMisses =
-    safetyItems.filter(
-      (item) =>
-        item.safetyType ===
-        'near_miss'
-    ).length;
-
-  const openItems =
-    safetyItems.filter(
-      (item) =>
-        [
-          'open',
-          'in_progress',
-        ].includes(
-          item.status
-        )
-    ).length;
-
-  const lostTimeEvents =
-    safetyItems.filter(
-      (item) =>
-        item.lostTime
-    ).length;
+  const totalSafetyEvents =
+    Number(
+      incidentsCount ||
+        0
+    ) +
+    Number(
+      nearMissesCount ||
+        0
+    ) +
+    Number(
+      unsafeConditionsCount ||
+        0
+    );
 
   if (isLoading) {
     return (
@@ -1037,14 +757,20 @@ export default function SafetySection({
       {errorMessage && (
         <div
           style={{
-            padding: '12px 14px',
-            marginBottom: '14px',
-            color: '#9f2929',
+            padding:
+              '12px 14px',
+            marginBottom:
+              '14px',
+            color:
+              '#9f2929',
             border:
               '1px solid #fecaca',
-            borderRadius: '9px',
-            background: '#fff5f5',
-            fontSize: '0.76rem',
+            borderRadius:
+              '9px',
+            background:
+              '#fff5f5',
+            fontSize:
+              '0.76rem',
           }}
         >
           {errorMessage}
@@ -1054,894 +780,1018 @@ export default function SafetySection({
       {successMessage && (
         <div
           style={{
-            padding: '12px 14px',
-            marginBottom: '14px',
-            color: '#087f73',
+            padding:
+              '12px 14px',
+            marginBottom:
+              '14px',
+            color:
+              '#087f73',
             border:
               '1px solid #b7eee6',
-            borderRadius: '9px',
-            background: '#effcf9',
-            fontSize: '0.76rem',
-            fontWeight: 700,
+            borderRadius:
+              '9px',
+            background:
+              '#effcf9',
+            fontSize:
+              '0.76rem',
+            fontWeight:
+              700,
           }}
         >
           {successMessage}
         </div>
       )}
 
-      <section
-        className={
-          styles.infoCard
-        }
-      >
-        <div
-          className={
-            styles.infoCardHeader
-          }
-        >
-          <div>
-            <p
-              className={
-                styles.sectionEyebrow
-              }
-            >
-              10 · SAFETY
-            </p>
-
-            <h2
-              className={
-                styles.sectionTitle
-              }
-            >
-              Safety & field events
-            </h2>
-
-            <p
-              className={
-                styles.integrationText
-              }
-            >
-              Record safety
-              observations, toolbox
-              talks, inspections,
-              near misses and field
-              incidents for{' '}
-              {project?.name ||
-                'the project'}.
-            </p>
-          </div>
-
-          {!isReadOnly && (
-            <button
-              type="button"
-              className={
-                styles.primaryButton
-              }
-              onClick={
-                addSafetyItem
-              }
-            >
-              + Add Safety Record
-            </button>
-          )}
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns:
-              'repeat(4, minmax(0, 1fr))',
-            gap: '12px',
-            marginTop: '16px',
-          }}
-        >
-          <SummaryCard
-            label="OPEN ITEMS"
-            value={openItems}
-            emphasis={
-              openItems > 0
-                ? 'warning'
-                : 'success'
-            }
-          />
-
-          <SummaryCard
-            label="INCIDENTS"
-            value={incidents}
-            emphasis={
-              incidents > 0
-                ? 'critical'
-                : undefined
-            }
-          />
-
-          <SummaryCard
-            label="NEAR MISSES"
-            value={nearMisses}
-            emphasis={
-              nearMisses > 0
-                ? 'warning'
-                : undefined
-            }
-          />
-
-          <SummaryCard
-            label="LOST TIME"
-            value={lostTimeEvents}
-            emphasis={
-              lostTimeEvents > 0
-                ? 'critical'
-                : 'success'
-            }
-          />
-        </div>
-      </section>
-
       <form
         onSubmit={
           saveSafety
         }
       >
-        {safetyItems.length ===
-        0 ? (
-          <section
+        <section
+          className={
+            styles.infoCard
+          }
+        >
+          <div
             className={
-              styles.infoCard
+              styles.infoCardHeader
             }
+          >
+            <div>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
+                10 · SAFETY
+              </p>
+
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Daily safety summary
+              </h2>
+
+              <p
+                className={
+                  styles.integrationText
+                }
+              >
+                Daily safety
+                conditions for{' '}
+                {project?.name ||
+                  'the project'}.
+              </p>
+            </div>
+
+            <span
+              className={`${styles.statusBadge} ${
+                overallStatus ===
+                'normal'
+                  ? styles.statusApproved
+                  : overallStatus ===
+                      'attention'
+                    ? styles.statusSubmitted
+                    : styles.statusDraft
+              }`}
+            >
+              {formatSafetyStatus(
+                overallStatus
+              )}
+            </span>
+          </div>
+
+          <div
             style={{
-              marginTop: '14px',
-              padding:
-                '38px 24px',
-              textAlign:
-                'center',
+              display:
+                'grid',
+              gridTemplateColumns:
+                'repeat(4, minmax(0, 1fr))',
+              gap:
+                '12px',
+              marginTop:
+                '16px',
             }}
           >
-            <p
-              className={
-                styles.sectionEyebrow
+            <SummaryCard
+              label="OVERALL STATUS"
+              value={
+                formatSafetyStatus(
+                  overallStatus
+                )
               }
-            >
-              NO SAFETY RECORDS
-            </p>
-
-            <h2
-              className={
-                styles.sectionTitle
+              emphasis={
+                overallStatus ===
+                'normal'
+                  ? 'success'
+                  : overallStatus ===
+                      'critical'
+                    ? 'critical'
+                    : 'warning'
               }
-            >
-              No safety events recorded
-            </h2>
+            />
 
-            <p
-              className={
-                styles.integrationText
+            <SummaryCard
+              label="TOOLBOX TALK"
+              value={
+                toolboxTalkHeld
+                  ? 'Held'
+                  : 'Not Held'
               }
-            >
-              Record toolbox talks,
-              inspections, safety
-              observations, near
-              misses or incidents
-              that occurred during
-              the workday.
-            </p>
+              helper={
+                toolboxTalkHeld &&
+                toolboxTalkAttendees !==
+                  ''
+                  ? `${toolboxTalkAttendees} attendees`
+                  : ''
+              }
+            />
 
-            {!isReadOnly && (
-              <div
-                style={{
-                  marginTop:
-                    '18px',
-                }}
-              >
-                <button
-                  type="button"
-                  className={
-                    styles.primaryButton
-                  }
-                  onClick={
-                    addSafetyItem
-                  }
-                >
-                  + Add Safety Record
-                </button>
-              </div>
-            )}
-          </section>
-        ) : (
-          safetyItems.map(
-            (
-              item,
-              index
-            ) => (
-              <section
-                key={
-                  item.localId
-                }
+            <SummaryCard
+              label="INSPECTION"
+              value={
+                safetyInspectionCompleted
+                  ? 'Completed'
+                  : 'Not Completed'
+              }
+            />
+
+            <SummaryCard
+              label="SAFETY EVENTS"
+              value={
+                totalSafetyEvents
+              }
+              helper={
+                stopWorkEvent
+                  ? 'Stop Work event recorded'
+                  : ''
+              }
+              emphasis={
+                totalSafetyEvents >
+                  0 ||
+                stopWorkEvent
+                  ? 'warning'
+                  : 'success'
+              }
+            />
+          </div>
+        </section>
+
+        <section
+          className={
+            styles.infoCard
+          }
+          style={{
+            marginTop:
+              '14px',
+          }}
+        >
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
+            <div>
+              <p
                 className={
-                  styles.infoCard
+                  styles.sectionEyebrow
                 }
-                style={{
-                  marginTop:
-                    '14px',
-                }}
               >
-                <div
-                  className={
-                    styles.infoCardHeader
-                  }
-                >
-                  <div>
-                    <p
-                      className={
-                        styles.sectionEyebrow
-                      }
-                    >
-                      SAFETY RECORD{' '}
-                      {String(
-                        index + 1
-                      ).padStart(
-                        2,
-                        '0'
-                      )}
-                    </p>
+                SAFETY STATUS
+              </p>
 
-                    <h2
-                      className={
-                        styles.sectionTitle
-                      }
-                    >
-                      {item.title ||
-                        formatSafetyType(
-                          item.safetyType
-                        )}
-                    </h2>
-                  </div>
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Overall site safety condition
+              </h2>
+            </div>
+          </div>
 
-                  <div
-                    style={{
-                      display:
-                        'flex',
-                      alignItems:
-                        'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <span
-                      className={`${styles.statusBadge} ${
-                        item.status ===
-                          'resolved' ||
-                        item.status ===
-                          'closed'
-                          ? styles.statusApproved
-                          : item.status ===
-                              'in_progress'
-                            ? styles.statusSubmitted
-                            : styles.statusDraft
-                      }`}
-                    >
-                      {formatStatus(
-                        item.status
-                      )}
-                    </span>
+          <label
+            style={
+              fieldStyle
+            }
+          >
+            <span
+              style={
+                labelStyle
+              }
+            >
+              Overall safety status
+            </span>
 
-                    {!isReadOnly && (
-                      <button
-                        type="button"
-                        style={
-                          dangerButtonStyle
-                        }
-                        onClick={() =>
-                          removeSafetyItem(
-                            item
-                          )
-                        }
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                </div>
+            <select
+              value={
+                overallStatus
+              }
+              onChange={(
+                event
+              ) =>
+                setOverallStatus(
+                  event.target.value
+                )
+              }
+              disabled={
+                isReadOnly
+              }
+              style={
+                inputStyle
+              }
+            >
+              <option value="normal">
+                Normal
+              </option>
 
-                <div
-                  style={{
-                    display:
-                      'grid',
-                    gridTemplateColumns:
-                      '2fr 1fr 1fr',
-                    gap: '16px',
-                  }}
-                >
-                  <label
-                    style={
-                      fieldStyle
-                    }
-                  >
-                    <span
-                      style={
-                        labelStyle
-                      }
-                    >
-                      Title
-                    </span>
+              <option value="attention">
+                Attention
+              </option>
 
-                    <input
-                      type="text"
-                      value={
-                        item.title
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateSafetyItem(
-                          item.localId,
-                          'title',
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      placeholder="Brief safety record title"
-                      style={
-                        inputStyle
-                      }
-                    />
-                  </label>
+              <option value="critical">
+                Critical
+              </option>
+            </select>
+          </label>
+        </section>
 
-                  <label
-                    style={
-                      fieldStyle
-                    }
-                  >
-                    <span
-                      style={
-                        labelStyle
-                      }
-                    >
-                      Record type
-                    </span>
+        <section
+          className={
+            styles.infoCard
+          }
+          style={{
+            marginTop:
+              '14px',
+          }}
+        >
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
+            <div>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
+                TOOLBOX TALK
+              </p>
 
-                    <select
-                      value={
-                        item.safetyType
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateSafetyItem(
-                          item.localId,
-                          'safetyType',
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      style={
-                        inputStyle
-                      }
-                    >
-                      {SAFETY_TYPES.map(
-                        (value) => (
-                          <option
-                            key={
-                              value
-                            }
-                            value={
-                              value
-                            }
-                          >
-                            {formatSafetyType(
-                              value
-                            )}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Daily safety briefing
+              </h2>
+            </div>
+          </div>
 
-                  <label
-                    style={
-                      fieldStyle
-                    }
-                  >
-                    <span
-                      style={
-                        labelStyle
-                      }
-                    >
-                      Severity
-                    </span>
+          <label
+            style={{
+              display:
+                'flex',
+              alignItems:
+                'center',
+              gap:
+                '10px',
+              minHeight:
+                '42px',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={
+                toolboxTalkHeld
+              }
+              onChange={(
+                event
+              ) =>
+                setToolboxTalkHeld(
+                  event.target.checked
+                )
+              }
+              disabled={
+                isReadOnly
+              }
+            />
 
-                    <select
-                      value={
-                        item.severity
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateSafetyItem(
-                          item.localId,
-                          'severity',
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      style={
-                        inputStyle
-                      }
-                    >
-                      {SEVERITIES.map(
-                        (value) => (
-                          <option
-                            key={
-                              value
-                            }
-                            value={
-                              value
-                            }
-                          >
-                            {formatSeverity(
-                              value
-                            )}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-                </div>
+            <span
+              style={{
+                color:
+                  '#061b2f',
+                fontSize:
+                  '0.78rem',
+                fontWeight:
+                  800,
+              }}
+            >
+              Toolbox talk held
+            </span>
+          </label>
 
-                <label
-                  style={{
-                    ...fieldStyle,
-                    marginTop:
-                      '18px',
-                  }}
-                >
-                  <span
-                    style={
-                      labelStyle
-                    }
-                  >
-                    Description
-                  </span>
-
-                  <textarea
-                    rows={4}
-                    value={
-                      item.description
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      updateSafetyItem(
-                        item.localId,
-                        'description',
-                        event.target.value
-                      )
-                    }
-                    disabled={
-                      isReadOnly
-                    }
-                    placeholder="Describe the safety observation, event or condition..."
-                    style={
-                      textareaStyle
-                    }
-                  />
-                </label>
-
-                <div
-                  style={{
-                    display:
-                      'grid',
-                    gridTemplateColumns:
-                      '1fr 1fr',
-                    gap: '16px',
-                    marginTop:
-                      '18px',
-                  }}
-                >
-                  <label
-                    style={
-                      fieldStyle
-                    }
-                  >
-                    <span
-                      style={
-                        labelStyle
-                      }
-                    >
-                      Location
-                    </span>
-
-                    <select
-                      value={
-                        item.locationId
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        selectLocation(
-                          item,
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      style={
-                        inputStyle
-                      }
-                    >
-                      <option value="">
-                        No specific location
-                      </option>
-
-                      {sortedLocations.map(
-                        (
-                          location
-                        ) => (
-                          <option
-                            key={
-                              location.id
-                            }
-                            value={
-                              location.id
-                            }
-                          >
-                            {locationPathMap.get(
-                              location.id
-                            ) ||
-                              location.name}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-
-                  <label
-                    style={
-                      fieldStyle
-                    }
-                  >
-                    <span
-                      style={
-                        labelStyle
-                      }
-                    >
-                      Status
-                    </span>
-
-                    <select
-                      value={
-                        item.status
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateSafetyItem(
-                          item.localId,
-                          'status',
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      style={
-                        inputStyle
-                      }
-                    >
-                      {STATUSES.map(
-                        (value) => (
-                          <option
-                            key={
-                              value
-                            }
-                            value={
-                              value
-                            }
-                          >
-                            {formatStatus(
-                              value
-                            )}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-                </div>
-
-                <div
-                  style={{
-                    display:
-                      'grid',
-                    gridTemplateColumns:
-                      '2fr 1fr',
-                    gap: '16px',
-                    marginTop:
-                      '18px',
-                  }}
-                >
-                  <label
-                    style={
-                      fieldStyle
-                    }
-                  >
-                    <span
-                      style={
-                        labelStyle
-                      }
-                    >
-                      Responsible party
-                    </span>
-
-                    <input
-                      type="text"
-                      value={
-                        item.responsibleParty
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateSafetyItem(
-                          item.localId,
-                          'responsibleParty',
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      placeholder="Person, company, trade or team"
-                      style={
-                        inputStyle
-                      }
-                    />
-                  </label>
-
-                  <label
-                    style={
-                      fieldStyle
-                    }
-                  >
-                    <span
-                      style={
-                        labelStyle
-                      }
-                    >
-                      People involved
-                    </span>
-
-                    <input
-                      type="text"
-                      value={
-                        item.peopleInvolved
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateSafetyItem(
-                          item.localId,
-                          'peopleInvolved',
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      placeholder="Names or crew"
-                      style={
-                        inputStyle
-                      }
-                    />
-                  </label>
-                </div>
-
-                <label
-                  style={{
-                    ...fieldStyle,
-                    marginTop:
-                      '18px',
-                  }}
-                >
-                  <span
-                    style={
-                      labelStyle
-                    }
-                  >
-                    Corrective action
-                  </span>
-
-                  <textarea
-                    rows={4}
-                    value={
-                      item.correctiveAction
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      updateSafetyItem(
-                        item.localId,
-                        'correctiveAction',
-                        event.target.value
-                      )
-                    }
-                    disabled={
-                      isReadOnly
-                    }
-                    placeholder="Describe the action taken or required..."
-                    style={
-                      textareaStyle
-                    }
-                  />
-                </label>
-
-                <div
-                  style={{
-                    display:
-                      'grid',
-                    gridTemplateColumns:
-                      '1fr 1fr',
-                    gap: '16px',
-                    marginTop:
-                      '18px',
-                  }}
-                >
-                  <label
-                    style={
-                      fieldStyle
-                    }
-                  >
-                    <span
-                      style={
-                        labelStyle
-                      }
-                    >
-                      Resolved at
-                    </span>
-
-                    <input
-                      type="datetime-local"
-                      value={
-                        item.resolvedAt
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateSafetyItem(
-                          item.localId,
-                          'resolvedAt',
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isReadOnly ||
-                        ![
-                          'resolved',
-                          'closed',
-                        ].includes(
-                          item.status
-                        )
-                      }
-                      style={
-                        inputStyle
-                      }
-                    />
-                  </label>
-
-                  <div
-                    style={
-                      fieldStyle
-                    }
-                  >
-                    <span
-                      style={
-                        labelStyle
-                      }
-                    >
-                      Lost time event
-                    </span>
-
-                    <label
-                      style={{
-                        display:
-                          'flex',
-                        alignItems:
-                          'center',
-                        gap: '10px',
-                        minHeight:
-                          '42px',
-                        padding:
-                          '0 12px',
-                        border:
-                          item.lostTime
-                            ? '1px solid #fecaca'
-                            : '1px solid #cbd5e1',
-                        borderRadius:
-                          '8px',
-                        background:
-                          item.lostTime
-                            ? '#fff5f5'
-                            : '#ffffff',
-                        cursor:
-                          isReadOnly
-                            ? 'default'
-                            : 'pointer',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={
-                          item.lostTime
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          updateSafetyItem(
-                            item.localId,
-                            'lostTime',
-                            event.target.checked
-                          )
-                        }
-                        disabled={
-                          isReadOnly
-                        }
-                      />
-
-                      <span
-                        style={{
-                          color:
-                            item.lostTime
-                              ? '#9f2929'
-                              : '#475569',
-                          fontSize:
-                            '0.75rem',
-                          fontWeight:
-                            700,
-                        }}
-                      >
-                        {item.lostTime
-                          ? 'Yes — lost time recorded'
-                          : 'No lost time recorded'}
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </section>
-            )
-          )
-        )}
-
-        {safetyItems.length >
-          0 &&
-          !isReadOnly && (
+          {toolboxTalkHeld && (
             <div
               style={{
                 display:
-                  'flex',
-                justifyContent:
-                  'flex-end',
+                  'grid',
+                gridTemplateColumns:
+                  '2fr 1fr',
+                gap:
+                  '16px',
                 marginTop:
-                  '18px',
+                  '14px',
               }}
             >
-              <button
-                type="submit"
-                className={
-                  styles.primaryButton
-                }
-                disabled={
-                  isSaving
+              <label
+                style={
+                  fieldStyle
                 }
               >
-                {isSaving
-                  ? 'Saving...'
-                  : 'Save Safety Information'}
-              </button>
+                <span
+                  style={
+                    labelStyle
+                  }
+                >
+                  Topic
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    toolboxTalkTopic
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setToolboxTalkTopic(
+                      event.target.value
+                    )
+                  }
+                  disabled={
+                    isReadOnly
+                  }
+                  placeholder="e.g. Fall protection"
+                  style={
+                    inputStyle
+                  }
+                />
+              </label>
+
+              <label
+                style={
+                  fieldStyle
+                }
+              >
+                <span
+                  style={
+                    labelStyle
+                  }
+                >
+                  Attendees
+                </span>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={
+                    toolboxTalkAttendees
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setToolboxTalkAttendees(
+                      event.target.value
+                    )
+                  }
+                  disabled={
+                    isReadOnly
+                  }
+                  placeholder="0"
+                  style={
+                    inputStyle
+                  }
+                />
+              </label>
             </div>
           )}
+        </section>
+
+        <section
+          className={
+            styles.infoCard
+          }
+          style={{
+            marginTop:
+              '14px',
+          }}
+        >
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
+            <div>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
+                SAFETY INSPECTION
+              </p>
+
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Inspection & PPE compliance
+              </h2>
+            </div>
+          </div>
+
+          <label
+            style={{
+              display:
+                'flex',
+              alignItems:
+                'center',
+              gap:
+                '10px',
+              minHeight:
+                '42px',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={
+                safetyInspectionCompleted
+              }
+              onChange={(
+                event
+              ) =>
+                setSafetyInspectionCompleted(
+                  event.target.checked
+                )
+              }
+              disabled={
+                isReadOnly
+              }
+            />
+
+            <span
+              style={{
+                color:
+                  '#061b2f',
+                fontSize:
+                  '0.78rem',
+                fontWeight:
+                  800,
+              }}
+            >
+              Safety inspection completed
+            </span>
+          </label>
+
+          <div
+            style={{
+              display:
+                'grid',
+              gridTemplateColumns:
+                'repeat(2, minmax(0, 1fr))',
+              gap:
+                '16px',
+              marginTop:
+                '14px',
+            }}
+          >
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
+                Inspector
+              </span>
+
+              <input
+                type="text"
+                value={
+                  inspectorName
+                }
+                onChange={(
+                  event
+                ) =>
+                  setInspectorName(
+                    event.target.value
+                  )
+                }
+                disabled={
+                  isReadOnly ||
+                  !safetyInspectionCompleted
+                }
+                placeholder="Inspector name"
+                style={
+                  inputStyle
+                }
+              />
+            </label>
+
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
+                PPE compliance
+              </span>
+
+              <select
+                value={
+                  ppeCompliance
+                }
+                onChange={(
+                  event
+                ) =>
+                  setPpeCompliance(
+                    event.target.value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
+              >
+                <option value="compliant">
+                  Compliant
+                </option>
+
+                <option value="minor_issues">
+                  Minor Issues
+                </option>
+
+                <option value="non_compliant">
+                  Non-Compliant
+                </option>
+
+                <option value="not_applicable">
+                  Not Applicable
+                </option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section
+          className={
+            styles.infoCard
+          }
+          style={{
+            marginTop:
+              '14px',
+          }}
+        >
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
+            <div>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
+                SAFETY EVENTS
+              </p>
+
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Daily event counts
+              </h2>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display:
+                'grid',
+              gridTemplateColumns:
+                'repeat(3, minmax(0, 1fr))',
+              gap:
+                '16px',
+            }}
+          >
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
+                Incidents
+              </span>
+
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={
+                  incidentsCount
+                }
+                onChange={(
+                  event
+                ) =>
+                  setIncidentsCount(
+                    event.target.value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
+              />
+            </label>
+
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
+                Near misses
+              </span>
+
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={
+                  nearMissesCount
+                }
+                onChange={(
+                  event
+                ) =>
+                  setNearMissesCount(
+                    event.target.value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
+              />
+            </label>
+
+            <label
+              style={
+                fieldStyle
+              }
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
+                Unsafe conditions
+              </span>
+
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={
+                  unsafeConditionsCount
+                }
+                onChange={(
+                  event
+                ) =>
+                  setUnsafeConditionsCount(
+                    event.target.value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                style={
+                  inputStyle
+                }
+              />
+            </label>
+          </div>
+        </section>
+
+        <section
+          className={
+            styles.infoCard
+          }
+          style={{
+            marginTop:
+              '14px',
+          }}
+        >
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
+            <div>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
+                STOP WORK
+              </p>
+
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Stop Work event
+              </h2>
+            </div>
+          </div>
+
+          <label
+            style={{
+              display:
+                'flex',
+              alignItems:
+                'center',
+              gap:
+                '10px',
+              minHeight:
+                '42px',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={
+                stopWorkEvent
+              }
+              onChange={(
+                event
+              ) =>
+                setStopWorkEvent(
+                  event.target.checked
+                )
+              }
+              disabled={
+                isReadOnly
+              }
+            />
+
+            <span
+              style={{
+                color:
+                  '#061b2f',
+                fontSize:
+                  '0.78rem',
+                fontWeight:
+                  800,
+              }}
+            >
+              Stop Work event occurred
+            </span>
+          </label>
+
+          {stopWorkEvent && (
+            <label
+              style={{
+                ...fieldStyle,
+                marginTop:
+                  '14px',
+              }}
+            >
+              <span
+                style={
+                  labelStyle
+                }
+              >
+                Stop Work description
+              </span>
+
+              <textarea
+                rows={4}
+                value={
+                  stopWorkDescription
+                }
+                onChange={(
+                  event
+                ) =>
+                  setStopWorkDescription(
+                    event.target.value
+                  )
+                }
+                disabled={
+                  isReadOnly
+                }
+                placeholder="Describe why work was stopped and what occurred..."
+                style={
+                  textareaStyle
+                }
+              />
+            </label>
+          )}
+        </section>
+
+        <section
+          className={
+            styles.infoCard
+          }
+          style={{
+            marginTop:
+              '14px',
+          }}
+        >
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
+            <div>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
+                CORRECTIVE ACTIONS
+              </p>
+
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Daily safety actions
+              </h2>
+            </div>
+          </div>
+
+          <label
+            style={
+              fieldStyle
+            }
+          >
+            <span
+              style={
+                labelStyle
+              }
+            >
+              Corrective actions summary
+            </span>
+
+            <textarea
+              rows={4}
+              value={
+                correctiveActionsSummary
+              }
+              onChange={(
+                event
+              ) =>
+                setCorrectiveActionsSummary(
+                  event.target.value
+                )
+              }
+              disabled={
+                isReadOnly
+              }
+              placeholder="Record safety corrective actions, follow-up items or preventive measures..."
+              style={
+                textareaStyle
+              }
+            />
+          </label>
+        </section>
+
+        <section
+          className={
+            styles.infoCard
+          }
+          style={{
+            marginTop:
+              '14px',
+          }}
+        >
+          <div
+            className={
+              styles.infoCardHeader
+            }
+          >
+            <div>
+              <p
+                className={
+                  styles.sectionEyebrow
+                }
+              >
+                GENERAL NOTES
+              </p>
+
+              <h2
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Safety observations
+              </h2>
+            </div>
+          </div>
+
+          <label
+            style={
+              fieldStyle
+            }
+          >
+            <span
+              style={
+                labelStyle
+              }
+            >
+              Safety notes
+            </span>
+
+            <textarea
+              rows={5}
+              value={
+                generalNotes
+              }
+              onChange={(
+                event
+              ) =>
+                setGeneralNotes(
+                  event.target.value
+                )
+              }
+              disabled={
+                isReadOnly
+              }
+              placeholder="Record additional safety observations for the reporting period..."
+              style={{
+                ...textareaStyle,
+                minHeight:
+                  '120px',
+              }}
+            />
+          </label>
+        </section>
+
+        {!isReadOnly && (
+          <div
+            style={{
+              display:
+                'flex',
+              justifyContent:
+                'flex-end',
+              marginTop:
+                '18px',
+            }}
+          >
+            <button
+              type="submit"
+              className={
+                styles.primaryButton
+              }
+              disabled={
+                isSaving
+              }
+            >
+              {isSaving
+                ? 'Saving...'
+                : 'Save Safety'}
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );
