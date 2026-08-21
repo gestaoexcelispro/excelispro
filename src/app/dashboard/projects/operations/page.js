@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Suspense,
   useEffect,
   useMemo,
   useState,
@@ -10,16 +9,38 @@ import {
 import Link from 'next/link';
 
 import {
-  useSearchParams,
-} from 'next/navigation';
-
-import {
   createClient,
 } from '../../../../lib/supabase/client';
 
 import styles from './operations-dashboard.module.css';
 
 const DAYS_TO_SHOW = 7;
+
+function getLocalDateString() {
+  const now =
+    new Date();
+
+  const year =
+    now.getFullYear();
+
+  const month =
+    String(
+      now.getMonth() + 1
+    ).padStart(
+      2,
+      '0'
+    );
+
+  const day =
+    String(
+      now.getDate()
+    ).padStart(
+      2,
+      '0'
+    );
+
+  return `${year}-${month}-${day}`;
+}
 
 function formatDate(
   value
@@ -258,7 +279,7 @@ function MiniBar({
   );
 }
 
-function OperationalDashboardContent() {
+export default function OperationalDashboardPage() {
   const supabase =
     useMemo(
       () =>
@@ -266,18 +287,10 @@ function OperationalDashboardContent() {
       []
     );
 
-  const searchParams =
-    useSearchParams();
-
-  const projectId =
-    searchParams.get(
-      'projectId'
-    );
-
   const [
-    project,
-    setProject,
-  ] = useState(null);
+    projects,
+    setProjects,
+  ] = useState([]);
 
   const [
     reports,
@@ -331,17 +344,6 @@ function OperationalDashboardContent() {
 
   useEffect(() => {
     async function loadDashboard() {
-      if (
-        !projectId
-      ) {
-        setErrorMessage(
-          'Select a project to view the Operational Dashboard.'
-        );
-
-        setIsLoading(false);
-        return;
-      }
-
       setIsLoading(true);
       setErrorMessage('');
 
@@ -368,10 +370,10 @@ function OperationalDashboardContent() {
 
       const {
         data:
-          projectData,
+          projectsData,
 
         error:
-          projectError,
+          projectsError,
       } =
         await supabase
           .from(
@@ -379,88 +381,110 @@ function OperationalDashboardContent() {
           )
           .select(`
             id,
+            organization_id,
             code,
             name,
             client_name,
             city,
             state_region,
             country_code,
-            status
-          `)
-          .eq(
-            'id',
-            projectId
-          )
-          .single();
-
-      if (
-        projectError ||
-        !projectData
-      ) {
-        setErrorMessage(
-          projectError?.message ||
-            'Project not found.'
-        );
-
-        setIsLoading(false);
-        return;
-      }
-
-      const {
-        data:
-          reportsData,
-
-        error:
-          reportsError,
-      } =
-        await supabase
-          .from(
-            'daily_reports'
-          )
-          .select(`
-            id,
-            project_id,
-            report_number,
-            report_date,
             status,
-            work_start_time,
-            work_end_time,
-            general_notes,
-            submitted_at,
-            reviewed_at,
-            approved_at,
             created_at
           `)
-          .eq(
-            'project_id',
-            projectId
-          )
           .order(
-            'report_date',
+            'name',
             {
-              ascending: false,
+              ascending: true,
             }
           );
 
       if (
-        reportsError
+        projectsError
       ) {
         setErrorMessage(
-          reportsError.message
+          projectsError.message
         );
 
         setIsLoading(false);
         return;
       }
 
-      const loadedReports =
-        reportsData ||
+      const loadedProjects =
+        projectsData ||
         [];
 
+      const projectIds =
+        loadedProjects.map(
+          (project) =>
+            project.id
+        );
+
+      let reportsData = [];
+
+      if (
+        projectIds.length >
+        0
+      ) {
+        const {
+          data,
+          error,
+        } =
+          await supabase
+            .from(
+              'daily_reports'
+            )
+            .select(`
+              id,
+              organization_id,
+              project_id,
+              report_number,
+              report_date,
+              status,
+              work_start_time,
+              work_end_time,
+              general_notes,
+              submitted_at,
+              reviewed_at,
+              approved_at,
+              created_at
+            `)
+            .in(
+              'project_id',
+              projectIds
+            )
+            .order(
+              'report_date',
+              {
+                ascending: false,
+              }
+            )
+            .order(
+              'created_at',
+              {
+                ascending: false,
+              }
+            );
+
+        if (
+          error
+        ) {
+          setErrorMessage(
+            error.message
+          );
+
+          setIsLoading(false);
+          return;
+        }
+
+        reportsData =
+          data ||
+          [];
+      }
+
       const reportIds =
-        loadedReports.map(
-          (item) =>
-            item.id
+        reportsData.map(
+          (report) =>
+            report.id
         );
 
       let workforceData = [];
@@ -682,12 +706,12 @@ function OperationalDashboardContent() {
         }
       }
 
-      setProject(
-        projectData
+      setProjects(
+        loadedProjects
       );
 
       setReports(
-        loadedReports
+        reportsData
       );
 
       setWorkforce(
@@ -723,19 +747,43 @@ function OperationalDashboardContent() {
 
     loadDashboard();
   }, [
-    projectId,
     supabase,
   ]);
 
-  const latestReports =
-    reports.slice(
-      0,
-      DAYS_TO_SHOW
+  const today =
+    getLocalDateString();
+
+  const projectMap =
+    useMemo(
+      () =>
+        new Map(
+          projects.map(
+            (project) => [
+              project.id,
+              project,
+            ]
+          )
+        ),
+      [
+        projects,
+      ]
     );
 
-  const latestReport =
-    latestReports[0] ||
-    null;
+  const reportMap =
+    useMemo(
+      () =>
+        new Map(
+          reports.map(
+            (report) => [
+              report.id,
+              report,
+            ]
+          )
+        ),
+      [
+        reports,
+      ]
+    );
 
   const workforceByCrewId =
     useMemo(
@@ -750,22 +798,6 @@ function OperationalDashboardContent() {
         ),
       [
         workforce,
-      ]
-    );
-
-  const reportMap =
-    useMemo(
-      () =>
-        new Map(
-          reports.map(
-            (item) => [
-              item.id,
-              item,
-            ]
-          )
-        ),
-      [
-        reports,
       ]
     );
 
@@ -891,6 +923,8 @@ function OperationalDashboardContent() {
               total: 0,
               open: 0,
               critical: 0,
+              impacted: 0,
+              constraints: 0,
             };
 
           current.total +=
@@ -911,6 +945,22 @@ function OperationalDashboardContent() {
             'critical'
           ) {
             current.critical +=
+              1;
+          }
+
+          if (
+            item.production_impact &&
+            item.production_impact !==
+              'none'
+          ) {
+            current.impacted +=
+              1;
+          }
+
+          if (
+            item.create_constraint
+          ) {
+            current.constraints +=
               1;
           }
 
@@ -964,33 +1014,147 @@ function OperationalDashboardContent() {
       attachments,
     ]);
 
-  const latestWorkforce =
-    latestReport
-      ? workforceTotalsByReport.get(
-          latestReport.id
-        ) || {
-          workers: 0,
-          laborHours: 0,
-        }
-      : {
-          workers: 0,
-          laborHours: 0,
-        };
+  const safetyByReport =
+    useMemo(() => {
+      const result =
+        new Map();
 
-  const latestProduction =
-    latestReport
-      ? productionByReport.get(
-          latestReport.id
-        ) || {
-          records: 0,
-          planned: 0,
-          actual: 0,
+      safety.forEach(
+        (item) => {
+          const events =
+            numericValue(
+              item.incidents_count
+            ) +
+            numericValue(
+              item.near_misses_count
+            ) +
+            numericValue(
+              item.unsafe_conditions_count
+            ) +
+            (
+              item.stop_work_event
+                ? 1
+                : 0
+            );
+
+          result.set(
+            item.daily_report_id,
+            {
+              events,
+              status:
+                item.overall_status,
+            }
+          );
         }
-      : {
-          records: 0,
-          planned: 0,
-          actual: 0,
-        };
+      );
+
+      return result;
+    }, [
+      safety,
+    ]);
+
+  const weatherByReport =
+    useMemo(() => {
+      const result =
+        new Map();
+
+      weather.forEach(
+        (item) => {
+          const current =
+            result.get(
+              item.daily_report_id
+            ) || {
+              impactHours: 0,
+              impactedPeriods: 0,
+            };
+
+          current.impactHours +=
+            numericValue(
+              item.impact_hours
+            );
+
+          if (
+            item.production_impact &&
+            item.production_impact !==
+              'none'
+          ) {
+            current.impactedPeriods +=
+              1;
+          }
+
+          result.set(
+            item.daily_report_id,
+            current
+          );
+        }
+      );
+
+      return result;
+    }, [
+      weather,
+    ]);
+
+  const reportsToday =
+    reports.filter(
+      (report) =>
+        report.report_date ===
+        today
+    );
+
+  const reportIdsToday =
+    new Set(
+      reportsToday.map(
+        (report) =>
+          report.id
+      )
+    );
+
+  const activeProjects =
+    projects.filter(
+      (project) =>
+        project.status ===
+        'active'
+    );
+
+  const todayWorkforce =
+    reportsToday.reduce(
+      (
+        total,
+        report
+      ) =>
+        total +
+        (
+          workforceTotalsByReport.get(
+            report.id
+          )?.workers ||
+          0
+        ),
+      0
+    );
+
+  const todayLaborHours =
+    reportsToday.reduce(
+      (
+        total,
+        report
+      ) =>
+        total +
+        (
+          workforceTotalsByReport.get(
+            report.id
+          )?.laborHours ||
+          0
+        ),
+      0
+    );
+
+  const todayProductionRecords =
+    production.filter(
+      (item) =>
+        reportIdsToday.has(
+          item.daily_report_id
+        )
+    ).length;
 
   const openIssues =
     issues.filter(
@@ -1053,76 +1217,337 @@ function OperationalDashboardContent() {
       0
     );
 
+  const pendingApproval =
+    reports.filter(
+      (report) =>
+        report.status ===
+          'submitted' ||
+        report.status ===
+          'reviewed'
+    ).length;
+
   const approvedReports =
     reports.filter(
-      (item) =>
-        item.status ===
+      (report) =>
+        report.status ===
         'approved'
     ).length;
 
   const draftReports =
     reports.filter(
-      (item) =>
-        item.status ===
+      (report) =>
+        report.status ===
         'draft'
     ).length;
 
   const submittedReports =
     reports.filter(
-      (item) =>
-        item.status ===
+      (report) =>
+        report.status ===
         'submitted'
     ).length;
 
   const reviewedReports =
     reports.filter(
-      (item) =>
-        item.status ===
+      (report) =>
+        report.status ===
         'reviewed'
     ).length;
+
+  const lastSevenDates =
+    useMemo(() => {
+      const dates = [];
+
+      const base =
+        new Date();
+
+      for (
+        let index = 0;
+        index < DAYS_TO_SHOW;
+        index += 1
+      ) {
+        const date =
+          new Date(
+            base
+          );
+
+        date.setDate(
+          base.getDate() -
+          index
+        );
+
+        const year =
+          date.getFullYear();
+
+        const month =
+          String(
+            date.getMonth() +
+              1
+          ).padStart(
+            2,
+            '0'
+          );
+
+        const day =
+          String(
+            date.getDate()
+          ).padStart(
+            2,
+            '0'
+          );
+
+        dates.push(
+          `${year}-${month}-${day}`
+        );
+      }
+
+      return dates.reverse();
+    }, []);
+
+  const dailyPortfolioTrend =
+    useMemo(
+      () =>
+        lastSevenDates.map(
+          (date) => {
+            const dayReports =
+              reports.filter(
+                (report) =>
+                  report.report_date ===
+                  date
+              );
+
+            let workers = 0;
+            let laborHours = 0;
+            let planned = 0;
+            let actual = 0;
+
+            dayReports.forEach(
+              (report) => {
+                const workforceData =
+                  workforceTotalsByReport.get(
+                    report.id
+                  );
+
+                const productionData =
+                  productionByReport.get(
+                    report.id
+                  );
+
+                workers +=
+                  workforceData
+                    ?.workers ||
+                  0;
+
+                laborHours +=
+                  workforceData
+                    ?.laborHours ||
+                  0;
+
+                planned +=
+                  productionData
+                    ?.planned ||
+                  0;
+
+                actual +=
+                  productionData
+                    ?.actual ||
+                  0;
+              }
+            );
+
+            return {
+              date,
+              reports:
+                dayReports.length,
+              workers,
+              laborHours,
+              planned,
+              actual,
+            };
+          }
+        ),
+      [
+        lastSevenDates,
+        reports,
+        workforceTotalsByReport,
+        productionByReport,
+      ]
+    );
 
   const maxWorkers =
     Math.max(
       1,
-      ...latestReports.map(
+      ...dailyPortfolioTrend.map(
         (item) =>
-          workforceTotalsByReport.get(
-            item.id
-          )?.workers ||
-          0
+          item.workers
       )
     );
 
   const maxLaborHours =
     Math.max(
       1,
-      ...latestReports.map(
+      ...dailyPortfolioTrend.map(
         (item) =>
-          workforceTotalsByReport.get(
-            item.id
-          )?.laborHours ||
-          0
+          item.laborHours
       )
     );
 
   const maxProduction =
     Math.max(
       1,
-      ...latestReports.map(
-        (item) => {
-          const data =
-            productionByReport.get(
-              item.id
-            );
-
-          return Math.max(
-            data?.planned ||
-              0,
-            data?.actual ||
-              0
-          );
-        }
+      ...dailyPortfolioTrend.map(
+        (item) =>
+          Math.max(
+            item.planned,
+            item.actual
+          )
       )
+    );
+
+  const projectOperations =
+    useMemo(
+      () =>
+        projects.map(
+          (project) => {
+            const projectReports =
+              reports.filter(
+                (report) =>
+                  report.project_id ===
+                  project.id
+              );
+
+            const latestReport =
+              projectReports[0] ||
+              null;
+
+            const todayReport =
+              projectReports.find(
+                (report) =>
+                  report.report_date ===
+                  today
+              ) ||
+              null;
+
+            const operationalReport =
+              todayReport ||
+              latestReport;
+
+            const workforceData =
+              operationalReport
+                ? workforceTotalsByReport.get(
+                    operationalReport.id
+                  )
+                : null;
+
+            const productionData =
+              operationalReport
+                ? productionByReport.get(
+                    operationalReport.id
+                  )
+                : null;
+
+            const issueData =
+              projectReports.reduce(
+                (
+                  totals,
+                  report
+                ) => {
+                  const data =
+                    issuesByReport.get(
+                      report.id
+                    );
+
+                  totals.open +=
+                    data?.open ||
+                    0;
+
+                  totals.critical +=
+                    data?.critical ||
+                    0;
+
+                  return totals;
+                },
+                {
+                  open: 0,
+                  critical: 0,
+                }
+              );
+
+            const projectSafetyEvents =
+              projectReports.reduce(
+                (
+                  total,
+                  report
+                ) =>
+                  total +
+                  (
+                    safetyByReport.get(
+                      report.id
+                    )?.events ||
+                    0
+                  ),
+                0
+              );
+
+            const photoCount =
+              operationalReport
+                ? attachmentsByReport.get(
+                    operationalReport.id
+                  )?.photos ||
+                  0
+                : 0;
+
+            return {
+              project,
+              latestReport,
+              todayReport,
+              operationalReport,
+
+              workers:
+                workforceData
+                  ?.workers ||
+                0,
+
+              laborHours:
+                workforceData
+                  ?.laborHours ||
+                0,
+
+              productionRecords:
+                productionData
+                  ?.records ||
+                0,
+
+              openIssues:
+                issueData.open,
+
+              criticalIssues:
+                issueData.critical,
+
+              safetyEvents:
+                projectSafetyEvents,
+
+              photos:
+                photoCount,
+            };
+          }
+        ),
+      [
+        projects,
+        reports,
+        today,
+        workforceTotalsByReport,
+        productionByReport,
+        issuesByReport,
+        safetyByReport,
+        attachmentsByReport,
+      ]
+    );
+
+  const recentReports =
+    reports.slice(
+      0,
+      10
     );
 
   if (
@@ -1146,8 +1571,7 @@ function OperationalDashboardContent() {
   }
 
   if (
-    errorMessage ||
-    !project
+    errorMessage
   ) {
     return (
       <main
@@ -1181,8 +1605,7 @@ function OperationalDashboardContent() {
               styles.stateText
             }
           >
-            {errorMessage ||
-              'The dashboard could not be loaded.'}
+            {errorMessage}
           </p>
         </div>
       </main>
@@ -1222,10 +1645,9 @@ function OperationalDashboardContent() {
               styles.subtitle
             }
           >
-            {project.code ||
-              'Unassigned'}
-            {' · '}
-            {project.name}
+            Portfolio operational
+            overview across all
+            accessible projects.
           </p>
         </div>
 
@@ -1235,24 +1657,22 @@ function OperationalDashboardContent() {
           }
         >
           <Link
-            href={`/dashboard/projects/daily-reports?projectId=${project.id}`}
+            href="/dashboard/projects"
             className={
               styles.secondaryButton
             }
           >
-            Daily Reports
+            Projects
           </Link>
 
-          {latestReport && (
-            <Link
-              href={`/dashboard/projects/daily-reports/${latestReport.id}`}
-              className={
-                styles.primaryButton
-              }
-            >
-              Open Latest Report
-            </Link>
-          )}
+          <Link
+            href="/dashboard/projects/daily-reports"
+            className={
+              styles.primaryButton
+            }
+          >
+            Daily Reports
+          </Link>
         </div>
       </section>
 
@@ -1262,34 +1682,31 @@ function OperationalDashboardContent() {
         }
       >
         <SummaryCard
+          label="Active Projects"
+          value={
+            activeProjects.length
+          }
+          helper={`${projects.length} total projects`}
+          tone="success"
+        />
+
+        <SummaryCard
           label="Today Workforce"
           value={
-            latestWorkforce.workers
+            todayWorkforce
           }
-          helper={
-            latestReport
-              ? formatDate(
-                  latestReport.report_date
-                )
-              : 'No reports yet'
-          }
+          helper={`${reportsToday.length} reports today`}
           tone="success"
         />
 
         <SummaryCard
           label="Today Labor-Hours"
           value={
-            latestWorkforce.laborHours.toFixed(
+            todayLaborHours.toFixed(
               1
             )
           }
-        />
-
-        <SummaryCard
-          label="Production Records"
-          value={
-            latestProduction.records
-          }
+          helper="Across all projects"
         />
 
         <SummaryCard
@@ -1314,6 +1731,7 @@ function OperationalDashboardContent() {
           value={
             safetyEvents
           }
+          helper="Portfolio total"
           tone={
             safetyEvents >
             0
@@ -1327,19 +1745,28 @@ function OperationalDashboardContent() {
           value={`${weatherImpactHours.toFixed(
             1
           )} h`}
+          helper="Portfolio total"
         />
 
         <SummaryCard
-          label="Approved Reports"
+          label="Reports Today"
           value={
-            approvedReports
+            reportsToday.length
           }
+          helper={`${activeProjects.length} active projects`}
         />
 
         <SummaryCard
-          label="Total Reports"
+          label="Pending Approval"
           value={
-            reports.length
+            pendingApproval
+          }
+          helper="Submitted or reviewed"
+          tone={
+            pendingApproval >
+            0
+              ? 'warning'
+              : undefined
           }
         />
       </section>
@@ -1365,7 +1792,7 @@ function OperationalDashboardContent() {
                   styles.panelEyebrow
                 }
               >
-                WORKFORCE TREND
+                PORTFOLIO WORKFORCE
               </p>
 
               <h2
@@ -1392,22 +1819,19 @@ function OperationalDashboardContent() {
                 WORKERS
               </p>
 
-              {latestReports.map(
+              {dailyPortfolioTrend.map(
                 (item) => (
                   <MiniBar
                     key={
-                      item.id
+                      item.date
                     }
                     label={
                       formatShortDate(
-                        item.report_date
+                        item.date
                       )
                     }
                     value={
-                      workforceTotalsByReport.get(
-                        item.id
-                      )?.workers ||
-                      0
+                      item.workers
                     }
                     max={
                       maxWorkers
@@ -1426,25 +1850,20 @@ function OperationalDashboardContent() {
                 LABOR-HOURS
               </p>
 
-              {latestReports.map(
+              {dailyPortfolioTrend.map(
                 (item) => (
                   <MiniBar
                     key={
-                      item.id
+                      item.date
                     }
                     label={
                       formatShortDate(
-                        item.report_date
+                        item.date
                       )
                     }
                     value={
                       Number(
-                        (
-                          workforceTotalsByReport.get(
-                            item.id
-                          )?.laborHours ||
-                          0
-                        ).toFixed(
+                        item.laborHours.toFixed(
                           1
                         )
                       )
@@ -1475,7 +1894,7 @@ function OperationalDashboardContent() {
                   styles.panelEyebrow
                 }
               >
-                PRODUCTION PERFORMANCE
+                PRODUCTION ACTIVITY
               </p>
 
               <h2
@@ -1493,71 +1912,61 @@ function OperationalDashboardContent() {
               styles.productionTrend
             }
           >
-            {latestReports.map(
-              (item) => {
-                const data =
-                  productionByReport.get(
-                    item.id
-                  ) || {
-                    planned: 0,
-                    actual: 0,
-                  };
-
-                return (
+            {dailyPortfolioTrend.map(
+              (item) => (
+                <div
+                  key={
+                    item.date
+                  }
+                  className={
+                    styles.productionDay
+                  }
+                >
                   <div
-                    key={
-                      item.id
-                    }
                     className={
-                      styles.productionDay
+                      styles.productionDate
                     }
                   >
-                    <div
-                      className={
-                        styles.productionDate
-                      }
-                    >
-                      {formatShortDate(
-                        item.report_date
-                      )}
-                    </div>
-
-                    <div
-                      className={
-                        styles.productionBars
-                      }
-                    >
-                      <MiniBar
-                        label="Plan"
-                        value={
-                          Number(
-                            data.planned.toFixed(
-                              2
-                            )
-                          )
-                        }
-                        max={
-                          maxProduction
-                        }
-                      />
-
-                      <MiniBar
-                        label="Actual"
-                        value={
-                          Number(
-                            data.actual.toFixed(
-                              2
-                            )
-                          )
-                        }
-                        max={
-                          maxProduction
-                        }
-                      />
-                    </div>
+                    {formatShortDate(
+                      item.date
+                    )}
                   </div>
-                );
-              }
+
+                  <div
+                    className={
+                      styles.productionBars
+                    }
+                  >
+                    <MiniBar
+                      label="Plan"
+                      value={
+                        Number(
+                          item.planned.toFixed(
+                            2
+                          )
+                        )
+                      }
+                      max={
+                        maxProduction
+                      }
+                    />
+
+                    <MiniBar
+                      label="Actual"
+                      value={
+                        Number(
+                          item.actual.toFixed(
+                            2
+                          )
+                        )
+                      }
+                      max={
+                        maxProduction
+                      }
+                    />
+                  </div>
+                </div>
+              )
             )}
           </div>
         </div>
@@ -1662,7 +2071,7 @@ function OperationalDashboardContent() {
               styles.panelTitle
             }
           >
-            Field Attention
+            Portfolio Attention
           </h2>
 
           <div
@@ -1714,7 +2123,7 @@ function OperationalDashboardContent() {
               styles.panelEyebrow
             }
           >
-            WEATHER & SAFETY
+            TODAY
           </p>
 
           <h2
@@ -1722,7 +2131,7 @@ function OperationalDashboardContent() {
               styles.panelTitle
             }
           >
-            Site Conditions
+            Field Activity
           </h2>
 
           <div
@@ -1732,39 +2141,244 @@ function OperationalDashboardContent() {
           >
             <div>
               <span>
-                Weather Impact
-              </span>
-
-              <strong>
-                {weatherImpactHours.toFixed(
-                  1
-                )}{' '}
-                h
-              </strong>
-            </div>
-
-            <div>
-              <span>
-                Safety Events
-              </span>
-
-              <strong>
-                {safetyEvents}
-              </strong>
-            </div>
-
-            <div>
-              <span>
-                Reports Analyzed
+                Reports Today
               </span>
 
               <strong>
                 {
-                  reports.length
+                  reportsToday.length
+                }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Production Records
+              </span>
+
+              <strong>
+                {
+                  todayProductionRecords
+                }
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Active Projects
+              </span>
+
+              <strong>
+                {
+                  activeProjects.length
                 }
               </strong>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section
+        className={
+          styles.reportsPanel
+        }
+      >
+        <div
+          className={
+            styles.panelHeader
+          }
+        >
+          <div>
+            <p
+              className={
+                styles.panelEyebrow
+              }
+            >
+              PROJECT OPERATIONS
+            </p>
+
+            <h2
+              className={
+                styles.panelTitle
+              }
+            >
+              Portfolio Status by Project
+            </h2>
+          </div>
+        </div>
+
+        <div
+          className={
+            styles.tableWrapper
+          }
+        >
+          <table
+            className={
+              styles.reportsTable
+            }
+          >
+            <thead>
+              <tr>
+                <th>
+                  Project
+                </th>
+
+                <th>
+                  Daily Report
+                </th>
+
+                <th>
+                  Workforce
+                </th>
+
+                <th>
+                  Labor-Hours
+                </th>
+
+                <th>
+                  Production
+                </th>
+
+                <th>
+                  Open Issues
+                </th>
+
+                <th>
+                  Safety
+                </th>
+
+                <th>
+                  Photos
+                </th>
+
+                <th>
+                  Action
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {projectOperations.map(
+                (item) => (
+                  <tr
+                    key={
+                      item.project.id
+                    }
+                  >
+                    <td>
+                      <strong>
+                        {item.project.code ||
+                          '—'}
+                      </strong>
+
+                      <div
+                        style={{
+                          marginTop:
+                            '3px',
+                          color:
+                            '#64748b',
+                          fontSize:
+                            '0.62rem',
+                        }}
+                      >
+                        {
+                          item.project.name
+                        }
+                      </div>
+                    </td>
+
+                    <td>
+                      {item.operationalReport ? (
+                        <span
+                          className={`${styles.statusBadge} ${getStatusClass(
+                            item.operationalReport
+                              .status
+                          )}`}
+                        >
+                          {formatStatus(
+                            item.operationalReport
+                              .status
+                          )}
+                        </span>
+                      ) : (
+                        'No report'
+                      )}
+                    </td>
+
+                    <td>
+                      {
+                        item.workers
+                      }
+                    </td>
+
+                    <td>
+                      {item.laborHours.toFixed(
+                        1
+                      )}
+                    </td>
+
+                    <td>
+                      {
+                        item.productionRecords
+                      }
+                    </td>
+
+                    <td>
+                      {
+                        item.openIssues
+                      }
+
+                      {item.criticalIssues >
+                        0 &&
+                        ` (${item.criticalIssues} critical)`}
+                    </td>
+
+                    <td>
+                      {
+                        item.safetyEvents
+                      }
+                    </td>
+
+                    <td>
+                      {
+                        item.photos
+                      }
+                    </td>
+
+                    <td>
+                      <Link
+                        href={`/dashboard/projects/daily-reports?projectId=${item.project.id}`}
+                        className={
+                          styles.tableLink
+                        }
+                      >
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                )
+              )}
+
+              {projectOperations.length ===
+                0 && (
+                <tr>
+                  <td
+                    colSpan="9"
+                    style={{
+                      textAlign:
+                        'center',
+                      padding:
+                        '28px',
+                      color:
+                        '#64748b',
+                    }}
+                  >
+                    No projects available.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -1814,6 +2428,10 @@ function OperationalDashboardContent() {
                 </th>
 
                 <th>
+                  Project
+                </th>
+
+                <th>
                   Report
                 </th>
 
@@ -1848,11 +2466,16 @@ function OperationalDashboardContent() {
             </thead>
 
             <tbody>
-              {latestReports.map(
-                (item) => {
+              {recentReports.map(
+                (report) => {
+                  const project =
+                    projectMap.get(
+                      report.project_id
+                    );
+
                   const workforceData =
                     workforceTotalsByReport.get(
-                      item.id
+                      report.id
                     ) || {
                       workers: 0,
                       laborHours: 0,
@@ -1860,21 +2483,21 @@ function OperationalDashboardContent() {
 
                   const productionData =
                     productionByReport.get(
-                      item.id
+                      report.id
                     ) || {
                       records: 0,
                     };
 
                   const issueData =
                     issuesByReport.get(
-                      item.id
+                      report.id
                     ) || {
                       open: 0,
                     };
 
                   const attachmentData =
                     attachmentsByReport.get(
-                      item.id
+                      report.id
                     ) || {
                       photos: 0,
                     };
@@ -1882,19 +2505,24 @@ function OperationalDashboardContent() {
                   return (
                     <tr
                       key={
-                        item.id
+                        report.id
                       }
                     >
                       <td>
                         {formatDate(
-                          item.report_date
+                          report.report_date
                         )}
+                      </td>
+
+                      <td>
+                        {project?.code ||
+                          '—'}
                       </td>
 
                       <td>
                         DR-
                         {String(
-                          item.report_number
+                          report.report_number
                         ).padStart(
                           4,
                           '0'
@@ -1904,11 +2532,11 @@ function OperationalDashboardContent() {
                       <td>
                         <span
                           className={`${styles.statusBadge} ${getStatusClass(
-                            item.status
+                            report.status
                           )}`}
                         >
                           {formatStatus(
-                            item.status
+                            report.status
                           )}
                         </span>
                       </td>
@@ -1945,7 +2573,7 @@ function OperationalDashboardContent() {
 
                       <td>
                         <Link
-                          href={`/dashboard/projects/daily-reports/${item.id}`}
+                          href={`/dashboard/projects/daily-reports/${report.id}`}
                           className={
                             styles.tableLink
                           }
@@ -1957,35 +2585,29 @@ function OperationalDashboardContent() {
                   );
                 }
               )}
+
+              {recentReports.length ===
+                0 && (
+                <tr>
+                  <td
+                    colSpan="10"
+                    style={{
+                      textAlign:
+                        'center',
+                      padding:
+                        '28px',
+                      color:
+                        '#64748b',
+                    }}
+                  >
+                    No Daily Reports available yet.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </section>
     </main>
-  );
-}
-
-
-export default function OperationalDashboardPage() {
-  return (
-    <Suspense
-      fallback={
-        <main
-          className={
-            styles.page
-          }
-        >
-          <div
-            className={
-              styles.statePanel
-            }
-          >
-            Loading Operational Dashboard...
-          </div>
-        </main>
-      }
-    >
-      <OperationalDashboardContent />
-    </Suspense>
   );
 }
