@@ -370,7 +370,7 @@ function SectionStatus({
   );
 }
 
-export default function DailyReportReviewPage() {
+export default function DailyReportApprovalPage() {
   const supabase =
     useMemo(
       () =>
@@ -487,9 +487,6 @@ export default function DailyReportReviewPage() {
             report_number,
             report_date,
             status,
-            work_start,
-            work_end,
-            general_notes,
             submitted_by,
             submitted_at,
             reviewed_by,
@@ -1098,7 +1095,8 @@ export default function DailyReportReviewPage() {
               'flex',
             alignItems:
               'center',
-            gap: '10px',
+            gap:
+              '10px',
           }}
         >
           <span
