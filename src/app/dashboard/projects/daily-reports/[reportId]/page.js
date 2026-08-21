@@ -23,15 +23,89 @@ const PROJECT_COVER_BUCKET =
 const SIGNED_URL_DURATION =
   60 * 60;
 
+const PERIODS = [
+  {
+    key: 'morning',
+    label: 'Morning',
+  },
+  {
+    key: 'afternoon',
+    label: 'Afternoon',
+  },
+  {
+    key: 'evening',
+    label: 'Evening',
+  },
+];
+
+const WEATHER_OPTIONS = [
+  'clear',
+  'partly_cloudy',
+  'cloudy',
+  'light_rain',
+  'rain',
+  'heavy_rain',
+  'storm',
+  'snow',
+  'fog',
+  'other',
+];
+
+const WIND_OPTIONS = [
+  'calm',
+  'light',
+  'moderate',
+  'strong',
+  'severe',
+];
+
+const SITE_OPTIONS = [
+  'dry',
+  'damp',
+  'wet',
+  'muddy',
+  'frozen',
+  'restricted',
+];
+
+const IMPACT_OPTIONS = [
+  'none',
+  'minor',
+  'moderate',
+  'severe',
+];
+
+function createEmptyPeriod() {
+  return {
+    id: null,
+    condition: '',
+    temperatureMin: '',
+    temperatureMax: '',
+    temperatureUnit: 'F',
+    rainfall: '',
+    windCondition: '',
+    siteCondition: '',
+    productionImpact: 'none',
+    impactHours: '',
+    notes: '',
+  };
+}
+
+function createInitialWeatherState() {
+  return {
+    morning: createEmptyPeriod(),
+    afternoon: createEmptyPeriod(),
+    evening: createEmptyPeriod(),
+  };
+}
+
 function formatDate(value) {
   if (!value) {
     return '—';
   }
 
   const [year, month, day] =
-    value
-      .split('-')
-      .map(Number);
+    value.split('-').map(Number);
 
   const date =
     new Date(
@@ -72,6 +146,37 @@ function formatTime(value) {
 
   return String(value)
     .slice(0, 5);
+}
+
+function formatOptionLabel(value) {
+  if (!value) {
+    return '';
+  }
+
+  return value
+    .replaceAll('_', ' ')
+    .replace(
+      /\b\w/g,
+      (character) =>
+        character.toUpperCase()
+    );
+}
+
+function hasPeriodContent(
+  periodData
+) {
+  return Boolean(
+    periodData.condition ||
+      periodData.temperatureMin !== '' ||
+      periodData.temperatureMax !== '' ||
+      periodData.rainfall !== '' ||
+      periodData.windCondition ||
+      periodData.siteCondition ||
+      periodData.productionImpact !==
+        'none' ||
+      periodData.impactHours !== '' ||
+      periodData.notes.trim()
+  );
 }
 
 function getStatusClass(
@@ -233,6 +338,33 @@ export default function DailyReportWorkspacePage() {
   ] = useState('');
 
   const [
+    activeSection,
+    setActiveSection,
+  ] = useState('general');
+
+  const [
+    weather,
+    setWeather,
+  ] = useState(
+    createInitialWeatherState
+  );
+
+  const [
+    activeWeatherPeriod,
+    setActiveWeatherPeriod,
+  ] = useState('morning');
+
+  const [
+    isSavingWeather,
+    setIsSavingWeather,
+  ] = useState(false);
+
+  const [
+    weatherSuccess,
+    setWeatherSuccess,
+  ] = useState('');
+
+  const [
     weatherCount,
     setWeatherCount,
   ] = useState(0);
@@ -291,221 +423,148 @@ export default function DailyReportWorkspacePage() {
     useMemo(
       () => [
         {
-          key:
-            'general',
-
-          number:
-            '01',
-
+          key: 'general',
+          number: '01',
           title:
             'General Information',
-
           shortTitle:
             'General',
-
           description:
             'Project, date, work period and report notes.',
-
           count:
             report ? 1 : 0,
+          embedded:
+            true,
         },
 
         {
-          key:
-            'weather',
-
-          number:
-            '02',
-
+          key: 'weather',
+          number: '02',
           title:
             'Weather & Site Conditions',
-
           shortTitle:
             'Weather',
-
           description:
             'Weather, temperature and production impact.',
-
           count:
             weatherCount,
+          embedded:
+            true,
         },
 
         {
-          key:
-            'workforce',
-
-          number:
-            '03',
-
+          key: 'workforce',
+          number: '03',
           title:
             'Workforce',
-
           shortTitle:
             'Workforce',
-
           description:
             'Companies, crews, roles and labor resources.',
-
           count:
             workforceCount,
         },
 
         {
-          key:
-            'production',
-
-          number:
-            '04',
-
+          key: 'production',
+          number: '04',
           title:
             'Production',
-
           shortTitle:
             'Production',
-
           description:
             'Planned versus actual field production.',
-
           count:
             productionCount,
         },
 
         {
-          key:
-            'equipment',
-
-          number:
-            '05',
-
+          key: 'equipment',
+          number: '05',
           title:
             'Equipment',
-
           shortTitle:
             'Equipment',
-
           description:
             'Equipment usage, idle time and operating status.',
-
           count:
             equipmentCount,
         },
 
         {
-          key:
-            'materials',
-
-          number:
-            '06',
-
+          key: 'materials',
+          number: '06',
           title:
             'Materials',
-
           shortTitle:
             'Materials',
-
           description:
             'Materials received and used during the workday.',
-
           count:
             materialsCount,
         },
 
         {
-          key:
-            'issues',
-
-          number:
-            '07',
-
+          key: 'issues',
+          number: '07',
           title:
             'Issues & Constraints',
-
           shortTitle:
             'Issues',
-
           description:
             'Field issues, impacts and corrective actions.',
-
           count:
             issuesCount,
         },
 
         {
-          key:
-            'notes',
-
-          number:
-            '08',
-
+          key: 'notes',
+          number: '08',
           title:
             'Notes & Observations',
-
           shortTitle:
             'Notes',
-
           description:
             'General, safety, quality and coordination notes.',
-
           count:
             notesCount,
         },
 
         {
-          key:
-            'attachments',
-
-          number:
-            '09',
-
+          key: 'attachments',
+          number: '09',
           title:
             'Photos & Attachments',
-
           shortTitle:
             'Attachments',
-
           description:
             'Photos, videos, documents and field evidence.',
-
           count:
             attachmentsCount,
         },
 
         {
-          key:
-            'safety',
-
-          number:
-            '10',
-
+          key: 'safety',
+          number: '10',
           title:
             'Safety',
-
           shortTitle:
             'Safety',
-
           description:
             'Toolbox talks, inspections and daily safety events.',
-
           count:
             safetyCount,
         },
 
         {
-          key:
-            'approval',
-
-          number:
-            '11',
-
+          key: 'approval',
+          number: '11',
           title:
             'Review & Approval',
-
           shortTitle:
             'Approval',
-
           description:
             'Submission, review and approval workflow.',
-
           count:
             report?.status !==
             'draft'
@@ -535,6 +594,7 @@ export default function DailyReportWorkspacePage() {
 
       setIsLoading(true);
       setErrorMessage('');
+      setWeatherSuccess('');
 
       const {
         data:
@@ -554,7 +614,6 @@ export default function DailyReportWorkspacePage() {
         );
 
         setIsLoading(false);
-
         return;
       }
 
@@ -601,7 +660,6 @@ export default function DailyReportWorkspacePage() {
         );
 
         setIsLoading(false);
-
         return;
       }
 
@@ -644,7 +702,6 @@ export default function DailyReportWorkspacePage() {
         );
 
         setIsLoading(false);
-
         return;
       }
 
@@ -655,12 +712,6 @@ export default function DailyReportWorkspacePage() {
       setProject(
         projectData
       );
-
-      /*
-       * ------------------------------------------------------
-       * PROJECT COVER
-       * ------------------------------------------------------
-       */
 
       if (
         projectData.cover_image_path
@@ -692,13 +743,168 @@ export default function DailyReportWorkspacePage() {
       }
 
       /*
-       * ------------------------------------------------------
+       * WEATHER
+       */
+
+      const {
+        data:
+          weatherData,
+
+        error:
+          weatherError,
+      } =
+        await supabase
+          .from(
+            'daily_report_weather'
+          )
+          .select(`
+            id,
+            daily_report_id,
+            period,
+            weather_condition,
+            temperature,
+            temperature_unit,
+            site_condition,
+            production_impact,
+            impact_notes,
+            condition,
+            organization_id,
+            project_id,
+            temperature_min,
+            temperature_max,
+            rainfall,
+            wind_condition,
+            impact_hours,
+            notes
+          `)
+          .eq(
+            'daily_report_id',
+            reportId
+          )
+          .order(
+            'period',
+            {
+              ascending: true,
+            }
+          );
+
+      if (
+        !weatherError
+      ) {
+        const nextWeather =
+          createInitialWeatherState();
+
+        (
+          weatherData || []
+        ).forEach(
+          (item) => {
+            if (
+              !item.period ||
+              !nextWeather[
+                item.period
+              ]
+            ) {
+              return;
+            }
+
+            nextWeather[
+              item.period
+            ] = {
+              id:
+                item.id,
+
+              condition:
+                item.condition ||
+                item.weather_condition ||
+                '',
+
+              temperatureMin:
+                item.temperature_min !==
+                  null &&
+                item.temperature_min !==
+                  undefined
+                  ? String(
+                      item.temperature_min
+                    )
+                  : item.temperature !==
+                        null &&
+                      item.temperature !==
+                        undefined
+                    ? String(
+                        item.temperature
+                      )
+                    : '',
+
+              temperatureMax:
+                item.temperature_max !==
+                  null &&
+                item.temperature_max !==
+                  undefined
+                  ? String(
+                      item.temperature_max
+                    )
+                  : '',
+
+              temperatureUnit:
+                item.temperature_unit ||
+                'F',
+
+              rainfall:
+                item.rainfall !==
+                  null &&
+                item.rainfall !==
+                  undefined
+                  ? String(
+                      item.rainfall
+                    )
+                  : '',
+
+              windCondition:
+                item.wind_condition ||
+                '',
+
+              siteCondition:
+                item.site_condition ||
+                '',
+
+              productionImpact:
+                item.production_impact ||
+                'none',
+
+              impactHours:
+                item.impact_hours !==
+                  null &&
+                item.impact_hours !==
+                  undefined
+                  ? String(
+                      item.impact_hours
+                    )
+                  : '',
+
+              notes:
+                item.notes ||
+                item.impact_notes ||
+                '',
+            };
+          }
+        );
+
+        setWeather(
+          nextWeather
+        );
+
+        setWeatherCount(
+          (
+            weatherData || []
+          ).length
+        );
+      }
+
+      /*
        * SECTION COUNTS
-       * ------------------------------------------------------
        */
 
       const [
-        weatherResult,
         workforceResult,
         productionResult,
         equipmentResult,
@@ -711,25 +917,6 @@ export default function DailyReportWorkspacePage() {
         await Promise.all([
           supabase
             .from(
-              'daily_report_weather'
-            )
-            .select(
-              'id',
-              {
-                count:
-                  'exact',
-
-                head:
-                  true,
-              }
-            )
-            .eq(
-              'daily_report_id',
-              reportId
-            ),
-
-          supabase
-            .from(
               'daily_report_workforce'
             )
             .select(
@@ -737,7 +924,6 @@ export default function DailyReportWorkspacePage() {
               {
                 count:
                   'exact',
-
                 head:
                   true,
               }
@@ -756,7 +942,6 @@ export default function DailyReportWorkspacePage() {
               {
                 count:
                   'exact',
-
                 head:
                   true,
               }
@@ -775,7 +960,6 @@ export default function DailyReportWorkspacePage() {
               {
                 count:
                   'exact',
-
                 head:
                   true,
               }
@@ -794,7 +978,6 @@ export default function DailyReportWorkspacePage() {
               {
                 count:
                   'exact',
-
                 head:
                   true,
               }
@@ -813,7 +996,6 @@ export default function DailyReportWorkspacePage() {
               {
                 count:
                   'exact',
-
                 head:
                   true,
               }
@@ -832,7 +1014,6 @@ export default function DailyReportWorkspacePage() {
               {
                 count:
                   'exact',
-
                 head:
                   true,
               }
@@ -851,7 +1032,6 @@ export default function DailyReportWorkspacePage() {
               {
                 count:
                   'exact',
-
                 head:
                   true,
               }
@@ -870,7 +1050,6 @@ export default function DailyReportWorkspacePage() {
               {
                 count:
                   'exact',
-
                 head:
                   true,
               }
@@ -880,11 +1059,6 @@ export default function DailyReportWorkspacePage() {
               reportId
             ),
         ]);
-
-      setWeatherCount(
-        weatherResult.count ||
-          0
-      );
 
       setWorkforceCount(
         workforceResult.count ||
@@ -934,6 +1108,316 @@ export default function DailyReportWorkspacePage() {
     reportId,
     supabase,
   ]);
+
+  function updateWeatherField(
+    period,
+    field,
+    value
+  ) {
+    setWeather(
+      (current) => ({
+        ...current,
+
+        [period]: {
+          ...current[
+            period
+          ],
+          [field]:
+            value,
+        },
+      })
+    );
+
+    setWeatherSuccess('');
+  }
+
+  async function saveWeather(
+    event
+  ) {
+    event.preventDefault();
+
+    if (
+      !report ||
+      isSavingWeather ||
+      report.status !==
+        'draft'
+    ) {
+      return;
+    }
+
+    setIsSavingWeather(
+      true
+    );
+
+    setErrorMessage('');
+    setWeatherSuccess('');
+
+    for (
+      const periodDefinition
+      of PERIODS
+    ) {
+      const period =
+        periodDefinition.key;
+
+      const periodData =
+        weather[
+          period
+        ];
+
+      const hasContent =
+        hasPeriodContent(
+          periodData
+        );
+
+      if (
+        !hasContent &&
+        !periodData.id
+      ) {
+        continue;
+      }
+
+      if (
+        !hasContent &&
+        periodData.id
+      ) {
+        const {
+          error:
+            deleteError,
+        } =
+          await supabase
+            .from(
+              'daily_report_weather'
+            )
+            .delete()
+            .eq(
+              'id',
+              periodData.id
+            );
+
+        if (
+          deleteError
+        ) {
+          setErrorMessage(
+            deleteError.message
+          );
+
+          setIsSavingWeather(
+            false
+          );
+
+          return;
+        }
+
+        continue;
+      }
+
+      const temperatureMin =
+        periodData.temperatureMin ===
+        ''
+          ? null
+          : Number(
+              periodData.temperatureMin
+            );
+
+      const temperatureMax =
+        periodData.temperatureMax ===
+        ''
+          ? null
+          : Number(
+              periodData.temperatureMax
+            );
+
+      const rainfall =
+        periodData.rainfall ===
+        ''
+          ? null
+          : Number(
+              periodData.rainfall
+            );
+
+      const impactHours =
+        periodData.impactHours ===
+        ''
+          ? null
+          : Number(
+              periodData.impactHours
+            );
+
+      if (
+        temperatureMin !==
+          null &&
+        temperatureMax !==
+          null &&
+        temperatureMax <
+          temperatureMin
+      ) {
+        setErrorMessage(
+          `${periodDefinition.label}: maximum temperature cannot be lower than minimum temperature.`
+        );
+
+        setActiveWeatherPeriod(
+          period
+        );
+
+        setIsSavingWeather(
+          false
+        );
+
+        return;
+      }
+
+      const payload = {
+        daily_report_id:
+          report.id,
+
+        period,
+
+        organization_id:
+          report.organization_id,
+
+        project_id:
+          report.project_id,
+
+        condition:
+          periodData.condition ||
+          null,
+
+        weather_condition:
+          periodData.condition ||
+          null,
+
+        temperature:
+          temperatureMin,
+
+        temperature_unit:
+          periodData.temperatureUnit ||
+          'F',
+
+        temperature_min:
+          temperatureMin,
+
+        temperature_max:
+          temperatureMax,
+
+        rainfall,
+
+        wind_condition:
+          periodData.windCondition ||
+          null,
+
+        site_condition:
+          periodData.siteCondition ||
+          null,
+
+        production_impact:
+          periodData.productionImpact ||
+          'none',
+
+        impact_hours:
+          impactHours,
+
+        notes:
+          periodData.notes.trim() ||
+          null,
+
+        impact_notes:
+          periodData.notes.trim() ||
+          null,
+      };
+
+      const {
+        data:
+          savedRecord,
+
+        error:
+          saveError,
+      } =
+        await supabase
+          .from(
+            'daily_report_weather'
+          )
+          .upsert(
+            payload,
+            {
+              onConflict:
+                'daily_report_id,period',
+            }
+          )
+          .select(
+            'id'
+          )
+          .single();
+
+      if (
+        saveError
+      ) {
+        setErrorMessage(
+          saveError.message
+        );
+
+        setActiveWeatherPeriod(
+          period
+        );
+
+        setIsSavingWeather(
+          false
+        );
+
+        return;
+      }
+
+      setWeather(
+        (current) => ({
+          ...current,
+
+          [period]: {
+            ...current[
+              period
+            ],
+            id:
+              savedRecord.id,
+          },
+        })
+      );
+    }
+
+    const count =
+      Object.values(
+        weather
+      ).filter(
+        hasPeriodContent
+      ).length;
+
+    setWeatherCount(
+      count
+    );
+
+    setWeatherSuccess(
+      'Weather and site conditions saved successfully.'
+    );
+
+    setIsSavingWeather(
+      false
+    );
+  }
+
+  function handleSectionClick(
+    section
+  ) {
+    if (
+      section.embedded
+    ) {
+      setActiveSection(
+        section.key
+      );
+
+      return;
+    }
+
+    router.push(
+      `/dashboard/projects/daily-reports/${report.id}/${section.key}`
+    );
+  }
 
   const completedSections =
     sections.filter(
@@ -991,9 +1475,9 @@ export default function DailyReportWorkspacePage() {
   }
 
   if (
-    errorMessage ||
-    !report ||
-    !project
+    errorMessage &&
+    (!report ||
+      !project)
   ) {
     return (
       <main
@@ -1057,16 +1541,21 @@ export default function DailyReportWorkspacePage() {
       '0'
     )}`;
 
+  const currentWeather =
+    weather[
+      activeWeatherPeriod
+    ];
+
+  const isReadOnly =
+    report.status !==
+    'draft';
+
   return (
     <main
       className={
         styles.page
       }
     >
-      {/* =====================================================
-          TOP NAVIGATION
-          ===================================================== */}
-
       <div
         className={
           styles.topNavigation
@@ -1081,10 +1570,6 @@ export default function DailyReportWorkspacePage() {
           ← Daily Report Center
         </Link>
       </div>
-
-      {/* =====================================================
-          PROJECT / DAILY REPORT HERO
-          ===================================================== */}
 
       <section
         className={
@@ -1215,19 +1700,11 @@ export default function DailyReportWorkspacePage() {
         </div>
       </section>
 
-      {/* =====================================================
-          HYBRID WORKSPACE
-          ===================================================== */}
-
       <section
         className={
           styles.workspace
         }
       >
-        {/* ===================================================
-            INTERNAL SIDEBAR
-            =================================================== */}
-
         <aside
           className={
             styles.workspaceSidebar
@@ -1259,18 +1736,22 @@ export default function DailyReportWorkspacePage() {
             className={
               styles.sectionNavigation
             }
-            aria-label="Daily Report sections"
           >
             {sections.map(
               (section) => (
-                <Link
+                <button
+                  type="button"
                   key={
                     section.key
                   }
-                  href={`/dashboard/projects/daily-reports/${report.id}/${section.key}`}
+                  onClick={() =>
+                    handleSectionClick(
+                      section
+                    )
+                  }
                   className={`${styles.sectionLink} ${
-                    section.key ===
-                    'general'
+                    activeSection ===
+                    section.key
                       ? styles.sectionLinkActive
                       : ''
                   }`}
@@ -1305,14 +1786,10 @@ export default function DailyReportWorkspacePage() {
                       ? '✓'
                       : '·'}
                   </span>
-                </Link>
+                </button>
               )
             )}
           </nav>
-
-          {/* =================================================
-              QUICK ACTIONS
-              ================================================= */}
 
           <div
             className={
@@ -1367,407 +1844,821 @@ export default function DailyReportWorkspacePage() {
               >
                 + Photo
               </Link>
-
-              <Link
-                href={`/dashboard/projects/daily-reports/${report.id}/equipment`}
-                className={
-                  styles.quickAction
-                }
-              >
-                + Equipment
-              </Link>
-
-              <Link
-                href={`/dashboard/projects/daily-reports/${report.id}/materials`}
-                className={
-                  styles.quickAction
-                }
-              >
-                + Material
-              </Link>
-
-              <Link
-                href={`/dashboard/projects/daily-reports/${report.id}/notes`}
-                className={
-                  styles.quickAction
-                }
-              >
-                + Note
-              </Link>
-
-              <Link
-                href={`/dashboard/projects/daily-reports/${report.id}/safety`}
-                className={
-                  styles.quickAction
-                }
-              >
-                + Safety
-              </Link>
             </div>
           </div>
         </aside>
-
-        {/* ===================================================
-            MAIN WORKSPACE PANEL
-            =================================================== */}
 
         <div
           className={
             styles.workspaceMain
           }
         >
-          <article
-            className={
-              styles.contentPanel
-            }
-          >
-            <header
-              className={
-                styles.contentHeader
-              }
-            >
-              <div>
-                <p
-                  className={
-                    styles.contentEyebrow
-                  }
-                >
-                  01 · GENERAL INFORMATION
-                </p>
-
-                <h2
-                  className={
-                    styles.contentTitle
-                  }
-                >
-                  Report overview
-                </h2>
-
-                <p
-                  className={
-                    styles.contentDescription
-                  }
-                >
-                  Core project and
-                  reporting information.
-                  Use the internal
-                  navigation to access
-                  each field reporting
-                  section.
-                </p>
-              </div>
-
-              <Link
-                href={`/dashboard/projects/daily-reports/${report.id}/general`}
-                className={
-                  styles.openSectionButton
-                }
-              >
-                Open General Information
-              </Link>
-            </header>
-
-            {/* ===============================================
-                GENERAL INFORMATION SNAPSHOT
-                =============================================== */}
-
+          {errorMessage && (
             <div
               className={
-                styles.generalGrid
+                styles.workspaceError
               }
             >
-              <GeneralItem
-                label="Project"
-                value={
-                  project.name
-                }
-              />
-
-              <GeneralItem
-                label="Project Code"
-                value={
-                  project.code ||
-                  'Unassigned'
-                }
-              />
-
-              <GeneralItem
-                label="Client"
-                value={
-                  project.client_name ||
-                  'Not specified'
-                }
-              />
-
-              <GeneralItem
-                label="Report Number"
-                value={
-                  reportNumber
-                }
-              />
-
-              <GeneralItem
-                label="Report Date"
-                value={
-                  formatDate(
-                    report.report_date
-                  )
-                }
-              />
-
-              <GeneralItem
-                label="Status"
-                value={
-                  formatStatus(
-                    report.status
-                  )
-                }
-              />
-
-              <GeneralItem
-                label="Work Start"
-                value={
-                  formatTime(
-                    report.work_start_time
-                  )
-                }
-              />
-
-              <GeneralItem
-                label="Work End"
-                value={
-                  formatTime(
-                    report.work_end_time
-                  )
-                }
-              />
-
-              <GeneralItem
-                label="Report Notes"
-                value={
-                  report.general_notes ||
-                  'No general notes recorded.'
-                }
-              />
+              {errorMessage}
             </div>
+          )}
 
-            {/* ===============================================
-                COMPLETION
-                =============================================== */}
-
+          {weatherSuccess && (
             <div
               className={
-                styles.completionSection
+                styles.workspaceSuccess
               }
             >
-              <div
+              {weatherSuccess}
+            </div>
+          )}
+
+          {activeSection ===
+            'general' && (
+            <article
+              className={
+                styles.contentPanel
+              }
+            >
+              <header
                 className={
-                  styles.completionHeader
+                  styles.contentHeader
                 }
               >
-                <span
-                  className={
-                    styles.completionLabel
-                  }
-                >
-                  Report completion
-                </span>
+                <div>
+                  <p
+                    className={
+                      styles.contentEyebrow
+                    }
+                  >
+                    01 · GENERAL INFORMATION
+                  </p>
 
-                <strong
+                  <h2
+                    className={
+                      styles.contentTitle
+                    }
+                  >
+                    Report overview
+                  </h2>
+
+                  <p
+                    className={
+                      styles.contentDescription
+                    }
+                  >
+                    Core project and
+                    reporting information.
+                  </p>
+                </div>
+
+                <Link
+                  href={`/dashboard/projects/daily-reports/${report.id}/general`}
                   className={
-                    styles.completionValue
+                    styles.openSectionButton
                   }
                 >
-                  {completedSections}
-                  /
-                  {sections.length}
-                  {' · '}
-                  {completionPercentage}
-                  %
-                </strong>
+                  Edit General Information
+                </Link>
+              </header>
+
+              <div
+                className={
+                  styles.generalGrid
+                }
+              >
+                <GeneralItem
+                  label="Project"
+                  value={
+                    project.name
+                  }
+                />
+
+                <GeneralItem
+                  label="Project Code"
+                  value={
+                    project.code ||
+                    'Unassigned'
+                  }
+                />
+
+                <GeneralItem
+                  label="Client"
+                  value={
+                    project.client_name ||
+                    'Not specified'
+                  }
+                />
+
+                <GeneralItem
+                  label="Report Number"
+                  value={
+                    reportNumber
+                  }
+                />
+
+                <GeneralItem
+                  label="Report Date"
+                  value={
+                    formatDate(
+                      report.report_date
+                    )
+                  }
+                />
+
+                <GeneralItem
+                  label="Status"
+                  value={
+                    formatStatus(
+                      report.status
+                    )
+                  }
+                />
+
+                <GeneralItem
+                  label="Work Start"
+                  value={
+                    formatTime(
+                      report.work_start_time
+                    )
+                  }
+                />
+
+                <GeneralItem
+                  label="Work End"
+                  value={
+                    formatTime(
+                      report.work_end_time
+                    )
+                  }
+                />
+
+                <GeneralItem
+                  label="Report Notes"
+                  value={
+                    report.general_notes ||
+                    'No general notes recorded.'
+                  }
+                />
               </div>
 
               <div
                 className={
-                  styles.progressTrack
+                  styles.completionSection
                 }
               >
                 <div
                   className={
-                    styles.progressFill
+                    styles.completionHeader
                   }
-                  style={{
-                    width:
-                      `${completionPercentage}%`,
-                  }}
-                />
+                >
+                  <span
+                    className={
+                      styles.completionLabel
+                    }
+                  >
+                    Report completion
+                  </span>
+
+                  <strong
+                    className={
+                      styles.completionValue
+                    }
+                  >
+                    {completedSections}
+                    /
+                    {sections.length}
+                    {' · '}
+                    {completionPercentage}
+                    %
+                  </strong>
+                </div>
+
+                <div
+                  className={
+                    styles.progressTrack
+                  }
+                >
+                  <div
+                    className={
+                      styles.progressFill
+                    }
+                    style={{
+                      width:
+                        `${completionPercentage}%`,
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-
-            {/* ===============================================
-                OPERATIONAL OVERVIEW
-                =============================================== */}
-
-            <div
-              className={
-                styles.sectionOverview
-              }
-            >
-              <OverviewCard
-                icon="WE"
-                label="Weather"
-                value={
-                  weatherCount >
-                  0
-                    ? 'Recorded'
-                    : 'Not recorded'
-                }
-              />
-
-              <OverviewCard
-                icon="WF"
-                label="Workforce"
-                value={`${workforceCount} ${
-                  workforceCount ===
-                  1
-                    ? 'record'
-                    : 'records'
-                }`}
-              />
-
-              <OverviewCard
-                icon="PR"
-                label="Production"
-                value={`${productionCount} ${
-                  productionCount ===
-                  1
-                    ? 'record'
-                    : 'records'
-                }`}
-              />
-
-              <OverviewCard
-                icon="EQ"
-                label="Equipment"
-                value={`${equipmentCount} ${
-                  equipmentCount ===
-                  1
-                    ? 'record'
-                    : 'records'
-                }`}
-              />
-
-              <OverviewCard
-                icon="MT"
-                label="Materials"
-                value={`${materialsCount} ${
-                  materialsCount ===
-                  1
-                    ? 'record'
-                    : 'records'
-                }`}
-              />
-
-              <OverviewCard
-                icon="IS"
-                label="Issues"
-                value={`${issuesCount} ${
-                  issuesCount ===
-                  1
-                    ? 'issue'
-                    : 'issues'
-                }`}
-              />
-
-              <OverviewCard
-                icon="NO"
-                label="Notes"
-                value={`${notesCount} ${
-                  notesCount ===
-                  1
-                    ? 'note'
-                    : 'notes'
-                }`}
-              />
-
-              <OverviewCard
-                icon="PH"
-                label="Attachments"
-                value={`${attachmentsCount} ${
-                  attachmentsCount ===
-                  1
-                    ? 'file'
-                    : 'files'
-                }`}
-              />
-
-              <OverviewCard
-                icon="SA"
-                label="Safety"
-                value={
-                  safetyCount >
-                  0
-                    ? 'Recorded'
-                    : 'Not recorded'
-                }
-              />
-
-              <OverviewCard
-                icon="AP"
-                label="Workflow"
-                value={
-                  formatStatus(
-                    report.status
-                  )
-                }
-              />
-            </div>
-
-            {/* ===============================================
-                FOOTER
-                =============================================== */}
-
-            <footer
-              className={
-                styles.workspaceFooter
-              }
-            >
-              <p
-                className={
-                  styles.footerMessage
-                }
-              >
-                Select a section
-                from the left to
-                continue updating
-                this Daily Report.
-              </p>
 
               <div
                 className={
-                  styles.footerActions
+                  styles.sectionOverview
                 }
               >
-                <Link
-                  href={`/dashboard/projects/daily-reports/${report.id}/general`}
-                  className={
-                    styles.secondaryButton
+                <OverviewCard
+                  icon="WE"
+                  label="Weather"
+                  value={
+                    weatherCount >
+                    0
+                      ? `${weatherCount} periods recorded`
+                      : 'Not recorded'
                   }
-                >
-                  General Information
-                </Link>
+                />
 
-                <Link
-                  href={`/dashboard/projects/daily-reports/${report.id}/weather`}
+                <OverviewCard
+                  icon="WF"
+                  label="Workforce"
+                  value={`${workforceCount} records`}
+                />
+
+                <OverviewCard
+                  icon="PR"
+                  label="Production"
+                  value={`${productionCount} records`}
+                />
+
+                <OverviewCard
+                  icon="EQ"
+                  label="Equipment"
+                  value={`${equipmentCount} records`}
+                />
+
+                <OverviewCard
+                  icon="MT"
+                  label="Materials"
+                  value={`${materialsCount} records`}
+                />
+
+                <OverviewCard
+                  icon="IS"
+                  label="Issues"
+                  value={`${issuesCount} issues`}
+                />
+              </div>
+            </article>
+          )}
+
+          {activeSection ===
+            'weather' && (
+            <article
+              className={
+                styles.contentPanel
+              }
+            >
+              <header
+                className={
+                  styles.contentHeader
+                }
+              >
+                <div>
+                  <p
+                    className={
+                      styles.contentEyebrow
+                    }
+                  >
+                    02 · WEATHER & SITE CONDITIONS
+                  </p>
+
+                  <h2
+                    className={
+                      styles.contentTitle
+                    }
+                  >
+                    Weather
+                  </h2>
+
+                  <p
+                    className={
+                      styles.contentDescription
+                    }
+                  >
+                    Record weather,
+                    temperature, rainfall,
+                    site conditions and
+                    production impacts
+                    without leaving the
+                    Daily Report workspace.
+                  </p>
+                </div>
+
+                <span
                   className={
-                    styles.primaryButton
+                    styles.embeddedBadge
                   }
                 >
-                  Next: Weather →
-                </Link>
-              </div>
-            </footer>
-          </article>
+                  Embedded Workspace
+                </span>
+              </header>
+
+              <form
+                onSubmit={
+                  saveWeather
+                }
+              >
+                <div
+                  className={
+                    styles.weatherPeriodTabs
+                  }
+                >
+                  {PERIODS.map(
+                    (period) => {
+                      const hasData =
+                        hasPeriodContent(
+                          weather[
+                            period.key
+                          ]
+                        );
+
+                      const active =
+                        activeWeatherPeriod ===
+                        period.key;
+
+                      return (
+                        <button
+                          key={
+                            period.key
+                          }
+                          type="button"
+                          onClick={() =>
+                            setActiveWeatherPeriod(
+                              period.key
+                            )
+                          }
+                          className={`${styles.weatherPeriodButton} ${
+                            active
+                              ? styles.weatherPeriodButtonActive
+                              : ''
+                          }`}
+                        >
+                          <span>
+                            {
+                              period.label
+                            }
+                          </span>
+
+                          <small>
+                            {hasData
+                              ? 'Recorded'
+                              : 'No data'}
+                          </small>
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
+
+                <div
+                  className={
+                    styles.weatherForm
+                  }
+                >
+                  <label
+                    className={
+                      styles.weatherField
+                    }
+                  >
+                    <span>
+                      General condition
+                    </span>
+
+                    <select
+                      value={
+                        currentWeather.condition
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'condition',
+                          event.target
+                            .value
+                        )
+                      }
+                    >
+                      <option value="">
+                        Select condition
+                      </option>
+
+                      {WEATHER_OPTIONS.map(
+                        (
+                          option
+                        ) => (
+                          <option
+                            key={
+                              option
+                            }
+                            value={
+                              option
+                            }
+                          >
+                            {formatOptionLabel(
+                              option
+                            )}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+
+                  <label
+                    className={
+                      styles.weatherField
+                    }
+                  >
+                    <span>
+                      Minimum temperature
+                    </span>
+
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={
+                        currentWeather.temperatureMin
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'temperatureMin',
+                          event.target
+                            .value
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label
+                    className={
+                      styles.weatherField
+                    }
+                  >
+                    <span>
+                      Maximum temperature
+                    </span>
+
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={
+                        currentWeather.temperatureMax
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'temperatureMax',
+                          event.target
+                            .value
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label
+                    className={
+                      styles.weatherField
+                    }
+                  >
+                    <span>
+                      Temperature unit
+                    </span>
+
+                    <select
+                      value={
+                        currentWeather.temperatureUnit
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'temperatureUnit',
+                          event.target
+                            .value
+                        )
+                      }
+                    >
+                      <option value="F">
+                        Fahrenheit (°F)
+                      </option>
+
+                      <option value="C">
+                        Celsius (°C)
+                      </option>
+                    </select>
+                  </label>
+
+                  <label
+                    className={
+                      styles.weatherField
+                    }
+                  >
+                    <span>
+                      Rainfall
+                    </span>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={
+                        currentWeather.rainfall
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'rainfall',
+                          event.target
+                            .value
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label
+                    className={
+                      styles.weatherField
+                    }
+                  >
+                    <span>
+                      Wind
+                    </span>
+
+                    <select
+                      value={
+                        currentWeather.windCondition
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'windCondition',
+                          event.target
+                            .value
+                        )
+                      }
+                    >
+                      <option value="">
+                        Select wind
+                      </option>
+
+                      {WIND_OPTIONS.map(
+                        (
+                          option
+                        ) => (
+                          <option
+                            key={
+                              option
+                            }
+                            value={
+                              option
+                            }
+                          >
+                            {formatOptionLabel(
+                              option
+                            )}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+
+                  <label
+                    className={
+                      styles.weatherField
+                    }
+                  >
+                    <span>
+                      Site condition
+                    </span>
+
+                    <select
+                      value={
+                        currentWeather.siteCondition
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'siteCondition',
+                          event.target
+                            .value
+                        )
+                      }
+                    >
+                      <option value="">
+                        Select site condition
+                      </option>
+
+                      {SITE_OPTIONS.map(
+                        (
+                          option
+                        ) => (
+                          <option
+                            key={
+                              option
+                            }
+                            value={
+                              option
+                            }
+                          >
+                            {formatOptionLabel(
+                              option
+                            )}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+
+                  <label
+                    className={
+                      styles.weatherField
+                    }
+                  >
+                    <span>
+                      Production impact
+                    </span>
+
+                    <select
+                      value={
+                        currentWeather.productionImpact
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'productionImpact',
+                          event.target
+                            .value
+                        )
+                      }
+                    >
+                      {IMPACT_OPTIONS.map(
+                        (
+                          option
+                        ) => (
+                          <option
+                            key={
+                              option
+                            }
+                            value={
+                              option
+                            }
+                          >
+                            {formatOptionLabel(
+                              option
+                            )}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+
+                  <label
+                    className={
+                      styles.weatherField
+                    }
+                  >
+                    <span>
+                      Impact hours
+                    </span>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.25"
+                      value={
+                        currentWeather.impactHours
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'impactHours',
+                          event.target
+                            .value
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label
+                    className={`${styles.weatherField} ${styles.weatherFieldFull}`}
+                  >
+                    <span>
+                      Notes
+                    </span>
+
+                    <textarea
+                      rows="4"
+                      value={
+                        currentWeather.notes
+                      }
+                      disabled={
+                        isReadOnly
+                      }
+                      placeholder="Weather observations, site restrictions or production impacts..."
+                      onChange={(
+                        event
+                      ) =>
+                        updateWeatherField(
+                          activeWeatherPeriod,
+                          'notes',
+                          event.target
+                            .value
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+
+                <footer
+                  className={
+                    styles.weatherFooter
+                  }
+                >
+                  <div>
+                    {isReadOnly ? (
+                      <span
+                        className={
+                          styles.readOnlyNotice
+                        }
+                      >
+                        This Daily Report is {formatStatus(
+                          report.status
+                        )} and is read-only.
+                      </span>
+                    ) : (
+                      <span
+                        className={
+                          styles.weatherHelper
+                        }
+                      >
+                        Changes are stored
+                        by weather period.
+                      </span>
+                    )}
+                  </div>
+
+                  {!isReadOnly && (
+                    <button
+                      type="submit"
+                      className={
+                        styles.primaryButton
+                      }
+                      disabled={
+                        isSavingWeather
+                      }
+                    >
+                      {isSavingWeather
+                        ? 'Saving...'
+                        : 'Save Weather'}
+                    </button>
+                  )}
+                </footer>
+              </form>
+            </article>
+          )}
         </div>
       </section>
     </main>
