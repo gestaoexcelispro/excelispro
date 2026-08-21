@@ -2,10 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import {
-  usePathname,
-  useSearchParams,
-} from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import LogoutButton from '../../components/LogoutButton'
 import styles from './dashboard.module.css'
 
@@ -42,13 +39,11 @@ const navigationGroups = [
         label: 'Operational Dashboard',
         href: '/dashboard/projects/operations',
         icon: 'OD',
-        preserveProjectId: true,
       },
       {
         label: 'Daily Reports',
         href: '/dashboard/projects/daily-reports',
         icon: 'DR',
-        preserveProjectId: true,
       },
     ],
   },
@@ -94,12 +89,6 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
 
-  const searchParams =
-    useSearchParams()
-
-  const projectId =
-    searchParams.get('projectId')
-
   const [isCollapsed, setIsCollapsed] =
     useState(false)
 
@@ -119,19 +108,6 @@ export default function DashboardLayout({
     }
 
     return pathname.startsWith(href)
-  }
-
-  function getNavigationHref(item) {
-    if (
-      !item.preserveProjectId ||
-      !projectId
-    ) {
-      return item.href
-    }
-
-    return `${item.href}?projectId=${encodeURIComponent(
-      projectId
-    )}`
   }
 
   const currentNavigationGroup =
@@ -272,16 +248,9 @@ export default function DashboardLayout({
                       .filter(Boolean)
                       .join(' ')
 
-                    const navigationHref =
-                      getNavigationHref(
-                        item
-                      )
-
                     return (
                       <Link
-                        href={
-                          navigationHref
-                        }
+                        href={item.href}
                         className={
                           linkClassName
                         }
