@@ -10,6 +10,7 @@ import {
 import { supabase } from '../../../../lib/supabase'
 
 const initialFormData = {
+  companyEmployeeNumber: '',
   firstName: '',
   middleName: '',
   lastName: '',
@@ -61,6 +62,7 @@ export default function WorkforcePage() {
               id,
               organization_id,
               field_id,
+              company_employee_number,
               first_name,
               middle_name,
               last_name,
@@ -264,6 +266,9 @@ export default function WorkforcePage() {
       return
     }
 
+    const companyEmployeeNumber =
+      formData.companyEmployeeNumber.trim()
+
     const firstName =
       formData.firstName.trim()
 
@@ -312,8 +317,6 @@ export default function WorkforcePage() {
 
     try {
       /*
-       * IMPORTANT:
-       *
        * field_id is intentionally NOT sent.
        *
        * PostgreSQL generates it through:
@@ -322,9 +325,12 @@ export default function WorkforcePage() {
        *        ↓
        * generate_next_field_worker_id()
        *
-       * Therefore the frontend never decides
-       * whether this Worker is 000002, 000003,
-       * etc.
+       * Field ID is the RitsuFlow internal
+       * workforce identifier.
+       *
+       * company_employee_number is different:
+       * it is the optional employee number
+       * assigned by the worker's employer.
        */
       const {
         data,
@@ -334,6 +340,10 @@ export default function WorkforcePage() {
         .insert({
           organization_id:
             organizationId,
+
+          company_employee_number:
+            companyEmployeeNumber ||
+            null,
 
           first_name:
             firstName,
@@ -359,6 +369,7 @@ export default function WorkforcePage() {
         .select(`
           id,
           field_id,
+          company_employee_number,
           first_name,
           middle_name,
           last_name
@@ -447,11 +458,10 @@ export default function WorkforcePage() {
                 lineHeight: 1.6,
               }}
             >
-              Manage the workers
-              available for field
-              assignments, attendance
-              and future workforce
-              reporting.
+              Manage the master worker
+              records available for project
+              assignments, attendance and
+              workforce reporting.
             </p>
           </div>
 
@@ -587,7 +597,7 @@ export default function WorkforcePage() {
                   width: '100%',
                   borderCollapse:
                     'collapse',
-                  minWidth: '850px',
+                  minWidth: '980px',
                 }}
               >
                 <thead
@@ -599,6 +609,10 @@ export default function WorkforcePage() {
                   <tr>
                     <TableHeader>
                       Field ID
+                    </TableHeader>
+
+                    <TableHeader>
+                      Employee No.
                     </TableHeader>
 
                     <TableHeader>
@@ -648,6 +662,11 @@ export default function WorkforcePage() {
                               worker.field_id
                             }
                           </span>
+                        </TableCell>
+
+                        <TableCell>
+                          {worker.company_employee_number ||
+                            '—'}
                         </TableCell>
 
                         <TableCell>
@@ -815,7 +834,7 @@ export default function WorkforcePage() {
                       fontWeight: 700,
                     }}
                   >
-                    Field ID
+                    RitsuFlow Field ID
                   </p>
 
                   <p
@@ -829,13 +848,34 @@ export default function WorkforcePage() {
                     Generated
                     automatically when
                     this worker is
-                    registered.
+                    registered. This is
+                    the worker&apos;s
+                    internal RitsuFlow
+                    identifier.
                   </p>
                 </div>
 
                 <FormSection
-                  title="Worker Information"
+                  title="Worker Identity"
                 >
+                  <FormField
+                    label="Company Employee Number"
+                  >
+                    <input
+                      name="companyEmployeeNumber"
+                      type="text"
+                      autoComplete="off"
+                      value={
+                        formData.companyEmployeeNumber
+                      }
+                      onChange={
+                        handleFormChange
+                      }
+                      placeholder="Optional employer-issued ID"
+                      style={inputStyle}
+                    />
+                  </FormField>
+
                   <div
                     style={{
                       display: 'grid',
@@ -859,9 +899,7 @@ export default function WorkforcePage() {
                         onChange={
                           handleFormChange
                         }
-                        style={
-                          inputStyle
-                        }
+                        style={inputStyle}
                       />
                     </FormField>
 
@@ -878,9 +916,7 @@ export default function WorkforcePage() {
                         onChange={
                           handleFormChange
                         }
-                        style={
-                          inputStyle
-                        }
+                        style={inputStyle}
                       />
                     </FormField>
                   </div>
@@ -906,10 +942,25 @@ export default function WorkforcePage() {
                 </FormSection>
 
                 <FormSection
-                  title="Work Classification"
+                  title="Default Work Classification"
                 >
+                  <p
+                    style={{
+                      margin: '-4px 0 2px',
+                      color: '#64748b',
+                      fontSize: '12px',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    These values define the
+                    worker&apos;s default
+                    classification and can
+                    later be overridden by
+                    project assignment context.
+                  </p>
+
                   <FormField
-                    label="Company"
+                    label="Company / Employer"
                     required
                   >
                     <select
@@ -955,7 +1006,7 @@ export default function WorkforcePage() {
                     }}
                   >
                     <FormField
-                      label="Trade"
+                      label="Default Trade"
                       required
                     >
                       <select
@@ -993,7 +1044,7 @@ export default function WorkforcePage() {
                     </FormField>
 
                     <FormField
-                      label="Role"
+                      label="Default Role"
                       required
                     >
                       <select
