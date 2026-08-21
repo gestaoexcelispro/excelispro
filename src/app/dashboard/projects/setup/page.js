@@ -102,7 +102,10 @@ export default async function ProjectSetupPage({
     .limit(1)
     .maybeSingle()
 
-  if (organizationError || !organization) {
+  if (
+    organizationError ||
+    !organization
+  ) {
     console.error(
       'RitsuFlow organization could not be loaded.',
       organizationError
@@ -158,7 +161,8 @@ export default async function ProjectSetupPage({
       planned_finish_date,
       address_line,
       neighborhood,
-      postal_code
+      postal_code,
+      cover_image_path
     `)
     .eq(
       'organization_id',
@@ -175,7 +179,8 @@ export default async function ProjectSetupPage({
     )
   }
 
-  const projects = projectsData || []
+  const projects =
+    projectsData || []
 
   let selectedProject = null
 
@@ -221,7 +226,10 @@ export default async function ProjectSetupPage({
   const suggestedCode =
     createSuggestedCode(projects)
 
-  if (!selectedProject && !isCreateMode) {
+  if (
+    !selectedProject &&
+    !isCreateMode
+  ) {
     return (
       <div className={styles.container}>
         <section className={styles.heading}>
@@ -246,8 +254,8 @@ export default async function ProjectSetupPage({
               Select a project from your
               portfolio to review or update its
               identity, contract information,
-              planned dates, and geographic
-              data.
+              planned dates, geographic data,
+              and project cover image.
             </p>
           </div>
 
@@ -456,7 +464,11 @@ export default async function ProjectSetupPage({
   return (
     <div className={styles.container}>
       <section className={styles.heading}>
-        <div className={styles.headingContent}>
+        <div
+          className={
+            styles.headingContent
+          }
+        >
           <p className={styles.eyebrow}>
             Project foundation
           </p>
@@ -472,10 +484,10 @@ export default async function ProjectSetupPage({
               styles.description
             }
           >
-            Establish the project identity and
-            planned boundaries before defining
-            its location breakdown structure and
-            production scope.
+            Establish the project identity,
+            project image, planned boundaries,
+            geographic information, and
+            production foundation.
           </p>
         </div>
 
