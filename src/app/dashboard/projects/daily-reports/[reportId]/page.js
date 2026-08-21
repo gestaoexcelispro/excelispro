@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -15,6 +16,18 @@ import {
 
 import { createClient } from '../../../../../lib/supabase/client';
 
+import GeneralSection from './components/GeneralSection';
+import WeatherSection from './components/WeatherSection';
+import WorkforceSection from './components/WorkforceSection';
+import ProductionSection from './components/ProductionSection';
+import EquipmentSection from './components/EquipmentSection';
+import MaterialsSection from './components/MaterialsSection';
+import IssuesSection from './components/IssuesSection';
+import NotesSection from './components/NotesSection';
+import AttachmentsSection from './components/AttachmentsSection';
+import SafetySection from './components/SafetySection';
+import ApprovalSection from './components/ApprovalSection';
+
 import styles from './report-workspace.module.css';
 
 const PROJECT_COVER_BUCKET =
@@ -23,89 +36,120 @@ const PROJECT_COVER_BUCKET =
 const SIGNED_URL_DURATION =
   60 * 60;
 
-const PERIODS = [
+const SECTION_DEFINITIONS = [
   {
-    key: 'morning',
-    label: 'Morning',
+    key: 'general',
+    number: '01',
+    title: 'General',
+    fullTitle:
+      'General Information',
+    description:
+      'Project, date, work period and general notes.',
   },
   {
-    key: 'afternoon',
-    label: 'Afternoon',
+    key: 'weather',
+    number: '02',
+    title: 'Weather',
+    fullTitle:
+      'Weather & Site Conditions',
+    description:
+      'Weather, temperature and production impact.',
   },
   {
-    key: 'evening',
-    label: 'Evening',
+    key: 'workforce',
+    number: '03',
+    title: 'Workforce',
+    fullTitle:
+      'Workforce',
+    description:
+      'Companies, crews, roles and labor resources.',
+  },
+  {
+    key: 'production',
+    number: '04',
+    title: 'Production',
+    fullTitle:
+      'Production',
+    description:
+      'Planned versus actual field production.',
+  },
+  {
+    key: 'equipment',
+    number: '05',
+    title: 'Equipment',
+    fullTitle:
+      'Equipment',
+    description:
+      'Equipment usage, idle time and operating status.',
+  },
+  {
+    key: 'materials',
+    number: '06',
+    title: 'Materials',
+    fullTitle:
+      'Materials',
+    description:
+      'Materials received and used during the workday.',
+  },
+  {
+    key: 'issues',
+    number: '07',
+    title: 'Issues',
+    fullTitle:
+      'Issues & Constraints',
+    description:
+      'Field issues, impacts and corrective actions.',
+  },
+  {
+    key: 'notes',
+    number: '08',
+    title: 'Notes',
+    fullTitle:
+      'Notes & Observations',
+    description:
+      'General, safety, quality and coordination notes.',
+  },
+  {
+    key: 'attachments',
+    number: '09',
+    title: 'Attachments',
+    fullTitle:
+      'Photos & Attachments',
+    description:
+      'Photos, videos, documents and field evidence.',
+  },
+  {
+    key: 'safety',
+    number: '10',
+    title: 'Safety',
+    fullTitle:
+      'Safety',
+    description:
+      'Daily safety conditions and observations.',
+  },
+  {
+    key: 'approval',
+    number: '11',
+    title: 'Approval',
+    fullTitle:
+      'Review & Approval',
+    description:
+      'Submission, review and approval workflow.',
   },
 ];
-
-const WEATHER_OPTIONS = [
-  'clear',
-  'partly_cloudy',
-  'cloudy',
-  'light_rain',
-  'rain',
-  'heavy_rain',
-  'storm',
-  'snow',
-  'fog',
-  'other',
-];
-
-const WIND_OPTIONS = [
-  'calm',
-  'light',
-  'moderate',
-  'strong',
-  'severe',
-];
-
-const SITE_OPTIONS = [
-  'dry',
-  'damp',
-  'wet',
-  'muddy',
-  'frozen',
-  'restricted',
-];
-
-const IMPACT_OPTIONS = [
-  'none',
-  'minor',
-  'moderate',
-  'severe',
-];
-
-function createEmptyPeriod() {
-  return {
-    id: null,
-    condition: '',
-    temperatureMin: '',
-    temperatureMax: '',
-    temperatureUnit: 'F',
-    rainfall: '',
-    windCondition: '',
-    siteCondition: '',
-    productionImpact: 'none',
-    impactHours: '',
-    notes: '',
-  };
-}
-
-function createInitialWeatherState() {
-  return {
-    morning: createEmptyPeriod(),
-    afternoon: createEmptyPeriod(),
-    evening: createEmptyPeriod(),
-  };
-}
 
 function formatDate(value) {
   if (!value) {
     return '—';
   }
 
-  const [year, month, day] =
-    value.split('-').map(Number);
+  const [
+    year,
+    month,
+    day,
+  ] = value
+    .split('-')
+    .map(Number);
 
   const date =
     new Date(
@@ -124,6 +168,17 @@ function formatDate(value) {
   ).format(date);
 }
 
+function formatTime(value) {
+  if (!value) {
+    return '—';
+  }
+
+  return String(value).slice(
+    0,
+    5
+  );
+}
+
 function formatStatus(status) {
   const labels = {
     draft: 'Draft',
@@ -139,63 +194,26 @@ function formatStatus(status) {
   );
 }
 
-function formatTime(value) {
-  if (!value) {
-    return '—';
-  }
-
-  return String(value)
-    .slice(0, 5);
-}
-
-function formatOptionLabel(value) {
-  if (!value) {
-    return '';
-  }
-
-  return value
-    .replaceAll('_', ' ')
-    .replace(
-      /\b\w/g,
-      (character) =>
-        character.toUpperCase()
-    );
-}
-
-function hasPeriodContent(
-  periodData
-) {
-  return Boolean(
-    periodData.condition ||
-      periodData.temperatureMin !== '' ||
-      periodData.temperatureMax !== '' ||
-      periodData.rainfall !== '' ||
-      periodData.windCondition ||
-      periodData.siteCondition ||
-      periodData.productionImpact !==
-        'none' ||
-      periodData.impactHours !== '' ||
-      periodData.notes.trim()
-  );
-}
-
 function getStatusClass(
   status
 ) {
   if (
-    status === 'approved'
+    status ===
+    'approved'
   ) {
     return styles.statusApproved;
   }
 
   if (
-    status === 'reviewed'
+    status ===
+    'reviewed'
   ) {
     return styles.statusReviewed;
   }
 
   if (
-    status === 'submitted'
+    status ===
+    'submitted'
   ) {
     return styles.statusSubmitted;
   }
@@ -228,79 +246,6 @@ function HeroMetric({
       >
         {value}
       </strong>
-    </div>
-  );
-}
-
-function GeneralItem({
-  label,
-  value,
-}) {
-  return (
-    <div
-      className={
-        styles.generalItem
-      }
-    >
-      <span
-        className={
-          styles.generalLabel
-        }
-      >
-        {label}
-      </span>
-
-      <strong
-        className={
-          styles.generalValue
-        }
-      >
-        {value || '—'}
-      </strong>
-    </div>
-  );
-}
-
-function OverviewCard({
-  icon,
-  label,
-  value,
-}) {
-  return (
-    <div
-      className={
-        styles.overviewCard
-      }
-    >
-      <span
-        className={
-          styles.overviewIcon
-        }
-      >
-        {icon}
-      </span>
-
-      <div
-        className={
-          styles.overviewContent
-        }
-      >
-        <span
-          className={
-            styles.overviewLabel
-          }
-        >
-          {label}
-        </span>
-
-        <strong
-          className={
-            styles.overviewValue
-          }
-        >
-          {value}
-        </strong>
-      </div>
     </div>
   );
 }
@@ -340,74 +285,26 @@ export default function DailyReportWorkspacePage() {
   const [
     activeSection,
     setActiveSection,
-  ] = useState('general');
-
-  const [
-    weather,
-    setWeather,
   ] = useState(
-    createInitialWeatherState
+    'general'
   );
 
   const [
-    activeWeatherPeriod,
-    setActiveWeatherPeriod,
-  ] = useState('morning');
-
-  const [
-    isSavingWeather,
-    setIsSavingWeather,
-  ] = useState(false);
-
-  const [
-    weatherSuccess,
-    setWeatherSuccess,
-  ] = useState('');
-
-  const [
-    weatherCount,
-    setWeatherCount,
-  ] = useState(0);
-
-  const [
-    workforceCount,
-    setWorkforceCount,
-  ] = useState(0);
-
-  const [
-    productionCount,
-    setProductionCount,
-  ] = useState(0);
-
-  const [
-    equipmentCount,
-    setEquipmentCount,
-  ] = useState(0);
-
-  const [
-    materialsCount,
-    setMaterialsCount,
-  ] = useState(0);
-
-  const [
-    issuesCount,
-    setIssuesCount,
-  ] = useState(0);
-
-  const [
-    notesCount,
-    setNotesCount,
-  ] = useState(0);
-
-  const [
-    attachmentsCount,
-    setAttachmentsCount,
-  ] = useState(0);
-
-  const [
-    safetyCount,
-    setSafetyCount,
-  ] = useState(0);
+    sectionCounts,
+    setSectionCounts,
+  ] = useState({
+    general: 0,
+    weather: 0,
+    workforce: 0,
+    production: 0,
+    equipment: 0,
+    materials: 0,
+    issues: 0,
+    notes: 0,
+    attachments: 0,
+    safety: 0,
+    approval: 0,
+  });
 
   const [
     isLoading,
@@ -419,171 +316,192 @@ export default function DailyReportWorkspacePage() {
     setErrorMessage,
   ] = useState('');
 
-  const sections =
-    useMemo(
-      () => [
-        {
-          key: 'general',
-          number: '01',
-          title:
-            'General Information',
-          shortTitle:
-            'General',
-          description:
-            'Project, date, work period and report notes.',
-          count:
-            report ? 1 : 0,
-          embedded:
-            true,
-        },
+  const updateGeneralCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            general:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'weather',
-          number: '02',
-          title:
-            'Weather & Site Conditions',
-          shortTitle:
-            'Weather',
-          description:
-            'Weather, temperature and production impact.',
-          count:
-            weatherCount,
-          embedded:
-            true,
-        },
+  const updateWeatherCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            weather:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'workforce',
-          number: '03',
-          title:
-            'Workforce',
-          shortTitle:
-            'Workforce',
-          description:
-            'Companies, crews, roles and labor resources.',
-          count:
-            workforceCount,
-        },
+  const updateWorkforceCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            workforce:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'production',
-          number: '04',
-          title:
-            'Production',
-          shortTitle:
-            'Production',
-          description:
-            'Planned versus actual field production.',
-          count:
-            productionCount,
-        },
+  const updateProductionCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            production:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'equipment',
-          number: '05',
-          title:
-            'Equipment',
-          shortTitle:
-            'Equipment',
-          description:
-            'Equipment usage, idle time and operating status.',
-          count:
-            equipmentCount,
-        },
+  const updateEquipmentCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            equipment:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'materials',
-          number: '06',
-          title:
-            'Materials',
-          shortTitle:
-            'Materials',
-          description:
-            'Materials received and used during the workday.',
-          count:
-            materialsCount,
-        },
+  const updateMaterialsCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            materials:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'issues',
-          number: '07',
-          title:
-            'Issues & Constraints',
-          shortTitle:
-            'Issues',
-          description:
-            'Field issues, impacts and corrective actions.',
-          count:
-            issuesCount,
-        },
+  const updateIssuesCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            issues:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'notes',
-          number: '08',
-          title:
-            'Notes & Observations',
-          shortTitle:
-            'Notes',
-          description:
-            'General, safety, quality and coordination notes.',
-          count:
-            notesCount,
-        },
+  const updateNotesCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            notes:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'attachments',
-          number: '09',
-          title:
-            'Photos & Attachments',
-          shortTitle:
-            'Attachments',
-          description:
-            'Photos, videos, documents and field evidence.',
-          count:
-            attachmentsCount,
-        },
+  const updateAttachmentsCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            attachments:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'safety',
-          number: '10',
-          title:
-            'Safety',
-          shortTitle:
-            'Safety',
-          description:
-            'Toolbox talks, inspections and daily safety events.',
-          count:
-            safetyCount,
-        },
+  const updateSafetyCount =
+    useCallback(
+      (count) => {
+        setSectionCounts(
+          (current) => ({
+            ...current,
+            safety:
+              count,
+          })
+        );
+      },
+      []
+    );
 
-        {
-          key: 'approval',
-          number: '11',
-          title:
-            'Review & Approval',
-          shortTitle:
-            'Approval',
-          description:
-            'Submission, review and approval workflow.',
-          count:
-            report?.status !==
-            'draft'
-              ? 1
-              : 0,
-        },
-      ],
-      [
-        report,
-        weatherCount,
-        workforceCount,
-        productionCount,
-        equipmentCount,
-        materialsCount,
-        issuesCount,
-        notesCount,
-        attachmentsCount,
-        safetyCount,
-      ]
+  const handleReportChange =
+    useCallback(
+      (
+        updatedReport
+      ) => {
+        if (
+          updatedReport
+        ) {
+          setReport(
+            updatedReport
+          );
+        }
+      },
+      []
+    );
+
+  const handleSectionSelect =
+    useCallback(
+      (sectionKey) => {
+        const exists =
+          SECTION_DEFINITIONS.some(
+            (section) =>
+              section.key ===
+              sectionKey
+          );
+
+        if (!exists) {
+          return;
+        }
+
+        setActiveSection(
+          sectionKey
+        );
+
+        if (
+          typeof window !==
+          'undefined'
+        ) {
+          window.scrollTo({
+            top: 0,
+            behavior:
+              'smooth',
+          });
+        }
+      },
+      []
     );
 
   useEffect(() => {
@@ -594,7 +512,6 @@ export default function DailyReportWorkspacePage() {
 
       setIsLoading(true);
       setErrorMessage('');
-      setWeatherSuccess('');
 
       const {
         data:
@@ -638,11 +555,14 @@ export default function DailyReportWorkspacePage() {
             work_start_time,
             work_end_time,
             general_notes,
-            created_at,
-            updated_at,
+            submitted_by,
             submitted_at,
+            reviewed_by,
             reviewed_at,
-            approved_at
+            approved_by,
+            approved_at,
+            created_at,
+            updated_at
           `)
           .eq(
             'id',
@@ -742,169 +662,8 @@ export default function DailyReportWorkspacePage() {
         }
       }
 
-      /*
-       * WEATHER
-       */
-
-      const {
-        data:
-          weatherData,
-
-        error:
-          weatherError,
-      } =
-        await supabase
-          .from(
-            'daily_report_weather'
-          )
-          .select(`
-            id,
-            daily_report_id,
-            period,
-            weather_condition,
-            temperature,
-            temperature_unit,
-            site_condition,
-            production_impact,
-            impact_notes,
-            condition,
-            organization_id,
-            project_id,
-            temperature_min,
-            temperature_max,
-            rainfall,
-            wind_condition,
-            impact_hours,
-            notes
-          `)
-          .eq(
-            'daily_report_id',
-            reportId
-          )
-          .order(
-            'period',
-            {
-              ascending: true,
-            }
-          );
-
-      if (
-        !weatherError
-      ) {
-        const nextWeather =
-          createInitialWeatherState();
-
-        (
-          weatherData || []
-        ).forEach(
-          (item) => {
-            if (
-              !item.period ||
-              !nextWeather[
-                item.period
-              ]
-            ) {
-              return;
-            }
-
-            nextWeather[
-              item.period
-            ] = {
-              id:
-                item.id,
-
-              condition:
-                item.condition ||
-                item.weather_condition ||
-                '',
-
-              temperatureMin:
-                item.temperature_min !==
-                  null &&
-                item.temperature_min !==
-                  undefined
-                  ? String(
-                      item.temperature_min
-                    )
-                  : item.temperature !==
-                        null &&
-                      item.temperature !==
-                        undefined
-                    ? String(
-                        item.temperature
-                      )
-                    : '',
-
-              temperatureMax:
-                item.temperature_max !==
-                  null &&
-                item.temperature_max !==
-                  undefined
-                  ? String(
-                      item.temperature_max
-                    )
-                  : '',
-
-              temperatureUnit:
-                item.temperature_unit ||
-                'F',
-
-              rainfall:
-                item.rainfall !==
-                  null &&
-                item.rainfall !==
-                  undefined
-                  ? String(
-                      item.rainfall
-                    )
-                  : '',
-
-              windCondition:
-                item.wind_condition ||
-                '',
-
-              siteCondition:
-                item.site_condition ||
-                '',
-
-              productionImpact:
-                item.production_impact ||
-                'none',
-
-              impactHours:
-                item.impact_hours !==
-                  null &&
-                item.impact_hours !==
-                  undefined
-                  ? String(
-                      item.impact_hours
-                    )
-                  : '',
-
-              notes:
-                item.notes ||
-                item.impact_notes ||
-                '',
-            };
-          }
-        );
-
-        setWeather(
-          nextWeather
-        );
-
-        setWeatherCount(
-          (
-            weatherData || []
-          ).length
-        );
-      }
-
-      /*
-       * SECTION COUNTS
-       */
-
       const [
+        weatherResult,
         workforceResult,
         productionResult,
         equipmentResult,
@@ -915,6 +674,24 @@ export default function DailyReportWorkspacePage() {
         safetyResult,
       ] =
         await Promise.all([
+          supabase
+            .from(
+              'daily_report_weather'
+            )
+            .select(
+              'id',
+              {
+                count:
+                  'exact',
+                head:
+                  true,
+              }
+            )
+            .eq(
+              'daily_report_id',
+              reportId
+            ),
+
           supabase
             .from(
               'daily_report_workforce'
@@ -1060,45 +837,51 @@ export default function DailyReportWorkspacePage() {
             ),
         ]);
 
-      setWorkforceCount(
-        workforceResult.count ||
-          0
-      );
+      setSectionCounts({
+        general: 1,
 
-      setProductionCount(
-        productionResult.count ||
-          0
-      );
+        weather:
+          weatherResult.count ||
+          0,
 
-      setEquipmentCount(
-        equipmentResult.count ||
-          0
-      );
+        workforce:
+          workforceResult.count ||
+          0,
 
-      setMaterialsCount(
-        materialsResult.count ||
-          0
-      );
+        production:
+          productionResult.count ||
+          0,
 
-      setIssuesCount(
-        issuesResult.count ||
-          0
-      );
+        equipment:
+          equipmentResult.count ||
+          0,
 
-      setNotesCount(
-        notesResult.count ||
-          0
-      );
+        materials:
+          materialsResult.count ||
+          0,
 
-      setAttachmentsCount(
-        attachmentsResult.count ||
-          0
-      );
+        issues:
+          issuesResult.count ||
+          0,
 
-      setSafetyCount(
-        safetyResult.count ||
-          0
-      );
+        notes:
+          notesResult.count ||
+          0,
+
+        attachments:
+          attachmentsResult.count ||
+          0,
+
+        safety:
+          safetyResult.count ||
+          0,
+
+        approval:
+          reportData.status ===
+          'draft'
+            ? 0
+            : 1,
+      });
 
       setIsLoading(false);
     }
@@ -1109,330 +892,273 @@ export default function DailyReportWorkspacePage() {
     supabase,
   ]);
 
-  function updateWeatherField(
-    period,
-    field,
-    value
-  ) {
-    setWeather(
+  useEffect(() => {
+    if (!report) {
+      return;
+    }
+
+    setSectionCounts(
       (current) => ({
         ...current,
 
-        [period]: {
-          ...current[
-            period
-          ],
-          [field]:
-            value,
-        },
+        approval:
+          report.status ===
+          'draft'
+            ? 0
+            : 1,
       })
     );
+  }, [
+    report?.status,
+  ]);
 
-    setWeatherSuccess('');
-  }
-
-  async function saveWeather(
-    event
-  ) {
-    event.preventDefault();
-
-    if (
-      !report ||
-      isSavingWeather ||
-      report.status !==
-        'draft'
-    ) {
-      return;
-    }
-
-    setIsSavingWeather(
-      true
+  const completedContentSections =
+    useMemo(
+      () =>
+        [
+          'general',
+          'weather',
+          'workforce',
+          'production',
+          'equipment',
+          'materials',
+          'issues',
+          'notes',
+          'attachments',
+          'safety',
+        ].filter(
+          (key) =>
+            (
+              sectionCounts[
+                key
+              ] || 0
+            ) > 0
+        ).length,
+      [
+        sectionCounts,
+      ]
     );
-
-    setErrorMessage('');
-    setWeatherSuccess('');
-
-    for (
-      const periodDefinition
-      of PERIODS
-    ) {
-      const period =
-        periodDefinition.key;
-
-      const periodData =
-        weather[
-          period
-        ];
-
-      const hasContent =
-        hasPeriodContent(
-          periodData
-        );
-
-      if (
-        !hasContent &&
-        !periodData.id
-      ) {
-        continue;
-      }
-
-      if (
-        !hasContent &&
-        periodData.id
-      ) {
-        const {
-          error:
-            deleteError,
-        } =
-          await supabase
-            .from(
-              'daily_report_weather'
-            )
-            .delete()
-            .eq(
-              'id',
-              periodData.id
-            );
-
-        if (
-          deleteError
-        ) {
-          setErrorMessage(
-            deleteError.message
-          );
-
-          setIsSavingWeather(
-            false
-          );
-
-          return;
-        }
-
-        continue;
-      }
-
-      const temperatureMin =
-        periodData.temperatureMin ===
-        ''
-          ? null
-          : Number(
-              periodData.temperatureMin
-            );
-
-      const temperatureMax =
-        periodData.temperatureMax ===
-        ''
-          ? null
-          : Number(
-              periodData.temperatureMax
-            );
-
-      const rainfall =
-        periodData.rainfall ===
-        ''
-          ? null
-          : Number(
-              periodData.rainfall
-            );
-
-      const impactHours =
-        periodData.impactHours ===
-        ''
-          ? null
-          : Number(
-              periodData.impactHours
-            );
-
-      if (
-        temperatureMin !==
-          null &&
-        temperatureMax !==
-          null &&
-        temperatureMax <
-          temperatureMin
-      ) {
-        setErrorMessage(
-          `${periodDefinition.label}: maximum temperature cannot be lower than minimum temperature.`
-        );
-
-        setActiveWeatherPeriod(
-          period
-        );
-
-        setIsSavingWeather(
-          false
-        );
-
-        return;
-      }
-
-      const payload = {
-        daily_report_id:
-          report.id,
-
-        period,
-
-        organization_id:
-          report.organization_id,
-
-        project_id:
-          report.project_id,
-
-        condition:
-          periodData.condition ||
-          null,
-
-        weather_condition:
-          periodData.condition ||
-          null,
-
-        temperature:
-          temperatureMin,
-
-        temperature_unit:
-          periodData.temperatureUnit ||
-          'F',
-
-        temperature_min:
-          temperatureMin,
-
-        temperature_max:
-          temperatureMax,
-
-        rainfall,
-
-        wind_condition:
-          periodData.windCondition ||
-          null,
-
-        site_condition:
-          periodData.siteCondition ||
-          null,
-
-        production_impact:
-          periodData.productionImpact ||
-          'none',
-
-        impact_hours:
-          impactHours,
-
-        notes:
-          periodData.notes.trim() ||
-          null,
-
-        impact_notes:
-          periodData.notes.trim() ||
-          null,
-      };
-
-      const {
-        data:
-          savedRecord,
-
-        error:
-          saveError,
-      } =
-        await supabase
-          .from(
-            'daily_report_weather'
-          )
-          .upsert(
-            payload,
-            {
-              onConflict:
-                'daily_report_id,period',
-            }
-          )
-          .select(
-            'id'
-          )
-          .single();
-
-      if (
-        saveError
-      ) {
-        setErrorMessage(
-          saveError.message
-        );
-
-        setActiveWeatherPeriod(
-          period
-        );
-
-        setIsSavingWeather(
-          false
-        );
-
-        return;
-      }
-
-      setWeather(
-        (current) => ({
-          ...current,
-
-          [period]: {
-            ...current[
-              period
-            ],
-            id:
-              savedRecord.id,
-          },
-        })
-      );
-    }
-
-    const count =
-      Object.values(
-        weather
-      ).filter(
-        hasPeriodContent
-      ).length;
-
-    setWeatherCount(
-      count
-    );
-
-    setWeatherSuccess(
-      'Weather and site conditions saved successfully.'
-    );
-
-    setIsSavingWeather(
-      false
-    );
-  }
-
-  function handleSectionClick(
-    section
-  ) {
-    if (
-      section.embedded
-    ) {
-      setActiveSection(
-        section.key
-      );
-
-      return;
-    }
-
-    router.push(
-      `/dashboard/projects/daily-reports/${report.id}/${section.key}`
-    );
-  }
-
-  const completedSections =
-    sections.filter(
-      (section) =>
-        section.count > 0
-    ).length;
 
   const completionPercentage =
     Math.round(
       (
-        completedSections /
-        sections.length
+        completedContentSections /
+        10
       ) *
         100
     );
+
+  const reportNumber =
+    report
+      ? `DR-${String(
+          report.report_number
+        ).padStart(
+          4,
+          '0'
+        )}`
+      : '—';
+
+  function renderActiveSection() {
+    if (
+      !report ||
+      !project
+    ) {
+      return null;
+    }
+
+    switch (
+      activeSection
+    ) {
+      case 'general':
+        return (
+          <GeneralSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onReportChange={
+              handleReportChange
+            }
+            onCountChange={
+              updateGeneralCount
+            }
+          />
+        );
+
+      case 'weather':
+        return (
+          <WeatherSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onCountChange={
+              updateWeatherCount
+            }
+          />
+        );
+
+      case 'workforce':
+        return (
+          <WorkforceSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onCountChange={
+              updateWorkforceCount
+            }
+          />
+        );
+
+      case 'production':
+        return (
+          <ProductionSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onCountChange={
+              updateProductionCount
+            }
+          />
+        );
+
+      case 'equipment':
+        return (
+          <EquipmentSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onCountChange={
+              updateEquipmentCount
+            }
+          />
+        );
+
+      case 'materials':
+        return (
+          <MaterialsSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onCountChange={
+              updateMaterialsCount
+            }
+          />
+        );
+
+      case 'issues':
+        return (
+          <IssuesSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onCountChange={
+              updateIssuesCount
+            }
+          />
+        );
+
+      case 'notes':
+        return (
+          <NotesSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onCountChange={
+              updateNotesCount
+            }
+          />
+        );
+
+      case 'attachments':
+        return (
+          <AttachmentsSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onCountChange={
+              updateAttachmentsCount
+            }
+          />
+        );
+
+      case 'safety':
+        return (
+          <SafetySection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onCountChange={
+              updateSafetyCount
+            }
+          />
+        );
+
+      case 'approval':
+        return (
+          <ApprovalSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onReportChange={
+              handleReportChange
+            }
+            onSectionSelect={
+              handleSectionSelect
+            }
+          />
+        );
+
+      default:
+        return (
+          <GeneralSection
+            report={
+              report
+            }
+            project={
+              project
+            }
+            onReportChange={
+              handleReportChange
+            }
+            onCountChange={
+              updateGeneralCount
+            }
+          />
+        );
+    }
+  }
 
   if (isLoading) {
     return (
@@ -1443,41 +1169,33 @@ export default function DailyReportWorkspacePage() {
       >
         <section
           className={
-            styles.contentPanel
+            styles.errorPanel
           }
         >
-          <div
+          <p
             className={
-              styles.contentHeader
+              styles.errorEyebrow
             }
           >
-            <div>
-              <p
-                className={
-                  styles.contentEyebrow
-                }
-              >
-                DAILY REPORT
-              </p>
+            DAILY REPORT
+          </p>
 
-              <h1
-                className={
-                  styles.contentTitle
-                }
-              >
-                Loading report workspace...
-              </h1>
-            </div>
-          </div>
+          <h1
+            className={
+              styles.errorTitle
+            }
+          >
+            Loading Daily Report Workspace...
+          </h1>
         </section>
       </main>
     );
   }
 
   if (
-    errorMessage &&
-    (!report ||
-      !project)
+    errorMessage ||
+    !report ||
+    !project
   ) {
     return (
       <main
@@ -1526,29 +1244,12 @@ export default function DailyReportWorkspacePage() {
               )
             }
           >
-            ← Back to Daily Reports
+            ← Daily Reports
           </button>
         </section>
       </main>
     );
   }
-
-  const reportNumber =
-    `DR-${String(
-      report.report_number
-    ).padStart(
-      4,
-      '0'
-    )}`;
-
-  const currentWeather =
-    weather[
-      activeWeatherPeriod
-    ];
-
-  const isReadOnly =
-    report.status !==
-    'draft';
 
   return (
     <main
@@ -1628,9 +1329,13 @@ export default function DailyReportWorkspacePage() {
               >
                 {project.code ||
                   'Unassigned'}
+
                 {' · '}
+
                 {project.name}
+
                 {' · '}
+
                 {formatDate(
                   report.report_date
                 )}
@@ -1689,7 +1394,7 @@ export default function DailyReportWorkspacePage() {
 
             <HeroMetric
               label="Sections"
-              value={`${completedSections}/${sections.length}`}
+              value={`${completedContentSections}/10`}
             />
 
             <HeroMetric
@@ -1737,57 +1442,72 @@ export default function DailyReportWorkspacePage() {
               styles.sectionNavigation
             }
           >
-            {sections.map(
-              (section) => (
-                <button
-                  type="button"
-                  key={
+            {SECTION_DEFINITIONS.map(
+              (section) => {
+                const count =
+                  sectionCounts[
                     section.key
-                  }
-                  onClick={() =>
-                    handleSectionClick(
-                      section
-                    )
-                  }
-                  className={`${styles.sectionLink} ${
-                    activeSection ===
-                    section.key
-                      ? styles.sectionLinkActive
-                      : ''
-                  }`}
-                >
-                  <span
-                    className={
-                      styles.sectionNumber
-                    }
-                  >
-                    {
-                      section.number
-                    }
-                  </span>
+                  ] || 0;
 
-                  <span
-                    className={
-                      styles.sectionName
-                    }
-                  >
-                    {
-                      section.shortTitle
-                    }
-                  </span>
+                const complete =
+                  count > 0;
 
-                  <span
-                    className={
-                      styles.sectionIndicator
+                const active =
+                  activeSection ===
+                  section.key;
+
+                return (
+                  <button
+                    key={
+                      section.key
                     }
+                    type="button"
+                    onClick={() =>
+                      handleSectionSelect(
+                        section.key
+                      )
+                    }
+                    title={
+                      section.description
+                    }
+                    className={`${styles.sectionLink} ${
+                      active
+                        ? styles.sectionLinkActive
+                        : ''
+                    }`}
                   >
-                    {section.count >
-                    0
-                      ? '✓'
-                      : '·'}
-                  </span>
-                </button>
-              )
+                    <span
+                      className={
+                        styles.sectionNumber
+                      }
+                    >
+                      {
+                        section.number
+                      }
+                    </span>
+
+                    <span
+                      className={
+                        styles.sectionName
+                      }
+                    >
+                      {
+                        section.title
+                      }
+                    </span>
+
+                    <span
+                      className={
+                        styles.sectionIndicator
+                      }
+                    >
+                      {complete
+                        ? '✓'
+                        : '·'}
+                    </span>
+                  </button>
+                );
+              }
             )}
           </nav>
 
@@ -1801,7 +1521,7 @@ export default function DailyReportWorkspacePage() {
                 styles.quickActionsTitle
               }
             >
-              Quick Actions
+              QUICK ACTIONS
             </p>
 
             <div
@@ -1809,41 +1529,160 @@ export default function DailyReportWorkspacePage() {
                 styles.quickActionGrid
               }
             >
-              <Link
-                href={`/dashboard/projects/daily-reports/${report.id}/workforce`}
+              <button
+                type="button"
                 className={
                   styles.quickAction
+                }
+                onClick={() =>
+                  handleSectionSelect(
+                    'workforce'
+                  )
                 }
               >
                 + Crew
-              </Link>
+              </button>
 
-              <Link
-                href={`/dashboard/projects/daily-reports/${report.id}/production`}
+              <button
+                type="button"
                 className={
                   styles.quickAction
+                }
+                onClick={() =>
+                  handleSectionSelect(
+                    'production'
+                  )
                 }
               >
                 + Production
-              </Link>
+              </button>
 
-              <Link
-                href={`/dashboard/projects/daily-reports/${report.id}/issues`}
+              <button
+                type="button"
                 className={
                   styles.quickAction
+                }
+                onClick={() =>
+                  handleSectionSelect(
+                    'issues'
+                  )
                 }
               >
                 + Issue
-              </Link>
+              </button>
 
-              <Link
-                href={`/dashboard/projects/daily-reports/${report.id}/attachments`}
+              <button
+                type="button"
                 className={
                   styles.quickAction
                 }
+                onClick={() =>
+                  handleSectionSelect(
+                    'attachments'
+                  )
+                }
               >
                 + Photo
-              </Link>
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop:
+                '16px',
+              padding:
+                '14px',
+              border:
+                '1px solid #dce7eb',
+              borderRadius:
+                '10px',
+              background:
+                '#f8fbfb',
+            }}
+          >
+            <div
+              style={{
+                display:
+                  'flex',
+                alignItems:
+                  'center',
+                justifyContent:
+                  'space-between',
+                gap:
+                  '10px',
+              }}
+            >
+              <span
+                style={{
+                  color:
+                    '#617485',
+                  fontSize:
+                    '0.62rem',
+                  fontWeight:
+                    800,
+                }}
+              >
+                REPORT COMPLETION
+              </span>
+
+              <strong
+                style={{
+                  color:
+                    '#087f73',
+                  fontSize:
+                    '0.68rem',
+                }}
+              >
+                {completionPercentage}%
+              </strong>
+            </div>
+
+            <div
+              style={{
+                height:
+                  '6px',
+                marginTop:
+                  '9px',
+                overflow:
+                  'hidden',
+                borderRadius:
+                  '999px',
+                background:
+                  '#e2e8f0',
+              }}
+            >
+              <div
+                style={{
+                  width:
+                    `${completionPercentage}%`,
+                  height:
+                    '100%',
+                  borderRadius:
+                    '999px',
+                  background:
+                    '#08aa96',
+                  transition:
+                    'width 180ms ease',
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                marginTop:
+                  '8px',
+                color:
+                  '#94a3b8',
+                fontSize:
+                  '0.6rem',
+                lineHeight:
+                  1.45,
+              }}
+            >
+              {completedContentSections}{' '}
+              of 10 content sections
+              currently contain data.
             </div>
           </div>
         </aside>
@@ -1853,812 +1692,7 @@ export default function DailyReportWorkspacePage() {
             styles.workspaceMain
           }
         >
-          {errorMessage && (
-            <div
-              className={
-                styles.workspaceError
-              }
-            >
-              {errorMessage}
-            </div>
-          )}
-
-          {weatherSuccess && (
-            <div
-              className={
-                styles.workspaceSuccess
-              }
-            >
-              {weatherSuccess}
-            </div>
-          )}
-
-          {activeSection ===
-            'general' && (
-            <article
-              className={
-                styles.contentPanel
-              }
-            >
-              <header
-                className={
-                  styles.contentHeader
-                }
-              >
-                <div>
-                  <p
-                    className={
-                      styles.contentEyebrow
-                    }
-                  >
-                    01 · GENERAL INFORMATION
-                  </p>
-
-                  <h2
-                    className={
-                      styles.contentTitle
-                    }
-                  >
-                    Report overview
-                  </h2>
-
-                  <p
-                    className={
-                      styles.contentDescription
-                    }
-                  >
-                    Core project and
-                    reporting information.
-                  </p>
-                </div>
-
-                <Link
-                  href={`/dashboard/projects/daily-reports/${report.id}/general`}
-                  className={
-                    styles.openSectionButton
-                  }
-                >
-                  Edit General Information
-                </Link>
-              </header>
-
-              <div
-                className={
-                  styles.generalGrid
-                }
-              >
-                <GeneralItem
-                  label="Project"
-                  value={
-                    project.name
-                  }
-                />
-
-                <GeneralItem
-                  label="Project Code"
-                  value={
-                    project.code ||
-                    'Unassigned'
-                  }
-                />
-
-                <GeneralItem
-                  label="Client"
-                  value={
-                    project.client_name ||
-                    'Not specified'
-                  }
-                />
-
-                <GeneralItem
-                  label="Report Number"
-                  value={
-                    reportNumber
-                  }
-                />
-
-                <GeneralItem
-                  label="Report Date"
-                  value={
-                    formatDate(
-                      report.report_date
-                    )
-                  }
-                />
-
-                <GeneralItem
-                  label="Status"
-                  value={
-                    formatStatus(
-                      report.status
-                    )
-                  }
-                />
-
-                <GeneralItem
-                  label="Work Start"
-                  value={
-                    formatTime(
-                      report.work_start_time
-                    )
-                  }
-                />
-
-                <GeneralItem
-                  label="Work End"
-                  value={
-                    formatTime(
-                      report.work_end_time
-                    )
-                  }
-                />
-
-                <GeneralItem
-                  label="Report Notes"
-                  value={
-                    report.general_notes ||
-                    'No general notes recorded.'
-                  }
-                />
-              </div>
-
-              <div
-                className={
-                  styles.completionSection
-                }
-              >
-                <div
-                  className={
-                    styles.completionHeader
-                  }
-                >
-                  <span
-                    className={
-                      styles.completionLabel
-                    }
-                  >
-                    Report completion
-                  </span>
-
-                  <strong
-                    className={
-                      styles.completionValue
-                    }
-                  >
-                    {completedSections}
-                    /
-                    {sections.length}
-                    {' · '}
-                    {completionPercentage}
-                    %
-                  </strong>
-                </div>
-
-                <div
-                  className={
-                    styles.progressTrack
-                  }
-                >
-                  <div
-                    className={
-                      styles.progressFill
-                    }
-                    style={{
-                      width:
-                        `${completionPercentage}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div
-                className={
-                  styles.sectionOverview
-                }
-              >
-                <OverviewCard
-                  icon="WE"
-                  label="Weather"
-                  value={
-                    weatherCount >
-                    0
-                      ? `${weatherCount} periods recorded`
-                      : 'Not recorded'
-                  }
-                />
-
-                <OverviewCard
-                  icon="WF"
-                  label="Workforce"
-                  value={`${workforceCount} records`}
-                />
-
-                <OverviewCard
-                  icon="PR"
-                  label="Production"
-                  value={`${productionCount} records`}
-                />
-
-                <OverviewCard
-                  icon="EQ"
-                  label="Equipment"
-                  value={`${equipmentCount} records`}
-                />
-
-                <OverviewCard
-                  icon="MT"
-                  label="Materials"
-                  value={`${materialsCount} records`}
-                />
-
-                <OverviewCard
-                  icon="IS"
-                  label="Issues"
-                  value={`${issuesCount} issues`}
-                />
-              </div>
-            </article>
-          )}
-
-          {activeSection ===
-            'weather' && (
-            <article
-              className={
-                styles.contentPanel
-              }
-            >
-              <header
-                className={
-                  styles.contentHeader
-                }
-              >
-                <div>
-                  <p
-                    className={
-                      styles.contentEyebrow
-                    }
-                  >
-                    02 · WEATHER & SITE CONDITIONS
-                  </p>
-
-                  <h2
-                    className={
-                      styles.contentTitle
-                    }
-                  >
-                    Weather
-                  </h2>
-
-                  <p
-                    className={
-                      styles.contentDescription
-                    }
-                  >
-                    Record weather,
-                    temperature, rainfall,
-                    site conditions and
-                    production impacts
-                    without leaving the
-                    Daily Report workspace.
-                  </p>
-                </div>
-
-                <span
-                  className={
-                    styles.embeddedBadge
-                  }
-                >
-                  Embedded Workspace
-                </span>
-              </header>
-
-              <form
-                onSubmit={
-                  saveWeather
-                }
-              >
-                <div
-                  className={
-                    styles.weatherPeriodTabs
-                  }
-                >
-                  {PERIODS.map(
-                    (period) => {
-                      const hasData =
-                        hasPeriodContent(
-                          weather[
-                            period.key
-                          ]
-                        );
-
-                      const active =
-                        activeWeatherPeriod ===
-                        period.key;
-
-                      return (
-                        <button
-                          key={
-                            period.key
-                          }
-                          type="button"
-                          onClick={() =>
-                            setActiveWeatherPeriod(
-                              period.key
-                            )
-                          }
-                          className={`${styles.weatherPeriodButton} ${
-                            active
-                              ? styles.weatherPeriodButtonActive
-                              : ''
-                          }`}
-                        >
-                          <span>
-                            {
-                              period.label
-                            }
-                          </span>
-
-                          <small>
-                            {hasData
-                              ? 'Recorded'
-                              : 'No data'}
-                          </small>
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-
-                <div
-                  className={
-                    styles.weatherForm
-                  }
-                >
-                  <label
-                    className={
-                      styles.weatherField
-                    }
-                  >
-                    <span>
-                      General condition
-                    </span>
-
-                    <select
-                      value={
-                        currentWeather.condition
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'condition',
-                          event.target
-                            .value
-                        )
-                      }
-                    >
-                      <option value="">
-                        Select condition
-                      </option>
-
-                      {WEATHER_OPTIONS.map(
-                        (
-                          option
-                        ) => (
-                          <option
-                            key={
-                              option
-                            }
-                            value={
-                              option
-                            }
-                          >
-                            {formatOptionLabel(
-                              option
-                            )}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-
-                  <label
-                    className={
-                      styles.weatherField
-                    }
-                  >
-                    <span>
-                      Minimum temperature
-                    </span>
-
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={
-                        currentWeather.temperatureMin
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'temperatureMin',
-                          event.target
-                            .value
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label
-                    className={
-                      styles.weatherField
-                    }
-                  >
-                    <span>
-                      Maximum temperature
-                    </span>
-
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={
-                        currentWeather.temperatureMax
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'temperatureMax',
-                          event.target
-                            .value
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label
-                    className={
-                      styles.weatherField
-                    }
-                  >
-                    <span>
-                      Temperature unit
-                    </span>
-
-                    <select
-                      value={
-                        currentWeather.temperatureUnit
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'temperatureUnit',
-                          event.target
-                            .value
-                        )
-                      }
-                    >
-                      <option value="F">
-                        Fahrenheit (°F)
-                      </option>
-
-                      <option value="C">
-                        Celsius (°C)
-                      </option>
-                    </select>
-                  </label>
-
-                  <label
-                    className={
-                      styles.weatherField
-                    }
-                  >
-                    <span>
-                      Rainfall
-                    </span>
-
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={
-                        currentWeather.rainfall
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'rainfall',
-                          event.target
-                            .value
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label
-                    className={
-                      styles.weatherField
-                    }
-                  >
-                    <span>
-                      Wind
-                    </span>
-
-                    <select
-                      value={
-                        currentWeather.windCondition
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'windCondition',
-                          event.target
-                            .value
-                        )
-                      }
-                    >
-                      <option value="">
-                        Select wind
-                      </option>
-
-                      {WIND_OPTIONS.map(
-                        (
-                          option
-                        ) => (
-                          <option
-                            key={
-                              option
-                            }
-                            value={
-                              option
-                            }
-                          >
-                            {formatOptionLabel(
-                              option
-                            )}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-
-                  <label
-                    className={
-                      styles.weatherField
-                    }
-                  >
-                    <span>
-                      Site condition
-                    </span>
-
-                    <select
-                      value={
-                        currentWeather.siteCondition
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'siteCondition',
-                          event.target
-                            .value
-                        )
-                      }
-                    >
-                      <option value="">
-                        Select site condition
-                      </option>
-
-                      {SITE_OPTIONS.map(
-                        (
-                          option
-                        ) => (
-                          <option
-                            key={
-                              option
-                            }
-                            value={
-                              option
-                            }
-                          >
-                            {formatOptionLabel(
-                              option
-                            )}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-
-                  <label
-                    className={
-                      styles.weatherField
-                    }
-                  >
-                    <span>
-                      Production impact
-                    </span>
-
-                    <select
-                      value={
-                        currentWeather.productionImpact
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'productionImpact',
-                          event.target
-                            .value
-                        )
-                      }
-                    >
-                      {IMPACT_OPTIONS.map(
-                        (
-                          option
-                        ) => (
-                          <option
-                            key={
-                              option
-                            }
-                            value={
-                              option
-                            }
-                          >
-                            {formatOptionLabel(
-                              option
-                            )}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-
-                  <label
-                    className={
-                      styles.weatherField
-                    }
-                  >
-                    <span>
-                      Impact hours
-                    </span>
-
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.25"
-                      value={
-                        currentWeather.impactHours
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'impactHours',
-                          event.target
-                            .value
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label
-                    className={`${styles.weatherField} ${styles.weatherFieldFull}`}
-                  >
-                    <span>
-                      Notes
-                    </span>
-
-                    <textarea
-                      rows="4"
-                      value={
-                        currentWeather.notes
-                      }
-                      disabled={
-                        isReadOnly
-                      }
-                      placeholder="Weather observations, site restrictions or production impacts..."
-                      onChange={(
-                        event
-                      ) =>
-                        updateWeatherField(
-                          activeWeatherPeriod,
-                          'notes',
-                          event.target
-                            .value
-                        )
-                      }
-                    />
-                  </label>
-                </div>
-
-                <footer
-                  className={
-                    styles.weatherFooter
-                  }
-                >
-                  <div>
-                    {isReadOnly ? (
-                      <span
-                        className={
-                          styles.readOnlyNotice
-                        }
-                      >
-                        This Daily Report is {formatStatus(
-                          report.status
-                        )} and is read-only.
-                      </span>
-                    ) : (
-                      <span
-                        className={
-                          styles.weatherHelper
-                        }
-                      >
-                        Changes are stored
-                        by weather period.
-                      </span>
-                    )}
-                  </div>
-
-                  {!isReadOnly && (
-                    <button
-                      type="submit"
-                      className={
-                        styles.primaryButton
-                      }
-                      disabled={
-                        isSavingWeather
-                      }
-                    >
-                      {isSavingWeather
-                        ? 'Saving...'
-                        : 'Save Weather'}
-                    </button>
-                  )}
-                </footer>
-              </form>
-            </article>
-          )}
+          {renderActiveSection()}
         </div>
       </section>
     </main>
