@@ -1,13 +1,35 @@
 'use client'
 
-import { useState } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
 import styles from './project-setup.module.css'
 
+const PROJECT_COVER_BUCKET =
+  'project-covers'
+
+const MAX_COVER_SIZE =
+  20 * 1024 * 1024
+
+const ALLOWED_COVER_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+]
+
+const SIGNED_URL_DURATION =
+  60 * 60
+
 function nullableValue(value) {
-  const normalizedValue = value.trim()
+  const normalizedValue =
+    value.trim()
 
   return normalizedValue === ''
     ? null
@@ -19,34 +41,106 @@ function createInitialFormData(
   suggestedCode
 ) {
   return {
-    code: project?.code || suggestedCode,
-    name: project?.name || '',
-    client_name: project?.client_name || '',
-    status: project?.status || 'planning',
+    code:
+      project?.code ||
+      suggestedCode,
+
+    name:
+      project?.name ||
+      '',
+
+    client_name:
+      project?.client_name ||
+      '',
+
+    status:
+      project?.status ||
+      'planning',
+
     proposal_number:
-      project?.proposal_number || '',
+      project?.proposal_number ||
+      '',
+
     contract_number:
-      project?.contract_number || '',
+      project?.contract_number ||
+      '',
+
     contract_value:
-      project?.contract_value ?? '',
+      project?.contract_value ??
+      '',
+
     currency_code:
-      project?.currency_code || 'USD',
+      project?.currency_code ||
+      'USD',
+
     planned_start_date:
-      project?.planned_start_date || '',
+      project?.planned_start_date ||
+      '',
+
     planned_finish_date:
-      project?.planned_finish_date || '',
+      project?.planned_finish_date ||
+      '',
+
     address_line:
-      project?.address_line || '',
+      project?.address_line ||
+      '',
+
     neighborhood:
-      project?.neighborhood || '',
-    city: project?.city || '',
+      project?.neighborhood ||
+      '',
+
+    city:
+      project?.city ||
+      '',
+
     state_region:
-      project?.state_region || '',
+      project?.state_region ||
+      '',
+
     postal_code:
-      project?.postal_code || '',
+      project?.postal_code ||
+      '',
+
     country_code:
-      project?.country_code || 'US',
+      project?.country_code ||
+      'US',
   }
+}
+
+function getFileExtension(file) {
+  const fileName =
+    file?.name || ''
+
+  const dotIndex =
+    fileName.lastIndexOf('.')
+
+  if (
+    dotIndex >= 0 &&
+    dotIndex <
+      fileName.length - 1
+  ) {
+    return fileName
+      .slice(dotIndex + 1)
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9]/g,
+        ''
+      )
+  }
+
+  const mimeExtensions = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/heic': 'heic',
+    'image/heif': 'heif',
+  }
+
+  return (
+    mimeExtensions[
+      file?.type
+    ] || 'jpg'
+  )
 }
 
 export default function ProjectForm({
@@ -56,8 +150,14 @@ export default function ProjectForm({
   project,
   suggestedCode,
 }) {
-  const router = useRouter()
-  const isEditing = Boolean(project?.id)
+  const router =
+    useRouter()
+
+  const fileInputRef =
+    useRef(null)
+
+  const isEditing =
+    Boolean(project?.id)
 
   const [formData, setFormData] =
     useState(() =>
@@ -67,43 +167,458 @@ export default function ProjectForm({
       )
     )
 
-  const [isSaving, setIsSaving] =
-    useState(false)
+  const [
+    coverImagePath,
+    setCoverImagePath,
+  ] = useState(
+    project?.cover_image_path ||
+      ''
+  )
 
-  const [errorMessage, setErrorMessage] =
-    useState('')
+  const [
+    coverImageUrl,
+    setCoverImageUrl,
+  ] = useState('')
+
+  const [
+    coverImageLoading,
+    setCoverImageLoading,
+  ] = useState(
+    Boolean(
+      project?.cover_image_path
+    )
+  )
+
+  const [
+    isUploadingCover,
+    setIsUploadingCover,
+  ] = useState(false)
+
+  const [
+    isRemovingCover,
+    setIsRemovingCover,
+  ] = useState(false)
+
+  const [
+    coverErrorMessage,
+    setCoverErrorMessage,
+  ] = useState('')
+
+  const [
+    coverSuccessMessage,
+    setCoverSuccessMessage,
+  ] = useState('')
+
+  const [
+    isSaving,
+    setIsSaving,
+  ] = useState(false)
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadCover() {
+      if (
+        !project?.id ||
+        !project?.cover_image_path
+      ) {
+        setCoverImageLoading(
+          false
+        )
+        return
+      }
+
+      const supabase =
+        createClient()
+
+      const {
+        data,
+        error,
+      } =
+        await supabase.storage
+          .from(
+            PROJECT_COVER_BUCKET
+          )
+          .createSignedUrl(
+            project.cover_image_path,
+            SIGNED_URL_DURATION
+          )
+
+      if (cancelled) {
+        return
+      }
+
+      if (
+        error ||
+        !data?.signedUrl
+      ) {
+        console.error(
+          'Project cover could not be loaded.',
+          error
+        )
+
+        setCoverErrorMessage(
+          'The current project cover could not be displayed.'
+        )
+
+        setCoverImageLoading(
+          false
+        )
+
+        return
+      }
+
+      setCoverImageUrl(
+        data.signedUrl
+      )
+
+      setCoverImageLoading(
+        false
+      )
+    }
+
+    loadCover()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    project?.id,
+    project?.cover_image_path,
+  ])
 
   function handleChange(event) {
-    const { name, value } = event.target
+    const {
+      name,
+      value,
+    } = event.target
 
-    setFormData((currentFormData) => ({
-      ...currentFormData,
-      [name]: value,
-    }))
+    setFormData(
+      (
+        currentFormData
+      ) => ({
+        ...currentFormData,
+        [name]: value,
+      })
+    )
   }
 
-  async function handleSubmit(event) {
+  async function handleCoverUpload(
+    event
+  ) {
+    const file =
+      event.target.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    if (!project?.id) {
+      setCoverErrorMessage(
+        'Create the project first. You can then add its cover photo from Project Setup.'
+      )
+
+      event.target.value = ''
+      return
+    }
+
+    if (
+      !ALLOWED_COVER_TYPES.includes(
+        file.type
+      )
+    ) {
+      setCoverErrorMessage(
+        'Use a JPEG, PNG, WebP, HEIC, or HEIF image.'
+      )
+
+      event.target.value = ''
+      return
+    }
+
+    if (
+      file.size >
+      MAX_COVER_SIZE
+    ) {
+      setCoverErrorMessage(
+        'The project cover image cannot exceed 20 MB.'
+      )
+
+      event.target.value = ''
+      return
+    }
+
+    setIsUploadingCover(
+      true
+    )
+
+    setCoverErrorMessage('')
+    setCoverSuccessMessage('')
+
+    const supabase =
+      createClient()
+
+    const extension =
+      getFileExtension(file)
+
+    const newStoragePath =
+      `${project.id}/cover-${Date.now()}.${extension}`
+
+    try {
+      const {
+        error: uploadError,
+      } =
+        await supabase.storage
+          .from(
+            PROJECT_COVER_BUCKET
+          )
+          .upload(
+            newStoragePath,
+            file,
+            {
+              cacheControl:
+                '3600',
+
+              upsert:
+                false,
+
+              contentType:
+                file.type,
+            }
+          )
+
+      if (uploadError) {
+        throw uploadError
+      }
+
+      const {
+        error: updateError,
+      } = await supabase
+        .from('projects')
+        .update({
+          cover_image_path:
+            newStoragePath,
+        })
+        .eq(
+          'id',
+          project.id
+        )
+
+      if (updateError) {
+        await supabase.storage
+          .from(
+            PROJECT_COVER_BUCKET
+          )
+          .remove([
+            newStoragePath,
+          ])
+
+        throw updateError
+      }
+
+      const {
+        data: signedData,
+        error: signedError,
+      } =
+        await supabase.storage
+          .from(
+            PROJECT_COVER_BUCKET
+          )
+          .createSignedUrl(
+            newStoragePath,
+            SIGNED_URL_DURATION
+          )
+
+      if (signedError) {
+        console.error(
+          'Project cover signed URL could not be created.',
+          signedError
+        )
+      }
+
+      const previousPath =
+        coverImagePath
+
+      setCoverImagePath(
+        newStoragePath
+      )
+
+      setCoverImageUrl(
+        signedData?.signedUrl ||
+          ''
+      )
+
+      if (
+        previousPath &&
+        previousPath !==
+          newStoragePath
+      ) {
+        const {
+          error:
+            previousDeleteError,
+        } =
+          await supabase.storage
+            .from(
+              PROJECT_COVER_BUCKET
+            )
+            .remove([
+              previousPath,
+            ])
+
+        if (
+          previousDeleteError
+        ) {
+          console.warn(
+            'Previous project cover could not be removed.',
+            previousDeleteError
+          )
+        }
+      }
+
+      setCoverSuccessMessage(
+        'Project cover updated successfully.'
+      )
+
+      router.refresh()
+    } catch (error) {
+      setCoverErrorMessage(
+        error?.message ||
+          'The project cover could not be uploaded.'
+      )
+    } finally {
+      setIsUploadingCover(
+        false
+      )
+
+      if (
+        fileInputRef.current
+      ) {
+        fileInputRef.current.value =
+          ''
+      }
+    }
+  }
+
+  async function handleRemoveCover() {
+    if (
+      !project?.id ||
+      !coverImagePath ||
+      isRemovingCover
+    ) {
+      return
+    }
+
+    const confirmed =
+      window.confirm(
+        'Remove the project cover photo?'
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    setIsRemovingCover(
+      true
+    )
+
+    setCoverErrorMessage('')
+    setCoverSuccessMessage('')
+
+    const supabase =
+      createClient()
+
+    try {
+      const {
+        error: updateError,
+      } = await supabase
+        .from('projects')
+        .update({
+          cover_image_path:
+            null,
+        })
+        .eq(
+          'id',
+          project.id
+        )
+
+      if (updateError) {
+        throw updateError
+      }
+
+      const {
+        error: removeError,
+      } =
+        await supabase.storage
+          .from(
+            PROJECT_COVER_BUCKET
+          )
+          .remove([
+            coverImagePath,
+          ])
+
+      if (removeError) {
+        console.warn(
+          'Project cover database reference was removed, but the Storage object could not be deleted.',
+          removeError
+        )
+      }
+
+      setCoverImagePath('')
+      setCoverImageUrl('')
+
+      setCoverSuccessMessage(
+        'Project cover removed.'
+      )
+
+      router.refresh()
+    } catch (error) {
+      setCoverErrorMessage(
+        error?.message ||
+          'The project cover could not be removed.'
+      )
+    } finally {
+      setIsRemovingCover(
+        false
+      )
+    }
+  }
+
+  async function handleSubmit(
+    event
+  ) {
     event.preventDefault()
+
     setErrorMessage('')
     setIsSaving(true)
 
-    const supabase = createClient()
+    const supabase =
+      createClient()
 
     const contractValue =
-      formData.contract_value === ''
+      formData.contract_value ===
+      ''
         ? null
-        : Number(formData.contract_value)
+        : Number(
+            formData.contract_value
+          )
 
     if (
       contractValue !== null &&
       (
-        Number.isNaN(contractValue) ||
+        Number.isNaN(
+          contractValue
+        ) ||
         contractValue < 0
       )
     ) {
       setErrorMessage(
         'Contract value must be a valid non-negative number.'
       )
+
       setIsSaving(false)
       return
     }
@@ -117,113 +632,164 @@ export default function ProjectForm({
       setErrorMessage(
         'Planned finish date cannot be earlier than the planned start date.'
       )
+
       setIsSaving(false)
       return
     }
 
     const projectPayload = {
-      code: formData.code
-        .trim()
-        .toUpperCase(),
+      code:
+        formData.code
+          .trim()
+          .toUpperCase(),
 
-      name: formData.name.trim(),
+      name:
+        formData.name.trim(),
 
-      client_name: nullableValue(
-        formData.client_name
-      ),
+      client_name:
+        nullableValue(
+          formData.client_name
+        ),
 
-      status: formData.status,
+      status:
+        formData.status,
 
-      proposal_number: nullableValue(
-        formData.proposal_number
-      ),
+      proposal_number:
+        nullableValue(
+          formData.proposal_number
+        ),
 
-      contract_number: nullableValue(
-        formData.contract_number
-      ),
+      contract_number:
+        nullableValue(
+          formData.contract_number
+        ),
 
-      contract_value: contractValue,
+      contract_value:
+        contractValue,
 
-      currency_code: formData.currency_code
-        .trim()
-        .toUpperCase(),
+      currency_code:
+        formData.currency_code
+          .trim()
+          .toUpperCase(),
 
       planned_start_date:
-        formData.planned_start_date || null,
+        formData.planned_start_date ||
+        null,
 
       planned_finish_date:
-        formData.planned_finish_date || null,
+        formData.planned_finish_date ||
+        null,
 
-      address_line: nullableValue(
-        formData.address_line
-      ),
+      address_line:
+        nullableValue(
+          formData.address_line
+        ),
 
-      neighborhood: nullableValue(
-        formData.neighborhood
-      ),
+      neighborhood:
+        nullableValue(
+          formData.neighborhood
+        ),
 
-      city: nullableValue(
-        formData.city
-      ),
+      city:
+        nullableValue(
+          formData.city
+        ),
 
-      state_region: nullableValue(
-        formData.state_region
-      ),
+      state_region:
+        nullableValue(
+          formData.state_region
+        ),
 
-      postal_code: nullableValue(
-        formData.postal_code
-      ),
+      postal_code:
+        nullableValue(
+          formData.postal_code
+        ),
 
-      country_code: formData.country_code
-        .trim()
-        .toUpperCase(),
+      country_code:
+        formData.country_code
+          .trim()
+          .toUpperCase(),
     }
 
     try {
       if (isEditing) {
-        const { error } = await supabase
-          .from('projects')
-          .update(projectPayload)
-          .eq('id', project.id)
+        const {
+          error,
+        } =
+          await supabase
+            .from(
+              'projects'
+            )
+            .update(
+              projectPayload
+            )
+            .eq(
+              'id',
+              project.id
+            )
 
         if (error) {
           throw error
         }
       } else {
         const {
-          data: createdProject,
-          error: createError,
-        } = await supabase
-          .from('projects')
-          .insert({
-            ...projectPayload,
-            organization_id: organizationId,
-            created_by: userId,
-          })
-          .select('id')
-          .single()
+          data:
+            createdProject,
+          error:
+            createError,
+        } =
+          await supabase
+            .from(
+              'projects'
+            )
+            .insert({
+              ...projectPayload,
 
-        if (createError) {
+              organization_id:
+                organizationId,
+
+              created_by:
+                userId,
+            })
+            .select(
+              'id'
+            )
+            .single()
+
+        if (
+          createError
+        ) {
           throw createError
         }
 
         const {
-          error: membershipError,
-        } = await supabase
-          .from('project_members')
-          .upsert(
-            {
-              project_id: createdProject.id,
-              user_id: userId,
-              role: 'manager',
-            },
-            {
-              onConflict:
-                'project_id,user_id',
-            }
-          )
+          error:
+            membershipError,
+        } =
+          await supabase
+            .from(
+              'project_members'
+            )
+            .upsert(
+              {
+                project_id:
+                  createdProject.id,
 
-        if (membershipError) {
+                user_id:
+                  userId,
+
+                role:
+                  'manager',
+              },
+              {
+                onConflict:
+                  'project_id,user_id',
+              }
+            )
+
+        if (
+          membershipError
+        ) {
           console.error(
             'Project membership could not be created.',
             membershipError
@@ -234,10 +800,12 @@ export default function ProjectForm({
       router.push(
         '/dashboard/projetos/lista'
       )
+
       router.refresh()
     } catch (error) {
       if (
-        error?.code === '23505'
+        error?.code ===
+        '23505'
       ) {
         setErrorMessage(
           'This project code is already in use. Choose another code.'
@@ -255,14 +823,20 @@ export default function ProjectForm({
 
   return (
     <>
-      <div className={styles.contextBar}>
+      <div
+        className={
+          styles.contextBar
+        }
+      >
         <div
           className={
             styles.contextIdentity
           }
         >
           <span
-            className={styles.contextIcon}
+            className={
+              styles.contextIcon
+            }
           >
             OR
           </span>
@@ -287,7 +861,9 @@ export default function ProjectForm({
         </div>
 
         <span
-          className={styles.contextMode}
+          className={
+            styles.contextMode
+          }
         >
           {isEditing
             ? 'Editing project'
@@ -295,9 +871,21 @@ export default function ProjectForm({
         </span>
       </div>
 
-      <article className={styles.formPanel}>
-        <div className={styles.formHeader}>
-          <h2 className={styles.formTitle}>
+      <article
+        className={
+          styles.formPanel
+        }
+      >
+        <div
+          className={
+            styles.formHeader
+          }
+        >
+          <h2
+            className={
+              styles.formTitle
+            }
+          >
             {isEditing
               ? 'Project information'
               : 'Create project'}
@@ -309,16 +897,25 @@ export default function ProjectForm({
             }
           >
             Define the project identity,
-            commercial references, planned
-            dates, and geographic information.
+            presentation, commercial references,
+            planned dates, and geographic
+            information.
           </p>
         </div>
 
         <form
-          className={styles.form}
-          onSubmit={handleSubmit}
+          className={
+            styles.form
+          }
+          onSubmit={
+            handleSubmit
+          }
         >
-          <section className={styles.section}>
+          <section
+            className={
+              styles.section
+            }
+          >
             <div
               className={
                 styles.sectionHeading
@@ -342,15 +939,22 @@ export default function ProjectForm({
               </p>
             </div>
 
-            <div className={styles.grid}>
+            <div
+              className={
+                styles.grid
+              }
+            >
               <div
                 className={`${styles.field} ${styles.span4}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="code"
                 >
                   Project code
+
                   <span
                     className={
                       styles.required
@@ -361,17 +965,25 @@ export default function ProjectForm({
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="code"
                   name="code"
-                  value={formData.code}
-                  onChange={handleChange}
+                  value={
+                    formData.code
+                  }
+                  onChange={
+                    handleChange
+                  }
                   placeholder="RF-0002"
                   required
                 />
 
                 <p
-                  className={styles.helpText}
+                  className={
+                    styles.helpText
+                  }
                 >
                   Unique code within the
                   organization.
@@ -382,10 +994,13 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span8}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="name"
                 >
                   Project name
+
                   <span
                     className={
                       styles.required
@@ -396,11 +1011,17 @@ export default function ProjectForm({
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="name"
                   name="name"
-                  value={formData.name}
-                  onChange={handleChange}
+                  value={
+                    formData.name
+                  }
+                  onChange={
+                    handleChange
+                  }
                   placeholder="Project name"
                   required
                 />
@@ -410,20 +1031,26 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span8}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="client_name"
                 >
                   Client
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="client_name"
                   name="client_name"
                   value={
                     formData.client_name
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                   placeholder="Client or owner"
                 />
               </div>
@@ -432,18 +1059,26 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span4}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="status"
                 >
                   Project status
                 </label>
 
                 <select
-                  className={styles.select}
+                  className={
+                    styles.select
+                  }
                   id="status"
                   name="status"
-                  value={formData.status}
-                  onChange={handleChange}
+                  value={
+                    formData.status
+                  }
+                  onChange={
+                    handleChange
+                  }
                 >
                   <option value="planning">
                     Planning
@@ -469,7 +1104,230 @@ export default function ProjectForm({
             </div>
           </section>
 
-          <section className={styles.section}>
+          <section
+            className={
+              styles.section
+            }
+          >
+            <div
+              className={
+                styles.sectionHeading
+              }
+            >
+              <h3
+                className={
+                  styles.sectionTitle
+                }
+              >
+                Project cover
+              </h3>
+
+              <p
+                className={
+                  styles.sectionDescription
+                }
+              >
+                Define the project image used in
+                Daily Reports, project cards,
+                dashboards, and project
+                workspaces.
+              </p>
+            </div>
+
+            <div
+              className={
+                styles.coverLayout
+              }
+            >
+              <div
+                className={
+                  styles.coverPreview
+                }
+              >
+                {coverImageLoading ? (
+                  <div
+                    className={
+                      styles.coverPlaceholder
+                    }
+                  >
+                    <span
+                      className={
+                        styles.coverPlaceholderIcon
+                      }
+                    >
+                      IM
+                    </span>
+
+                    <span>
+                      Loading project image...
+                    </span>
+                  </div>
+                ) : coverImageUrl ? (
+                  <img
+                    src={
+                      coverImageUrl
+                    }
+                    alt={`${formData.name || 'Project'} cover`}
+                    className={
+                      styles.coverImage
+                    }
+                  />
+                ) : (
+                  <div
+                    className={
+                      styles.coverPlaceholder
+                    }
+                  >
+                    <span
+                      className={
+                        styles.coverPlaceholderIcon
+                      }
+                    >
+                      IM
+                    </span>
+
+                    <strong>
+                      No project cover
+                    </strong>
+
+                    <span>
+                      Add a field or construction
+                      image to visually identify
+                      this project.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div
+                className={
+                  styles.coverDetails
+                }
+              >
+                <div>
+                  <p
+                    className={
+                      styles.coverProjectName
+                    }
+                  >
+                    {formData.name ||
+                      'Project cover photo'}
+                  </p>
+
+                  <p
+                    className={
+                      styles.coverHelp
+                    }
+                  >
+                    Recommended: landscape
+                    orientation. JPEG, PNG,
+                    WebP, HEIC or HEIF. Maximum
+                    file size 20 MB.
+                  </p>
+                </div>
+
+                {!isEditing && (
+                  <div
+                    className={
+                      styles.coverNotice
+                    }
+                  >
+                    Create the project first.
+                    After creation, return to
+                    Project Setup to add its
+                    cover image.
+                  </div>
+                )}
+
+                {coverErrorMessage && (
+                  <div
+                    className={
+                      styles.coverError
+                    }
+                  >
+                    {coverErrorMessage}
+                  </div>
+                )}
+
+                {coverSuccessMessage && (
+                  <div
+                    className={
+                      styles.coverSuccess
+                    }
+                  >
+                    {coverSuccessMessage}
+                  </div>
+                )}
+
+                <input
+                  ref={
+                    fileInputRef
+                  }
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  onChange={
+                    handleCoverUpload
+                  }
+                  className={
+                    styles.hiddenFileInput
+                  }
+                />
+
+                <div
+                  className={
+                    styles.coverActions
+                  }
+                >
+                  <button
+                    type="button"
+                    className={
+                      styles.coverPrimaryButton
+                    }
+                    disabled={
+                      !isEditing ||
+                      isUploadingCover ||
+                      isRemovingCover
+                    }
+                    onClick={() =>
+                      fileInputRef.current?.click()
+                    }
+                  >
+                    {isUploadingCover
+                      ? 'Uploading...'
+                      : coverImagePath
+                        ? 'Change photo'
+                        : 'Upload photo'}
+                  </button>
+
+                  {coverImagePath && (
+                    <button
+                      type="button"
+                      className={
+                        styles.coverRemoveButton
+                      }
+                      disabled={
+                        isUploadingCover ||
+                        isRemovingCover
+                      }
+                      onClick={
+                        handleRemoveCover
+                      }
+                    >
+                      {isRemovingCover
+                        ? 'Removing...'
+                        : 'Remove photo'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section
+            className={
+              styles.section
+            }
+          >
             <div
               className={
                 styles.sectionHeading
@@ -493,25 +1351,35 @@ export default function ProjectForm({
               </p>
             </div>
 
-            <div className={styles.grid}>
+            <div
+              className={
+                styles.grid
+              }
+            >
               <div
                 className={`${styles.field} ${styles.span3}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="proposal_number"
                 >
                   Proposal number
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="proposal_number"
                   name="proposal_number"
                   value={
                     formData.proposal_number
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                 />
               </div>
 
@@ -519,20 +1387,26 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span3}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="contract_number"
                 >
                   Contract number
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="contract_number"
                   name="contract_number"
                   value={
                     formData.contract_number
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                 />
               </div>
 
@@ -540,14 +1414,18 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span3}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="contract_value"
                 >
                   Contract value
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="contract_value"
                   name="contract_value"
                   type="number"
@@ -556,7 +1434,9 @@ export default function ProjectForm({
                   value={
                     formData.contract_value
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                 />
               </div>
 
@@ -564,20 +1444,26 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span3}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="currency_code"
                 >
                   Currency
                 </label>
 
                 <select
-                  className={styles.select}
+                  className={
+                    styles.select
+                  }
                   id="currency_code"
                   name="currency_code"
                   value={
                     formData.currency_code
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                 >
                   <option value="USD">
                     USD
@@ -605,21 +1491,27 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span6}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="planned_start_date"
                 >
                   Planned start date
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="planned_start_date"
                   name="planned_start_date"
                   type="date"
                   value={
                     formData.planned_start_date
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                 />
               </div>
 
@@ -627,27 +1519,37 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span6}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="planned_finish_date"
                 >
                   Planned finish date
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="planned_finish_date"
                   name="planned_finish_date"
                   type="date"
                   value={
                     formData.planned_finish_date
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                 />
               </div>
             </div>
           </section>
 
-          <section className={styles.section}>
+          <section
+            className={
+              styles.section
+            }
+          >
             <div
               className={
                 styles.sectionHeading
@@ -672,25 +1574,35 @@ export default function ProjectForm({
               </p>
             </div>
 
-            <div className={styles.grid}>
+            <div
+              className={
+                styles.grid
+              }
+            >
               <div
                 className={`${styles.field} ${styles.span12}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="address_line"
                 >
                   Address
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="address_line"
                   name="address_line"
                   value={
                     formData.address_line
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                   placeholder="Street and number"
                 />
               </div>
@@ -699,20 +1611,26 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span6}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="neighborhood"
                 >
                   Neighborhood or district
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="neighborhood"
                   name="neighborhood"
                   value={
                     formData.neighborhood
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                 />
               </div>
 
@@ -720,18 +1638,26 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span6}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="city"
                 >
                   City
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="city"
                   name="city"
-                  value={formData.city}
-                  onChange={handleChange}
+                  value={
+                    formData.city
+                  }
+                  onChange={
+                    handleChange
+                  }
                 />
               </div>
 
@@ -739,20 +1665,26 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span4}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="state_region"
                 >
                   State or region
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="state_region"
                   name="state_region"
                   value={
                     formData.state_region
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                 />
               </div>
 
@@ -760,20 +1692,26 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span4}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="postal_code"
                 >
                   Postal code
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="postal_code"
                   name="postal_code"
                   value={
                     formData.postal_code
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                 />
               </div>
 
@@ -781,27 +1719,35 @@ export default function ProjectForm({
                 className={`${styles.field} ${styles.span4}`}
               >
                 <label
-                  className={styles.label}
+                  className={
+                    styles.label
+                  }
                   htmlFor="country_code"
                 >
                   Country code
                 </label>
 
                 <input
-                  className={styles.input}
+                  className={
+                    styles.input
+                  }
                   id="country_code"
                   name="country_code"
                   maxLength="2"
                   value={
                     formData.country_code
                   }
-                  onChange={handleChange}
+                  onChange={
+                    handleChange
+                  }
                   placeholder="US"
                   required
                 />
 
                 <p
-                  className={styles.helpText}
+                  className={
+                    styles.helpText
+                  }
                 >
                   Use the two-letter ISO country
                   code.
@@ -812,14 +1758,20 @@ export default function ProjectForm({
 
           {errorMessage && (
             <p
-              className={styles.errorMessage}
+              className={
+                styles.errorMessage
+              }
               role="alert"
             >
               {errorMessage}
             </p>
           )}
 
-          <div className={styles.actions}>
+          <div
+            className={
+              styles.actions
+            }
+          >
             <Link
               href="/dashboard/projetos/lista"
               className={
@@ -830,9 +1782,13 @@ export default function ProjectForm({
             </Link>
 
             <button
-              className={styles.primaryButton}
+              className={
+                styles.primaryButton
+              }
               type="submit"
-              disabled={isSaving}
+              disabled={
+                isSaving
+              }
             >
               {isSaving
                 ? 'Saving project...'
