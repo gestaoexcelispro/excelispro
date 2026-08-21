@@ -10,8 +10,8 @@ import { useRouter } from 'next/navigation';
 
 import { createClient } from '../../../../lib/supabase/client';
 
-import styles from './daily-reports.module.css';
 import centerStyles from './daily-reports-center.module.css';
+import projectCenterStyles from './project-report-center.module.css';
 
 const PROJECT_COVER_BUCKET =
   'project-covers';
@@ -19,13 +19,13 @@ const PROJECT_COVER_BUCKET =
 const SIGNED_URL_DURATION =
   60 * 60;
 
-function formatDate(dateValue) {
-  if (!dateValue) {
+function formatDate(value) {
+  if (!value) {
     return '—';
   }
 
   const [year, month, day] =
-    dateValue.split('-');
+    value.split('-');
 
   const date = new Date(
     Number(year),
@@ -61,49 +61,33 @@ function getLocalDateKey(
 }
 
 function formatReportNumber(
-  reportNumber
+  value
 ) {
   if (
-    reportNumber === null ||
-    reportNumber === undefined
+    value === null ||
+    value === undefined
   ) {
     return 'DR-—';
   }
 
   return `DR-${String(
-    reportNumber
+    value
   ).padStart(4, '0')}`;
 }
 
 function formatStatus(status) {
-  if (!status) {
-    return 'Draft';
-  }
+  const labels = {
+    draft: 'Draft',
+    submitted: 'Submitted',
+    reviewed: 'Reviewed',
+    approved: 'Approved',
+  };
 
-  return status
-    .replaceAll('_', ' ')
-    .replace(
-      /\b\w/g,
-      (character) =>
-        character.toUpperCase()
-    );
-}
-
-function getStatusClass(
-  status,
-  stylesObject
-) {
-  switch (status) {
-    case 'approved':
-      return stylesObject.statusApproved;
-
-    case 'submitted':
-    case 'reviewed':
-      return stylesObject.statusSubmitted;
-
-    default:
-      return stylesObject.statusDraft;
-  }
+  return (
+    labels[status] ||
+    status ||
+    'Draft'
+  );
 }
 
 function getWeatherLabel(report) {
@@ -111,19 +95,11 @@ function getWeatherLabel(report) {
     return '—';
   }
 
-  if (
-    report.weather_summary
-  ) {
-    return report.weather_summary;
-  }
-
-  if (
-    report.weather_condition
-  ) {
-    return report.weather_condition;
-  }
-
-  return '—';
+  return (
+    report.weather_summary ||
+    report.weather_condition ||
+    '—'
+  );
 }
 
 function formatProjectLocation(
@@ -143,6 +119,81 @@ function formatProjectLocation(
   return (
     project.country_code ||
     'Location not specified'
+  );
+}
+
+function getStatusClass(
+  status
+) {
+  switch (status) {
+    case 'approved':
+      return projectCenterStyles
+        .statusApproved;
+
+    case 'reviewed':
+      return projectCenterStyles
+        .statusReviewed;
+
+    case 'submitted':
+      return projectCenterStyles
+        .statusSubmitted;
+
+    default:
+      return projectCenterStyles
+        .statusDraft;
+  }
+}
+
+function MetricCard({
+  icon,
+  label,
+  value,
+  helper,
+}) {
+  return (
+    <article
+      className={
+        projectCenterStyles.metricCard
+      }
+    >
+      <span
+        className={
+          projectCenterStyles.metricIcon
+        }
+      >
+        {icon}
+      </span>
+
+      <div
+        className={
+          projectCenterStyles.metricContent
+        }
+      >
+        <span
+          className={
+            projectCenterStyles.metricLabel
+          }
+        >
+          {label}
+        </span>
+
+        <strong
+          className={
+            projectCenterStyles.metricValue
+          }
+        >
+          {value}
+        </strong>
+
+        <span
+          className={
+            projectCenterStyles.metricHelper
+          }
+        >
+          {helper}
+        </span>
+      </div>
+    </article>
   );
 }
 
@@ -203,6 +254,11 @@ export default function DailyReportsPage() {
   ] = useState('');
 
   const [
+    activeView,
+    setActiveView,
+  ] = useState('today');
+
+  const [
     isLoading,
     setIsLoading,
   ] = useState(true);
@@ -220,13 +276,13 @@ export default function DailyReportsPage() {
       setIsLoading(true);
       setErrorMessage('');
 
-      const queryParameters =
+      const params =
         new URLSearchParams(
           window.location.search
         );
 
       const projectId =
-        queryParameters.get(
+        params.get(
           'projectId'
         );
 
@@ -259,7 +315,6 @@ export default function DailyReportsPage() {
             code,
             name,
             client_name,
-            organization_id,
             status,
             city,
             state_region,
@@ -274,8 +329,7 @@ export default function DailyReportsPage() {
           .order(
             'created_at',
             {
-              ascending:
-                false,
+              ascending: false,
             }
           );
 
@@ -295,12 +349,6 @@ export default function DailyReportsPage() {
         availableProjects
       );
 
-      /*
-       * ======================================================
-       * PROJECT COVER IMAGES
-       * ======================================================
-       */
-
       const coverEntries =
         await Promise.all(
           availableProjects.map(
@@ -317,9 +365,6 @@ export default function DailyReportsPage() {
               const {
                 data:
                   signedData,
-
-                error:
-                  signedError,
               } =
                 await supabase.storage
                   .from(
@@ -330,25 +375,10 @@ export default function DailyReportsPage() {
                     SIGNED_URL_DURATION
                   );
 
-              if (
-                signedError ||
-                !signedData
-                  ?.signedUrl
-              ) {
-                console.warn(
-                  `Project cover could not be loaded for ${project.name}.`,
-                  signedError
-                );
-
-                return [
-                  project.id,
-                  '',
-                ];
-              }
-
               return [
                 project.id,
-                signedData.signedUrl,
+                signedData?.signedUrl ||
+                  '',
               ];
             }
           )
@@ -359,12 +389,6 @@ export default function DailyReportsPage() {
           coverEntries
         )
       );
-
-      /*
-       * ======================================================
-       * PORTFOLIO MODE
-       * ======================================================
-       */
 
       if (!projectId) {
         setSelectedProject(
@@ -381,12 +405,6 @@ export default function DailyReportsPage() {
         return;
       }
 
-      /*
-       * ======================================================
-       * SELECTED PROJECT
-       * ======================================================
-       */
-
       const activeProject =
         availableProjects.find(
           (project) =>
@@ -396,15 +414,12 @@ export default function DailyReportsPage() {
 
       if (!activeProject) {
         setErrorMessage(
-          'The selected project could not be found or is no longer available.'
+          'The selected project could not be found.'
         );
 
         setSelectedProject(
           null
         );
-
-        setReports([]);
-        setTodayReport(null);
 
         setIsLoading(false);
         return;
@@ -413,12 +428,6 @@ export default function DailyReportsPage() {
       setSelectedProject(
         activeProject
       );
-
-      /*
-       * ======================================================
-       * PROJECT DAILY REPORTS
-       * ======================================================
-       */
 
       const {
         data: reportsData,
@@ -475,7 +484,12 @@ export default function DailyReportsPage() {
         currentReport
       );
 
-      if (!currentReport) {
+      const snapshotReport =
+        currentReport ||
+        loadedReports[0] ||
+        null;
+
+      if (!snapshotReport) {
         setWorkforceToday(0);
         setActivitiesToday(0);
         setOccurrencesToday(0);
@@ -483,12 +497,6 @@ export default function DailyReportsPage() {
         setIsLoading(false);
         return;
       }
-
-      /*
-       * ======================================================
-       * TODAY FIELD SNAPSHOT
-       * ======================================================
-       */
 
       const [
         workforceResult,
@@ -505,7 +513,7 @@ export default function DailyReportsPage() {
             )
             .eq(
               'daily_report_id',
-              currentReport.id
+              snapshotReport.id
             ),
 
           supabase
@@ -515,7 +523,7 @@ export default function DailyReportsPage() {
             .select('id')
             .eq(
               'daily_report_id',
-              currentReport.id
+              snapshotReport.id
             ),
 
           supabase
@@ -525,23 +533,23 @@ export default function DailyReportsPage() {
             .select('id')
             .eq(
               'daily_report_id',
-              currentReport.id
+              snapshotReport.id
             ),
         ]);
 
       if (
         !workforceResult.error
       ) {
-        const totalWorkforce =
+        const total =
           (
             workforceResult.data ||
             []
           ).reduce(
             (
-              total,
+              sum,
               role
             ) =>
-              total +
+              sum +
               Number(
                 role.worker_count ||
                   0
@@ -550,27 +558,19 @@ export default function DailyReportsPage() {
           );
 
         setWorkforceToday(
-          totalWorkforce
+          total
         );
       }
 
-      if (
-        !activitiesResult.error
-      ) {
-        setActivitiesToday(
-          activitiesResult.data
-            ?.length || 0
-        );
-      }
+      setActivitiesToday(
+        activitiesResult.data
+          ?.length || 0
+      );
 
-      if (
-        !occurrencesResult.error
-      ) {
-        setOccurrencesToday(
-          occurrencesResult.data
-            ?.length || 0
-        );
-      }
+      setOccurrencesToday(
+        occurrencesResult.data
+          ?.length || 0
+      );
 
       setIsLoading(false);
     }
@@ -581,66 +581,49 @@ export default function DailyReportsPage() {
     today,
   ]);
 
-  const filteredReports =
-    useMemo(() => {
-      const normalizedSearch =
-        searchTerm
-          .trim()
-          .toLowerCase();
+  const latestReport =
+    reports[0] || null;
 
-      if (
-        !normalizedSearch
-      ) {
-        return reports;
-      }
-
-      return reports.filter(
-        (report) => {
-          const reportNumber =
-            formatReportNumber(
-              report.report_number
-            ).toLowerCase();
-
-          const reportDate =
-            formatDate(
-              report.report_date
-            ).toLowerCase();
-
-          const status =
-            formatStatus(
-              report.status
-            ).toLowerCase();
-
-          return (
-            reportNumber.includes(
-              normalizedSearch
-            ) ||
-            reportDate.includes(
-              normalizedSearch
-            ) ||
-            status.includes(
-              normalizedSearch
-            )
-          );
-        }
-      );
-    }, [
-      reports,
-      searchTerm,
-    ]);
-
-  const openReports =
+  const draftReports =
     reports.filter(
       (report) =>
         report.status ===
         'draft'
     ).length;
 
-  /*
-   * ==========================================================
-   * NAVIGATION
-   * ==========================================================
-   */
+  const filteredReports =
+    useMemo(() => {
+      const value =
+        searchTerm
+          .trim()
+          .toLowerCase();
+
+      if (!value) {
+        return reports;
+      }
+
+      return reports.filter(
+        (report) =>
+          formatReportNumber(
+            report.report_number
+          )
+            .toLowerCase()
+            .includes(value) ||
+          formatDate(
+            report.report_date
+          )
+            .toLowerCase()
+            .includes(value) ||
+          formatStatus(
+            report.status
+          )
+            .toLowerCase()
+            .includes(value)
+      );
+    }, [
+      reports,
+      searchTerm,
+    ]);
 
   function openProject(
     projectId
@@ -654,22 +637,46 @@ export default function DailyReportsPage() {
       '/dashboard/projects/daily-reports';
   }
 
-  function openNewDailyReport() {
-    const projectQuery =
+  function openNewReport() {
+    if (
       selectedProject?.id
-        ? `?projectId=${selectedProject.id}`
-        : '';
+    ) {
+      router.push(
+        `/dashboard/projects/daily-reports/new?projectId=${selectedProject.id}`
+      );
+
+      return;
+    }
 
     router.push(
-      `/dashboard/projects/daily-reports/new${projectQuery}`
+      '/dashboard/projects/daily-reports/new'
     );
   }
 
-  /*
-   * ==========================================================
-   * LOADING
-   * ==========================================================
-   */
+  function openReport(
+    reportId
+  ) {
+    router.push(
+      `/dashboard/projects/daily-reports/${reportId}`
+    );
+  }
+
+  function openReportSection(
+    section
+  ) {
+    const targetReport =
+      todayReport ||
+      latestReport;
+
+    if (!targetReport) {
+      openNewReport();
+      return;
+    }
+
+    router.push(
+      `/dashboard/projects/daily-reports/${targetReport.id}/${section}`
+    );
+  }
 
   if (isLoading) {
     return (
@@ -697,8 +704,7 @@ export default function DailyReportsPage() {
             </strong>
 
             <p>
-              Preparing your project
-              portfolio...
+              Preparing project data...
             </p>
           </div>
         </section>
@@ -708,7 +714,7 @@ export default function DailyReportsPage() {
 
   /*
    * ==========================================================
-   * PROJECT PORTFOLIO
+   * PROJECT SELECTION
    * ==========================================================
    */
 
@@ -762,1078 +768,1470 @@ export default function DailyReportsPage() {
           </div>
         )}
 
-        {projects.length ===
-        0 ? (
-          <section
-            className={
-              centerStyles.emptyState
-            }
-          >
-            <div
-              className={
-                centerStyles.emptyIcon
-              }
-            >
-              PR
-            </div>
+        <section
+          className={
+            centerStyles.projectGrid
+          }
+        >
+          {projects.map(
+            (project) => {
+              const coverUrl =
+                projectCoverUrls[
+                  project.id
+                ] || '';
 
-            <h2>
-              No projects available
-            </h2>
+              const progress =
+                null;
 
-            <p>
-              Create a project before
-              starting Daily Reports.
-            </p>
-
-            <button
-              type="button"
-              className={
-                centerStyles.primaryButton
-              }
-              onClick={() =>
-                router.push(
-                  '/dashboard/projects/setup?mode=new'
-                )
-              }
-            >
-              Create Project
-            </button>
-          </section>
-        ) : (
-          <section
-            className={
-              centerStyles.projectGrid
-            }
-          >
-            {projects.map(
-              (project) => {
-                const coverUrl =
-                  projectCoverUrls[
+              return (
+                <button
+                  type="button"
+                  key={
                     project.id
-                  ] || '';
-
-                /*
-                 * Future source:
-                 * Production Control.
-                 */
-                const progress =
-                  null;
-
-                return (
-                  <button
-                    type="button"
-                    key={
+                  }
+                  className={
+                    centerStyles.projectCard
+                  }
+                  onClick={() =>
+                    openProject(
                       project.id
-                    }
+                    )
+                  }
+                >
+                  <div
                     className={
-                      centerStyles.projectCard
+                      centerStyles.coverArea
                     }
-                    onClick={() =>
-                      openProject(
-                        project.id
-                      )
-                    }
-                    aria-label={`Open Daily Reports for ${project.name}`}
                   >
-                    <div
-                      className={
-                        centerStyles.coverArea
-                      }
-                    >
-                      {coverUrl ? (
-                        <img
-                          src={
-                            coverUrl
-                          }
-                          alt={`${project.name} project`}
-                          className={
-                            centerStyles.coverImage
-                          }
-                        />
-                      ) : (
-                        <div
-                          className={
-                            centerStyles.coverPlaceholder
-                          }
-                        >
-                          <span
-                            className={
-                              centerStyles.coverPlaceholderCode
-                            }
-                          >
-                            {project.code ||
-                              'PROJECT'}
-                          </span>
-
-                          <strong>
-                            Project image
-                          </strong>
-
-                          <small>
-                            Add a cover photo
-                            in Project Setup
-                          </small>
-                        </div>
-                      )}
-
-                      <div
+                    {coverUrl ? (
+                      <img
+                        src={
+                          coverUrl
+                        }
+                        alt={`${project.name} project`}
                         className={
-                          centerStyles.coverGradient
+                          centerStyles.coverImage
                         }
                       />
-
+                    ) : (
                       <div
                         className={
-                          centerStyles.coverIdentity
+                          centerStyles.coverPlaceholder
                         }
                       >
                         <span
                           className={
-                            centerStyles.coverProjectCode
+                            centerStyles.coverPlaceholderCode
                           }
                         >
                           {project.code ||
-                            'Unassigned'}
+                            'PROJECT'}
                         </span>
 
-                        <strong
+                        <strong>
+                          Project image
+                        </strong>
+
+                        <small>
+                          Add a cover photo
+                          in Project Setup
+                        </small>
+                      </div>
+                    )}
+
+                    <div
+                      className={
+                        centerStyles.coverGradient
+                      }
+                    />
+
+                    <div
+                      className={
+                        centerStyles.coverIdentity
+                      }
+                    >
+                      <span
+                        className={
+                          centerStyles.coverProjectCode
+                        }
+                      >
+                        {project.code ||
+                          'Unassigned'}
+                      </span>
+
+                      <strong
+                        className={
+                          centerStyles.coverProjectName
+                        }
+                      >
+                        {
+                          project.name
+                        }
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div
+                    className={
+                      centerStyles.cardBody
+                    }
+                  >
+                    <div
+                      className={
+                        centerStyles.projectDetails
+                      }
+                    >
+                      <div>
+                        <span
                           className={
-                            centerStyles.coverProjectName
+                            centerStyles.projectLabel
+                          }
+                        >
+                          PROJECT
+                        </span>
+
+                        <h2
+                          className={
+                            centerStyles.projectName
                           }
                         >
                           {
                             project.name
                           }
-                        </strong>
+                        </h2>
+
+                        <p
+                          className={
+                            centerStyles.projectMeta
+                          }
+                        >
+                          {project.client_name ||
+                            'Client not specified'}
+                        </p>
+
+                        <p
+                          className={
+                            centerStyles.projectLocation
+                          }
+                        >
+                          {formatProjectLocation(
+                            project
+                          )}
+                        </p>
                       </div>
                     </div>
 
                     <div
                       className={
-                        centerStyles.cardBody
+                        centerStyles.progressSection
                       }
                     >
                       <div
                         className={
-                          centerStyles.projectDetails
+                          centerStyles.progressHeader
                         }
                       >
-                        <div>
-                          <span
-                            className={
-                              centerStyles.projectLabel
-                            }
-                          >
-                            PROJECT
-                          </span>
+                        <span>
+                          Overall Progress
+                        </span>
 
-                          <h2
-                            className={
-                              centerStyles.projectName
-                            }
-                          >
-                            {
-                              project.name
-                            }
-                          </h2>
-
-                          <p
-                            className={
-                              centerStyles.projectMeta
-                            }
-                          >
-                            {project.client_name ||
-                              'Client not specified'}
-                          </p>
-
-                          <p
-                            className={
-                              centerStyles.projectLocation
-                            }
-                          >
-                            {formatProjectLocation(
-                              project
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div
-                        className={
-                          centerStyles.progressSection
-                        }
-                      >
-                        <div
-                          className={
-                            centerStyles.progressHeader
-                          }
-                        >
-                          <span>
-                            Overall Progress
-                          </span>
-
-                          <strong>
-                            {progress ===
-                            null
-                              ? '—'
-                              : `${progress}%`}
-                          </strong>
-                        </div>
-
-                        <div
-                          className={
-                            centerStyles.progressTrack
-                          }
-                        >
-                          <div
-                            className={
-                              centerStyles.progressFill
-                            }
-                            style={{
-                              width:
-                                progress ===
-                                null
-                                  ? '0%'
-                                  : `${progress}%`,
-                            }}
-                          />
-                        </div>
-
-                        <p
-                          className={
-                            centerStyles.progressHelper
-                          }
-                        >
+                        <strong>
                           {progress ===
                           null
-                            ? 'Production Control data not available yet.'
-                            : 'Calculated from Production Control.'}
-                        </p>
+                            ? '—'
+                            : `${progress}%`}
+                        </strong>
                       </div>
 
                       <div
                         className={
-                          centerStyles.cardFooter
+                          centerStyles.progressTrack
                         }
                       >
-                        <span
+                        <div
                           className={
-                            centerStyles.openProjectText
+                            centerStyles.progressFill
                           }
-                        >
-                          Open Project
-                        </span>
-
-                        <span
-                          className={
-                            centerStyles.openArrow
-                          }
-                        >
-                          →
-                        </span>
+                          style={{
+                            width:
+                              progress ===
+                              null
+                                ? '0%'
+                                : `${progress}%`,
+                          }}
+                        />
                       </div>
+
+                      <p
+                        className={
+                          centerStyles.progressHelper
+                        }
+                      >
+                        Production Control
+                        data not available
+                        yet.
+                      </p>
                     </div>
-                  </button>
-                );
-              }
-            )}
-          </section>
-        )}
+
+                    <div
+                      className={
+                        centerStyles.cardFooter
+                      }
+                    >
+                      <span
+                        className={
+                          centerStyles.openProjectText
+                        }
+                      >
+                        Open Project
+                      </span>
+
+                      <span
+                        className={
+                          centerStyles.openArrow
+                        }
+                      >
+                        →
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            }
+          )}
+        </section>
       </main>
     );
   }
 
   /*
    * ==========================================================
-   * SELECTED PROJECT DAILY REPORT CENTER
+   * PROJECT DAILY REPORT CENTER — OPTION D
    * ==========================================================
    */
+
+  const coverUrl =
+    projectCoverUrls[
+      selectedProject.id
+    ] || '';
 
   return (
     <main
       className={
-        styles.page
+        projectCenterStyles.page
       }
     >
+      <button
+        type="button"
+        onClick={
+          openPortfolio
+        }
+        style={{
+          width:
+            'fit-content',
+          padding: 0,
+          border: 0,
+          background:
+            'transparent',
+          color:
+            '#087f73',
+          cursor:
+            'pointer',
+          fontFamily:
+            'inherit',
+          fontSize:
+            '0.68rem',
+          fontWeight:
+            850,
+        }}
+      >
+        ← All Projects
+      </button>
+
       <section
         className={
-          styles.pageHeader
+          projectCenterStyles.hero
         }
       >
-        <div>
-          <button
-            type="button"
-            onClick={
-              openPortfolio
-            }
-            style={{
-              marginBottom:
-                '12px',
-              padding: 0,
-              color:
-                '#087f73',
-              border: 0,
-              background:
-                'transparent',
-              cursor:
-                'pointer',
-              fontFamily:
-                'inherit',
-              fontSize:
-                '0.72rem',
-              fontWeight:
-                800,
-            }}
-          >
-            ← All Projects
-          </button>
-
-          <p
-            className={
-              styles.eyebrow
-            }
-          >
-            FIELD MANAGEMENT
-          </p>
-
-          <h1
-            className={
-              styles.title
-            }
-          >
-            Daily Report Center
-          </h1>
-
-          <p
-            className={
-              styles.description
-            }
-          >
-            {selectedProject.code ||
-              'Unassigned'}
-            {' · '}
-            {selectedProject.name}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className={
-            styles.primaryButton
-          }
-          onClick={
-            openNewDailyReport
-          }
-        >
-          + New Daily Report
-        </button>
-      </section>
-
-      {errorMessage && (
-        <div
-          style={{
-            marginBottom:
-              '18px',
-            padding:
-              '12px 14px',
-            color:
-              '#9f2929',
-            border:
-              '1px solid #fecaca',
-            borderRadius:
-              '9px',
-            background:
-              '#fff5f5',
-            fontSize:
-              '0.76rem',
-          }}
-        >
-          {errorMessage}
-        </div>
-      )}
-
-      {projectCoverUrls[
-        selectedProject.id
-      ] && (
-        <section
-          style={{
-            position:
-              'relative',
-            height:
-              '220px',
-            marginBottom:
-              '22px',
-            overflow:
-              'hidden',
-            border:
-              '1px solid #dce5ed',
-            borderRadius:
-              '16px',
-            background:
-              '#edf4f6',
-          }}
-        >
+        {coverUrl && (
           <img
             src={
-              projectCoverUrls[
-                selectedProject.id
-              ]
+              coverUrl
             }
             alt={`${selectedProject.name} project`}
-            style={{
-              display:
-                'block',
-              width:
-                '100%',
-              height:
-                '100%',
-              objectFit:
-                'cover',
-            }}
+            className={
+              projectCenterStyles.heroImage
+            }
           />
+        )}
 
+        <div
+          className={
+            projectCenterStyles.heroOverlay
+          }
+        />
+
+        <div
+          className={
+            projectCenterStyles.heroContent
+          }
+        >
           <div
-            style={{
-              position:
-                'absolute',
-              inset:
-                'auto 0 0 0',
-              padding:
-                '32px 22px 18px',
-              background:
-                'linear-gradient(transparent, rgba(3, 25, 42, 0.82))',
-              color:
-                '#ffffff',
-            }}
+            className={
+              projectCenterStyles.heroText
+            }
           >
-            <div
-              style={{
-                fontSize:
-                  '0.7rem',
-                fontWeight:
-                  800,
-                opacity:
-                  0.82,
-              }}
+            <p
+              className={
+                projectCenterStyles.heroCode
+              }
             >
               {selectedProject.code ||
                 'Unassigned'}
-            </div>
+              {' · '}
+              {selectedProject.name}
+            </p>
 
-            <div
-              style={{
-                marginTop:
-                  '4px',
-                fontSize:
-                  '1.25rem',
-                fontWeight:
-                  850,
-              }}
-            >
-              {
-                selectedProject.name
-              }
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section
-        className={
-          styles.metricsGrid
-        }
-      >
-        <article
-          className={
-            styles.metricCard
-          }
-        >
-          <div
-            className={
-              styles.metricHeader
-            }
-          >
-            <span>
-              Reports
-            </span>
-
-            <span
+            <h1
               className={
-                styles.metricIcon
+                projectCenterStyles.heroTitle
               }
             >
-              DR
-            </span>
-          </div>
+              Daily Report Center
+            </h1>
 
-          <strong
-            className={
-              styles.metricValue
-            }
-          >
-            {reports.length}
-          </strong>
-
-          <span
-            className={
-              styles.metricDescription
-            }
-          >
-            Total records
-          </span>
-        </article>
-
-        <article
-          className={
-            styles.metricCard
-          }
-        >
-          <div
-            className={
-              styles.metricHeader
-            }
-          >
-            <span>
-              Open
-            </span>
-
-            <span
+            <p
               className={
-                styles.metricIcon
+                projectCenterStyles.heroDescription
               }
             >
-              OP
-            </span>
+              Manage and monitor
+              all Daily Reports
+              for this project.
+            </p>
           </div>
 
-          <strong
+          <button
+            type="button"
             className={
-              styles.metricValue
+              projectCenterStyles.newReportButton
+            }
+            onClick={
+              openNewReport
             }
           >
-            {openReports}
-          </strong>
-
-          <span
-            className={
-              styles.metricDescription
-            }
-          >
-            Draft reports
-          </span>
-        </article>
-
-        <article
-          className={
-            styles.metricCard
-          }
-        >
-          <div
-            className={
-              styles.metricHeader
-            }
-          >
-            <span>
-              Workforce today
-            </span>
-
-            <span
-              className={
-                styles.metricIcon
-              }
-            >
-              WF
-            </span>
-          </div>
-
-          <strong
-            className={
-              styles.metricValue
-            }
-          >
-            {workforceToday}
-          </strong>
-
-          <span
-            className={
-              styles.metricDescription
-            }
-          >
-            People on site
-          </span>
-        </article>
-
-        <article
-          className={
-            styles.metricCard
-          }
-        >
-          <div
-            className={
-              styles.metricHeader
-            }
-          >
-            <span>
-              Activities today
-            </span>
-
-            <span
-              className={
-                styles.metricIcon
-              }
-            >
-              AC
-            </span>
-          </div>
-
-          <strong
-            className={
-              styles.metricValue
-            }
-          >
-            {activitiesToday}
-          </strong>
-
-          <span
-            className={
-              styles.metricDescription
-            }
-          >
-            Recorded activities
-          </span>
-        </article>
+            + New Daily Report
+          </button>
+        </div>
       </section>
 
       <section
         className={
-          styles.historyCard
+          projectCenterStyles.metricsGrid
         }
       >
-        <div
+        <MetricCard
+          icon="DR"
+          label="Reports"
+          value={
+            reports.length
+          }
+          helper="Total records"
+        />
+
+        <MetricCard
+          icon="OP"
+          label="Open"
+          value={
+            draftReports
+          }
+          helper="Draft reports"
+        />
+
+        <MetricCard
+          icon="WF"
+          label="Workforce today"
+          value={
+            workforceToday
+          }
+          helper="People on site"
+        />
+
+        <MetricCard
+          icon="AC"
+          label="Activities today"
+          value={
+            activitiesToday
+          }
+          helper="Recorded activities"
+        />
+      </section>
+
+      <section
+        className={
+          projectCenterStyles.workspace
+        }
+      >
+        <aside
           className={
-            styles.historyHeader
+            projectCenterStyles.sidebar
           }
         >
-          <div>
+          <div
+            className={
+              projectCenterStyles.sidebarSection
+            }
+          >
             <p
               className={
-                styles.sectionEyebrow
+                projectCenterStyles.sidebarEyebrow
               }
             >
               DAILY REPORTS
             </p>
 
-            <h2
+            <nav
               className={
-                styles.sectionTitle
+                projectCenterStyles.navigation
               }
             >
-              Report history
-            </h2>
+              <button
+                type="button"
+                className={`${projectCenterStyles.navButton} ${
+                  activeView ===
+                  'today'
+                    ? projectCenterStyles.navButtonActive
+                    : ''
+                }`}
+                onClick={() =>
+                  setActiveView(
+                    'today'
+                  )
+                }
+              >
+                <span
+                  className={
+                    projectCenterStyles.navIcon
+                  }
+                >
+                  TD
+                </span>
+
+                <span>
+                  <strong
+                    className={
+                      projectCenterStyles.navTitle
+                    }
+                  >
+                    Today
+                  </strong>
+
+                  <span
+                    className={
+                      projectCenterStyles.navDescription
+                    }
+                  >
+                    Latest Daily Report
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`${projectCenterStyles.navButton} ${
+                  activeView ===
+                  'history'
+                    ? projectCenterStyles.navButtonActive
+                    : ''
+                }`}
+                onClick={() =>
+                  setActiveView(
+                    'history'
+                  )
+                }
+              >
+                <span
+                  className={
+                    projectCenterStyles.navIcon
+                  }
+                >
+                  HI
+                </span>
+
+                <span>
+                  <strong
+                    className={
+                      projectCenterStyles.navTitle
+                    }
+                  >
+                    Report History
+                  </strong>
+
+                  <span
+                    className={
+                      projectCenterStyles.navDescription
+                    }
+                  >
+                    All project reports
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`${projectCenterStyles.navButton} ${
+                  activeView ===
+                  'snapshot'
+                    ? projectCenterStyles.navButtonActive
+                    : ''
+                }`}
+                onClick={() =>
+                  setActiveView(
+                    'snapshot'
+                  )
+                }
+              >
+                <span
+                  className={
+                    projectCenterStyles.navIcon
+                  }
+                >
+                  FS
+                </span>
+
+                <span>
+                  <strong
+                    className={
+                      projectCenterStyles.navTitle
+                    }
+                  >
+                    Field Snapshot
+                  </strong>
+
+                  <span
+                    className={
+                      projectCenterStyles.navDescription
+                    }
+                  >
+                    Today overview
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`${projectCenterStyles.navButton} ${
+                  activeView ===
+                  'production'
+                    ? projectCenterStyles.navButtonActive
+                    : ''
+                }`}
+                onClick={() =>
+                  setActiveView(
+                    'production'
+                  )
+                }
+              >
+                <span
+                  className={
+                    projectCenterStyles.navIcon
+                  }
+                >
+                  PC
+                </span>
+
+                <span>
+                  <strong
+                    className={
+                      projectCenterStyles.navTitle
+                    }
+                  >
+                    Production Control
+                  </strong>
+
+                  <span
+                    className={
+                      projectCenterStyles.navDescription
+                    }
+                  >
+                    Integration & progress
+                  </span>
+                </span>
+              </button>
+            </nav>
           </div>
 
           <div
             className={
-              styles.historyActions
+              projectCenterStyles.sidebarSection
             }
           >
-            <input
-              type="search"
-              placeholder="Search reports..."
-              value={
-                searchTerm
-              }
-              onChange={(
-                event
-              ) =>
-                setSearchTerm(
-                  event.target
-                    .value
-                )
-              }
+            <p
               className={
-                styles.searchInput
-              }
-            />
-
-            <button
-              type="button"
-              className={
-                styles.secondaryButton
+                projectCenterStyles.sidebarEyebrow
               }
             >
-              Filters
-            </button>
-          </div>
-        </div>
+              QUICK ACTIONS
+            </p>
 
-        {filteredReports.length ===
-        0 ? (
-          <div
-            style={{
-              padding:
-                '32px',
-              color:
-                '#64748b',
-              fontSize:
-                '0.8rem',
-            }}
-          >
-            No Daily Reports
-            found for this
-            project.
-          </div>
-        ) : (
-          <div
-            style={{
-              overflowX:
-                'auto',
-            }}
-          >
-            <table
+            <div
               className={
-                styles.reportTable
+                projectCenterStyles.quickActions
               }
             >
-              <thead>
-                <tr>
-                  <th>
-                    REPORT
-                  </th>
+              <button
+                type="button"
+                className={
+                  projectCenterStyles.quickAction
+                }
+                onClick={
+                  openNewReport
+                }
+              >
+                <span
+                  className={
+                    projectCenterStyles.quickActionIcon
+                  }
+                >
+                  +
+                </span>
 
-                  <th>
-                    DATE
-                  </th>
+                <span>
+                  <strong
+                    className={
+                      projectCenterStyles.quickActionTitle
+                    }
+                  >
+                    New Daily Report
+                  </strong>
 
-                  <th>
-                    PROJECT
-                  </th>
+                  <span
+                    className={
+                      projectCenterStyles.quickActionDescription
+                    }
+                  >
+                    Create a new report
+                  </span>
+                </span>
+              </button>
 
-                  <th>
-                    WEATHER
-                  </th>
+              <button
+                type="button"
+                className={
+                  projectCenterStyles.quickAction
+                }
+                onClick={() =>
+                  openReportSection(
+                    'production'
+                  )
+                }
+              >
+                <span
+                  className={
+                    projectCenterStyles.quickActionIcon
+                  }
+                >
+                  PR
+                </span>
 
-                  <th>
-                    STATUS
-                  </th>
+                <span>
+                  <strong
+                    className={
+                      projectCenterStyles.quickActionTitle
+                    }
+                  >
+                    Production Entry
+                  </strong>
 
-                  <th />
-                </tr>
-              </thead>
+                  <span
+                    className={
+                      projectCenterStyles.quickActionDescription
+                    }
+                  >
+                    Update production data
+                  </span>
+                </span>
+              </button>
 
-              <tbody>
+              <button
+                type="button"
+                className={
+                  projectCenterStyles.quickAction
+                }
+                onClick={() =>
+                  openReportSection(
+                    'issues'
+                  )
+                }
+              >
+                <span
+                  className={
+                    projectCenterStyles.quickActionIcon
+                  }
+                >
+                  IS
+                </span>
+
+                <span>
+                  <strong
+                    className={
+                      projectCenterStyles.quickActionTitle
+                    }
+                  >
+                    New Issue
+                  </strong>
+
+                  <span
+                    className={
+                      projectCenterStyles.quickActionDescription
+                    }
+                  >
+                    Report an issue
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={
+                  projectCenterStyles.quickAction
+                }
+                onClick={() =>
+                  openReportSection(
+                    'attachments'
+                  )
+                }
+              >
+                <span
+                  className={
+                    projectCenterStyles.quickActionIcon
+                  }
+                >
+                  PH
+                </span>
+
+                <span>
+                  <strong
+                    className={
+                      projectCenterStyles.quickActionTitle
+                    }
+                  >
+                    Add Photo
+                  </strong>
+
+                  <span
+                    className={
+                      projectCenterStyles.quickActionDescription
+                    }
+                  >
+                    Upload site photo
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <section
+          className={
+            projectCenterStyles.mainPanel
+          }
+        >
+          {activeView ===
+            'today' &&
+            (latestReport ? (
+              <>
+                <header
+                  className={
+                    projectCenterStyles.panelHeader
+                  }
+                >
+                  <div>
+                    <p
+                      className={
+                        projectCenterStyles.panelEyebrow
+                      }
+                    >
+                      LATEST DAILY REPORT
+                    </p>
+
+                    <h2
+                      className={
+                        projectCenterStyles.panelTitle
+                      }
+                    >
+                      Today
+                    </h2>
+
+                    <p
+                      className={
+                        projectCenterStyles.panelDescription
+                      }
+                    >
+                      Most recent field
+                      record for this
+                      project.
+                    </p>
+                  </div>
+
+                  <span
+                    className={`${projectCenterStyles.statusBadge} ${getStatusClass(
+                      latestReport.status
+                    )}`}
+                  >
+                    {formatStatus(
+                      latestReport.status
+                    )}
+                  </span>
+                </header>
+
+                <div
+                  className={
+                    projectCenterStyles.latestReport
+                  }
+                >
+                  <div
+                    className={
+                      projectCenterStyles.latestIdentity
+                    }
+                  >
+                    <span
+                      className={
+                        projectCenterStyles.reportIcon
+                      }
+                    >
+                      DR
+                    </span>
+
+                    <div>
+                      <h3
+                        className={
+                          projectCenterStyles.reportNumber
+                        }
+                      >
+                        {formatReportNumber(
+                          latestReport.report_number
+                        )}
+                      </h3>
+
+                      <p
+                        className={
+                          projectCenterStyles.reportDate
+                        }
+                      >
+                        {formatDate(
+                          latestReport.report_date
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={
+                      projectCenterStyles.reportMetrics
+                    }
+                  >
+                    <div
+                      className={
+                        projectCenterStyles.reportMetric
+                      }
+                    >
+                      <span
+                        className={
+                          projectCenterStyles.reportMetricLabel
+                        }
+                      >
+                        Weather
+                      </span>
+
+                      <strong
+                        className={
+                          projectCenterStyles.reportMetricValue
+                        }
+                      >
+                        {getWeatherLabel(
+                          latestReport
+                        )}
+                      </strong>
+                    </div>
+
+                    <div
+                      className={
+                        projectCenterStyles.reportMetric
+                      }
+                    >
+                      <span
+                        className={
+                          projectCenterStyles.reportMetricLabel
+                        }
+                      >
+                        Workforce
+                      </span>
+
+                      <strong
+                        className={
+                          projectCenterStyles.reportMetricValue
+                        }
+                      >
+                        {workforceToday}
+                      </strong>
+
+                      <span
+                        className={
+                          projectCenterStyles.reportMetricHelper
+                        }
+                      >
+                        People on site
+                      </span>
+                    </div>
+
+                    <div
+                      className={
+                        projectCenterStyles.reportMetric
+                      }
+                    >
+                      <span
+                        className={
+                          projectCenterStyles.reportMetricLabel
+                        }
+                      >
+                        Activities
+                      </span>
+
+                      <strong
+                        className={
+                          projectCenterStyles.reportMetricValue
+                        }
+                      >
+                        {activitiesToday}
+                      </strong>
+
+                      <span
+                        className={
+                          projectCenterStyles.reportMetricHelper
+                        }
+                      >
+                        Recorded
+                      </span>
+                    </div>
+
+                    <div
+                      className={
+                        projectCenterStyles.reportMetric
+                      }
+                    >
+                      <span
+                        className={
+                          projectCenterStyles.reportMetricLabel
+                        }
+                      >
+                        Occurrences
+                      </span>
+
+                      <strong
+                        className={
+                          projectCenterStyles.reportMetricValue
+                        }
+                      >
+                        {occurrencesToday}
+                      </strong>
+
+                      <span
+                        className={
+                          projectCenterStyles.reportMetricHelper
+                        }
+                      >
+                        Reported
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={
+                      projectCenterStyles.openReportButton
+                    }
+                    onClick={() =>
+                      openReport(
+                        latestReport.id
+                      )
+                    }
+                  >
+                    <span>
+                      Open Report
+                    </span>
+
+                    <span
+                      className={
+                        projectCenterStyles.openReportArrow
+                      }
+                    >
+                      →
+                    </span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div
+                className={
+                  projectCenterStyles.emptyPanel
+                }
+              >
+                <span
+                  className={
+                    projectCenterStyles.emptyIcon
+                  }
+                >
+                  DR
+                </span>
+
+                <h2
+                  className={
+                    projectCenterStyles.emptyTitle
+                  }
+                >
+                  No Daily Reports yet
+                </h2>
+
+                <p
+                  className={
+                    projectCenterStyles.emptyDescription
+                  }
+                >
+                  Create the first
+                  Daily Report for
+                  this project.
+                </p>
+
+                <button
+                  type="button"
+                  className={
+                    projectCenterStyles.newReportButton
+                  }
+                  onClick={
+                    openNewReport
+                  }
+                >
+                  + New Daily Report
+                </button>
+              </div>
+            ))}
+
+          {activeView ===
+            'history' && (
+            <>
+              <header
+                className={
+                  projectCenterStyles.panelHeader
+                }
+              >
+                <div>
+                  <p
+                    className={
+                      projectCenterStyles.panelEyebrow
+                    }
+                  >
+                    DAILY REPORTS
+                  </p>
+
+                  <h2
+                    className={
+                      projectCenterStyles.panelTitle
+                    }
+                  >
+                    Report History
+                  </h2>
+
+                  <p
+                    className={
+                      projectCenterStyles.panelDescription
+                    }
+                  >
+                    All field records
+                    for this project.
+                  </p>
+                </div>
+              </header>
+
+              <div
+                className={
+                  projectCenterStyles.historyToolbar
+                }
+              >
+                <input
+                  className={
+                    projectCenterStyles.searchInput
+                  }
+                  type="search"
+                  placeholder="Search reports..."
+                  value={
+                    searchTerm
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setSearchTerm(
+                      event.target
+                        .value
+                    )
+                  }
+                />
+
+                <button
+                  type="button"
+                  className={
+                    projectCenterStyles.filterButton
+                  }
+                >
+                  Filters
+                </button>
+              </div>
+
+              <div
+                className={
+                  projectCenterStyles.historyList
+                }
+              >
                 {filteredReports.map(
                   (report) => (
-                    <tr
+                    <div
                       key={
                         report.id
                       }
+                      className={
+                        projectCenterStyles.historyRow
+                      }
                     >
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            router.push(
-                              `/dashboard/projects/daily-reports/${report.id}`
-                            )
-                          }
-                          style={{
-                            padding:
-                              0,
-                            color:
-                              '#1677d2',
-                            border:
-                              0,
-                            background:
-                              'transparent',
-                            cursor:
-                              'pointer',
-                            fontFamily:
-                              'inherit',
-                            fontSize:
-                              'inherit',
-                            fontWeight:
-                              800,
-                          }}
-                        >
-                          {formatReportNumber(
-                            report.report_number
-                          )}
-                        </button>
-                      </td>
+                      <button
+                        type="button"
+                        className={
+                          projectCenterStyles.historyReportButton
+                        }
+                        onClick={() =>
+                          openReport(
+                            report.id
+                          )
+                        }
+                      >
+                        {formatReportNumber(
+                          report.report_number
+                        )}
+                      </button>
 
-                      <td>
+                      <span
+                        className={
+                          projectCenterStyles.historyDate
+                        }
+                      >
                         {formatDate(
                           report.report_date
                         )}
-                      </td>
+                      </span>
 
-                      <td>
-                        <strong>
-                          {
-                            selectedProject.name
-                          }
-                        </strong>
-                      </td>
-
-                      <td>
+                      <span
+                        className={
+                          projectCenterStyles.historyWeather
+                        }
+                      >
                         {getWeatherLabel(
                           report
                         )}
-                      </td>
+                      </span>
 
-                      <td>
-                        <span
-                          className={`${styles.statusBadge} ${getStatusClass(
-                            report.status,
-                            styles
-                          )}`}
-                        >
-                          {formatStatus(
-                            report.status
-                          )}
-                        </span>
-                      </td>
-
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            router.push(
-                              `/dashboard/projects/daily-reports/${report.id}`
-                            )
-                          }
-                          style={{
-                            padding:
-                              '6px 10px',
-                            color:
-                              '#64748b',
-                            border: 0,
-                            background:
-                              'transparent',
-                            cursor:
-                              'pointer',
-                            fontSize:
-                              '1rem',
-                            fontWeight:
-                              800,
-                          }}
-                          aria-label={`Open ${formatReportNumber(
-                            report.report_number
-                          )}`}
-                        >
-                          •••
-                        </button>
-                      </td>
-                    </tr>
+                      <span
+                        className={`${projectCenterStyles.statusBadge} ${getStatusClass(
+                          report.status
+                        )}`}
+                      >
+                        {formatStatus(
+                          report.status
+                        )}
+                      </span>
+                    </div>
                   )
                 )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+              </div>
+            </>
+          )}
 
-      <section
-        className={
-          styles.bottomGrid
-        }
-      >
-        <article
-          className={
-            styles.infoCard
-          }
-        >
-          <div
-            className={
-              styles.infoCardHeader
-            }
-          >
-            <div>
-              <p
+          {activeView ===
+            'snapshot' && (
+            <>
+              <header
                 className={
-                  styles.sectionEyebrow
+                  projectCenterStyles.panelHeader
                 }
               >
-                TODAY
-              </p>
+                <div>
+                  <p
+                    className={
+                      projectCenterStyles.panelEyebrow
+                    }
+                  >
+                    TODAY
+                  </p>
 
-              <h2
+                  <h2
+                    className={
+                      projectCenterStyles.panelTitle
+                    }
+                  >
+                    Field Snapshot
+                  </h2>
+
+                  <p
+                    className={
+                      projectCenterStyles.panelDescription
+                    }
+                  >
+                    Current field
+                    condition overview.
+                  </p>
+                </div>
+              </header>
+
+              <div
                 className={
-                  styles.sectionTitle
+                  projectCenterStyles.snapshotGrid
                 }
               >
-                Field snapshot
-              </h2>
-            </div>
+                <article
+                  className={
+                    projectCenterStyles.snapshotCard
+                  }
+                >
+                  <span
+                    className={
+                      projectCenterStyles.snapshotLabel
+                    }
+                  >
+                    Weather
+                  </span>
 
-            <span
-              className={
-                styles.statusApproved
-              }
-            >
-              {todayReport
-                ? 'Active'
-                : 'No report'}
-            </span>
-          </div>
+                  <strong
+                    className={
+                      projectCenterStyles.snapshotValue
+                    }
+                  >
+                    {getWeatherLabel(
+                      todayReport ||
+                        latestReport
+                    )}
+                  </strong>
+                </article>
 
-          <div
-            className={
-              styles.snapshotGrid
-            }
-          >
-            <div
-              className={
-                styles.snapshotItem
-              }
-            >
-              <span>
-                Weather
-              </span>
+                <article
+                  className={
+                    projectCenterStyles.snapshotCard
+                  }
+                >
+                  <span
+                    className={
+                      projectCenterStyles.snapshotLabel
+                    }
+                  >
+                    Workforce
+                  </span>
 
-              <strong>
-                {getWeatherLabel(
-                  todayReport
-                )}
-              </strong>
-            </div>
+                  <strong
+                    className={
+                      projectCenterStyles.snapshotValue
+                    }
+                  >
+                    {workforceToday}
+                  </strong>
+                </article>
 
-            <div
-              className={
-                styles.snapshotItem
-              }
-            >
-              <span>
-                Workforce
-              </span>
+                <article
+                  className={
+                    projectCenterStyles.snapshotCard
+                  }
+                >
+                  <span
+                    className={
+                      projectCenterStyles.snapshotLabel
+                    }
+                  >
+                    Activities
+                  </span>
 
-              <strong>
-                {
-                  workforceToday
-                }
-              </strong>
-            </div>
+                  <strong
+                    className={
+                      projectCenterStyles.snapshotValue
+                    }
+                  >
+                    {activitiesToday}
+                  </strong>
+                </article>
 
-            <div
-              className={
-                styles.snapshotItem
-              }
-            >
-              <span>
-                Activities
-              </span>
+                <article
+                  className={
+                    projectCenterStyles.snapshotCard
+                  }
+                >
+                  <span
+                    className={
+                      projectCenterStyles.snapshotLabel
+                    }
+                  >
+                    Occurrences
+                  </span>
 
-              <strong>
-                {
-                  activitiesToday
-                }
-              </strong>
-            </div>
+                  <strong
+                    className={
+                      projectCenterStyles.snapshotValue
+                    }
+                  >
+                    {occurrencesToday}
+                  </strong>
+                </article>
+              </div>
+            </>
+          )}
 
-            <div
-              className={
-                styles.snapshotItem
-              }
-            >
-              <span>
-                Occurrences
-              </span>
-
-              <strong>
-                {
-                  occurrencesToday
-                }
-              </strong>
-            </div>
-          </div>
-        </article>
-
-        <article
-          className={
-            styles.infoCard
-          }
-        >
-          <div
-            className={
-              styles.infoCardHeader
-            }
-          >
-            <div>
-              <p
+          {activeView ===
+            'production' && (
+            <>
+              <header
                 className={
-                  styles.sectionEyebrow
+                  projectCenterStyles.panelHeader
                 }
               >
-                INTEGRATION
-              </p>
+                <div>
+                  <p
+                    className={
+                      projectCenterStyles.panelEyebrow
+                    }
+                  >
+                    INTEGRATION
+                  </p>
 
-              <h2
+                  <h2
+                    className={
+                      projectCenterStyles.panelTitle
+                    }
+                  >
+                    Production Control
+                  </h2>
+
+                  <p
+                    className={
+                      projectCenterStyles.panelDescription
+                    }
+                  >
+                    Connection between
+                    field reporting and
+                    production control.
+                  </p>
+                </div>
+              </header>
+
+              <div
                 className={
-                  styles.sectionTitle
+                  projectCenterStyles.productionPanel
                 }
               >
-                Production Control
-              </h2>
-            </div>
+                <div
+                  className={
+                    projectCenterStyles.productionFlow
+                  }
+                >
+                  <div
+                    className={
+                      projectCenterStyles.productionNode
+                    }
+                  >
+                    <strong>
+                      Planning
+                    </strong>
 
-            <span
-              className={
-                styles.statusSubmitted
-              }
-            >
-              Ready
-            </span>
-          </div>
+                    <span>
+                      Planned work
+                    </span>
+                  </div>
 
-          <p
-            className={
-              styles.integrationText
-            }
-          >
-            Daily Reports can
-            operate independently
-            or connect field
-            records with RitsuFlow
-            production planning
-            and control.
-          </p>
+                  <span
+                    className={
+                      projectCenterStyles.productionArrow
+                    }
+                  >
+                    →
+                  </span>
 
-          <div
-            className={
-              styles.integrationFlow
-            }
-          >
-            <span>
-              Daily Report
-            </span>
+                  <div
+                    className={
+                      projectCenterStyles.productionNode
+                    }
+                  >
+                    <strong>
+                      Daily Report
+                    </strong>
 
-            <span
-              className={
-                styles.flowArrow
-              }
-            >
-              →
-            </span>
+                    <span>
+                      Field record
+                    </span>
+                  </div>
 
-            <span>
-              Production Data
-            </span>
+                  <span
+                    className={
+                      projectCenterStyles.productionArrow
+                    }
+                  >
+                    →
+                  </span>
 
-            <span
-              className={
-                styles.flowArrow
-              }
-            >
-              →
-            </span>
+                  <div
+                    className={
+                      projectCenterStyles.productionNode
+                    }
+                  >
+                    <strong>
+                      Production Data
+                    </strong>
 
-            <span>
-              Control
-            </span>
-          </div>
-        </article>
+                    <span>
+                      Actual quantities
+                    </span>
+                  </div>
+
+                  <span
+                    className={
+                      projectCenterStyles.productionArrow
+                    }
+                  >
+                    →
+                  </span>
+
+                  <div
+                    className={
+                      projectCenterStyles.productionNode
+                    }
+                  >
+                    <strong>
+                      Control
+                    </strong>
+
+                    <span>
+                      Status & progress
+                    </span>
+                  </div>
+                </div>
+
+                <p
+                  className={
+                    projectCenterStyles.integrationNotice
+                  }
+                >
+                  Production Control
+                  integration will use
+                  the central production
+                  status source when that
+                  layer is implemented.
+                </p>
+              </div>
+            </>
+          )}
+        </section>
       </section>
     </main>
   );
