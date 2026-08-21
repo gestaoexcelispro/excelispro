@@ -7,7 +7,7 @@ import {
   useState,
 } from 'react';
 
-import { createClient } from '../../../../../../../lib/supabase/client';
+import { createClient } from '../../../../../../lib/supabase/client';
 
 import styles from '../../daily-reports.module.css';
 
