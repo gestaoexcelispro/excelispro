@@ -45,6 +45,11 @@ const navigationGroups = [
         href: '/dashboard/projects/daily-reports',
         icon: 'DR',
       },
+      {
+        label: 'Workforce',
+        href: '/dashboard/field-management/workforce',
+        icon: 'WF',
+      },
     ],
   },
   {
