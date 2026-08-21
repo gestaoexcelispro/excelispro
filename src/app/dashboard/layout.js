@@ -50,6 +50,11 @@ const navigationGroups = [
         href: '/dashboard/field-management/workforce',
         icon: 'WF',
       },
+      {
+        label: 'Project Assignments',
+        href: '/dashboard/field-management/workforce/assignments',
+        icon: 'PA',
+      },
     ],
   },
   {
@@ -110,6 +115,16 @@ export default function DashboardLayout({
 
     if (href === '/dashboard/projects') {
       return pathname === href
+    }
+
+    if (
+      href ===
+      '/dashboard/field-management/workforce'
+    ) {
+      return (
+        pathname === href ||
+        pathname === `${href}/`
+      )
     }
 
     return pathname.startsWith(href)
