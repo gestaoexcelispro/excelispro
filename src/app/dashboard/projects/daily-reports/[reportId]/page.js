@@ -316,6 +316,16 @@ export default function DailyReportWorkspacePage() {
     setErrorMessage,
   ] = useState('');
 
+  const [
+    isExportingPdf,
+    setIsExportingPdf,
+  ] = useState(false);
+
+  const [
+    pdfErrorMessage,
+    setPdfErrorMessage,
+  ] = useState('');
+
   const updateGeneralCount =
     useCallback(
       (count) => {
@@ -502,6 +512,172 @@ export default function DailyReportWorkspacePage() {
         }
       },
       []
+    );
+
+  const handleExportPdf =
+    useCallback(
+      async () => {
+        if (
+          !reportId ||
+          isExportingPdf
+        ) {
+          return;
+        }
+
+        setIsExportingPdf(
+          true
+        );
+
+        setPdfErrorMessage(
+          ''
+        );
+
+        try {
+          const response =
+            await fetch(
+              `/api/daily-reports/${reportId}/pdf`,
+              {
+                method:
+                  'GET',
+                credentials:
+                  'include',
+                cache:
+                  'no-store',
+              }
+            );
+
+          if (
+            !response.ok
+          ) {
+            let message =
+              'The Daily Report PDF could not be generated.';
+
+            try {
+              const errorData =
+                await response.json();
+
+              if (
+                errorData?.error
+              ) {
+                message =
+                  errorData.error;
+              }
+            } catch {
+              // Keep default message.
+            }
+
+            throw new Error(
+              message
+            );
+          }
+
+          const blob =
+            await response.blob();
+
+          if (
+            !blob ||
+            blob.size === 0
+          ) {
+            throw new Error(
+              'The generated PDF is empty.'
+            );
+          }
+
+          const contentDisposition =
+            response.headers.get(
+              'content-disposition'
+            );
+
+          let fileName =
+            `Daily-Report-${reportId}.pdf`;
+
+          if (
+            contentDisposition
+          ) {
+            const utf8Match =
+              contentDisposition.match(
+                /filename\*=UTF-8''([^;]+)/i
+              );
+
+            const regularMatch =
+              contentDisposition.match(
+                /filename="?([^"]+)"?/i
+              );
+
+            if (
+              utf8Match?.[1]
+            ) {
+              fileName =
+                decodeURIComponent(
+                  utf8Match[1]
+                );
+            } else if (
+              regularMatch?.[1]
+            ) {
+              fileName =
+                regularMatch[1]
+                  .trim()
+                  .replace(
+                    /^["']|["']$/g,
+                    ''
+                  );
+            }
+          }
+
+          const objectUrl =
+            window.URL.createObjectURL(
+              blob
+            );
+
+          const anchor =
+            document.createElement(
+              'a'
+            );
+
+          anchor.href =
+            objectUrl;
+
+          anchor.download =
+            fileName;
+
+          document.body.appendChild(
+            anchor
+          );
+
+          anchor.click();
+
+          anchor.remove();
+
+          window.setTimeout(
+            () => {
+              window.URL.revokeObjectURL(
+                objectUrl
+              );
+            },
+            1000
+          );
+        } catch (
+          error
+        ) {
+          console.error(
+            'Daily Report PDF export error:',
+            error
+          );
+
+          setPdfErrorMessage(
+            error?.message ||
+              'The Daily Report PDF could not be generated.'
+          );
+        } finally {
+          setIsExportingPdf(
+            false
+          );
+        }
+      },
+      [
+        reportId,
+        isExportingPdf,
+      ]
     );
 
   useEffect(() => {
@@ -1270,7 +1446,51 @@ export default function DailyReportWorkspacePage() {
         >
           ← Daily Report Center
         </Link>
+
+        <button
+          type="button"
+          className={
+            styles.secondaryButton
+          }
+          onClick={
+            handleExportPdf
+          }
+          disabled={
+            isExportingPdf
+          }
+          style={{
+            minWidth:
+              '132px',
+          }}
+        >
+          {isExportingPdf
+            ? 'Generating PDF...'
+            : 'Export PDF'}
+        </button>
       </div>
+
+      {pdfErrorMessage && (
+        <div
+          style={{
+            padding:
+              '12px 14px',
+            marginBottom:
+              '14px',
+            color:
+              '#9f2929',
+            border:
+              '1px solid #fecaca',
+            borderRadius:
+              '9px',
+            background:
+              '#fff5f5',
+            fontSize:
+              '0.76rem',
+          }}
+        >
+          {pdfErrorMessage}
+        </div>
+      )}
 
       <section
         className={
