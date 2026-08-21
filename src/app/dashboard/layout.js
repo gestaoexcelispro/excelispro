@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import {
+  usePathname,
+  useSearchParams,
+} from 'next/navigation'
 import LogoutButton from '../../components/LogoutButton'
 import styles from './dashboard.module.css'
 
@@ -36,9 +39,16 @@ const navigationGroups = [
     label: 'Field Management',
     items: [
       {
+        label: 'Operational Dashboard',
+        href: '/dashboard/projects/operations',
+        icon: 'OD',
+        preserveProjectId: true,
+      },
+      {
         label: 'Daily Reports',
         href: '/dashboard/projects/daily-reports',
         icon: 'DR',
+        preserveProjectId: true,
       },
     ],
   },
@@ -84,6 +94,12 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
 
+  const searchParams =
+    useSearchParams()
+
+  const projectId =
+    searchParams.get('projectId')
+
   const [isCollapsed, setIsCollapsed] =
     useState(false)
 
@@ -103,6 +119,19 @@ export default function DashboardLayout({
     }
 
     return pathname.startsWith(href)
+  }
+
+  function getNavigationHref(item) {
+    if (
+      !item.preserveProjectId ||
+      !projectId
+    ) {
+      return item.href
+    }
+
+    return `${item.href}?projectId=${encodeURIComponent(
+      projectId
+    )}`
   }
 
   const currentNavigationGroup =
@@ -137,6 +166,7 @@ export default function DashboardLayout({
       setIsMobileOpen(
         (currentState) => !currentState
       )
+
       return
     }
 
@@ -242,9 +272,16 @@ export default function DashboardLayout({
                       .filter(Boolean)
                       .join(' ')
 
+                    const navigationHref =
+                      getNavigationHref(
+                        item
+                      )
+
                     return (
                       <Link
-                        href={item.href}
+                        href={
+                          navigationHref
+                        }
                         className={
                           linkClassName
                         }
@@ -341,7 +378,9 @@ export default function DashboardLayout({
               className={
                 styles.menuButton
               }
-              onClick={toggleNavigation}
+              onClick={
+                toggleNavigation
+              }
               aria-label="Toggle navigation"
             >
               ☰
@@ -377,7 +416,11 @@ export default function DashboardLayout({
           />
         </header>
 
-        <main className={styles.content}>
+        <main
+          className={
+            styles.content
+          }
+        >
           {children}
         </main>
       </div>
