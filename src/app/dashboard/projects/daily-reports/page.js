@@ -5,7 +5,9 @@ import {
   useMemo,
   useState,
 } from 'react';
+
 import { useRouter } from 'next/navigation';
+
 import { createClient } from '../../../../lib/supabase/client';
 
 import styles from './daily-reports.module.css';
@@ -93,42 +95,14 @@ function getStatusClass(
 ) {
   switch (status) {
     case 'approved':
-      return stylesObject
-        .statusApproved;
+      return stylesObject.statusApproved;
 
     case 'submitted':
-      return stylesObject
-        .statusSubmitted;
-
     case 'reviewed':
-      return stylesObject
-        .statusSubmitted;
+      return stylesObject.statusSubmitted;
 
     default:
-      return stylesObject
-        .statusDraft;
-  }
-}
-
-function getCenterStatusClass(
-  status
-) {
-  switch (status) {
-    case 'approved':
-      return centerStyles
-        .statusApproved;
-
-    case 'submitted':
-      return centerStyles
-        .statusSubmitted;
-
-    case 'reviewed':
-      return centerStyles
-        .statusReviewed;
-
-    default:
-      return centerStyles
-        .statusDraft;
+      return stylesObject.statusDraft;
   }
 }
 
@@ -172,94 +146,6 @@ function formatProjectLocation(
   );
 }
 
-function PortfolioSummaryCard({
-  label,
-  value,
-  helper,
-  tone,
-}) {
-  return (
-    <article
-      className={`${centerStyles.summaryCard} ${
-        centerStyles[
-          `tone_${tone}`
-        ]
-      }`}
-    >
-      <div
-        className={
-          centerStyles.summaryIcon
-        }
-      >
-        {label
-          .split(' ')
-          .map(
-            (word) =>
-              word[0]
-          )
-          .join('')
-          .slice(0, 2)}
-      </div>
-
-      <div>
-        <strong
-          className={
-            centerStyles.summaryValue
-          }
-        >
-          {value}
-        </strong>
-
-        <p
-          className={
-            centerStyles.summaryLabel
-          }
-        >
-          {label}
-        </p>
-
-        <span
-          className={
-            centerStyles.summaryHelper
-          }
-        >
-          {helper}
-        </span>
-      </div>
-    </article>
-  );
-}
-
-function ProjectMetric({
-  value,
-  label,
-  compact = false,
-}) {
-  return (
-    <div
-      className={
-        centerStyles.metric
-      }
-    >
-      <strong
-        className={
-          compact
-            ? centerStyles
-                .metricValueCompact
-            : centerStyles
-                .metricValue
-        }
-      >
-        {value}
-      </strong>
-
-      <span>
-        {label}
-      </span>
-    </div>
-  );
-}
-
 export default function DailyReportsPage() {
   const router =
     useRouter();
@@ -280,11 +166,6 @@ export default function DailyReportsPage() {
     projectCoverUrls,
     setProjectCoverUrls,
   ] = useState({});
-
-  const [
-    allReports,
-    setAllReports,
-  ] = useState([]);
 
   const [
     selectedProject,
@@ -414,12 +295,6 @@ export default function DailyReportsPage() {
         availableProjects
       );
 
-      /*
-       * ------------------------------------------------------
-       * LOAD PROJECT COVER IMAGES
-       * ------------------------------------------------------
-       */
-
       const coverEntries =
         await Promise.all(
           availableProjects.map(
@@ -436,6 +311,7 @@ export default function DailyReportsPage() {
               const {
                 data:
                   signedData,
+
                 error:
                   signedError,
               } =
@@ -478,90 +354,6 @@ export default function DailyReportsPage() {
         )
       );
 
-      /*
-       * ------------------------------------------------------
-       * LOAD ALL DAILY REPORTS
-       * ------------------------------------------------------
-       */
-
-      if (
-        availableProjects.length ===
-        0
-      ) {
-        setAllReports([]);
-        setSelectedProject(
-          null
-        );
-        setReports([]);
-        setTodayReport(null);
-        setWorkforceToday(0);
-        setActivitiesToday(0);
-        setOccurrencesToday(0);
-        setIsLoading(false);
-        return;
-      }
-
-      const projectIds =
-        availableProjects.map(
-          (project) =>
-            project.id
-        );
-
-      const {
-        data: allReportsData,
-        error: allReportsError,
-      } =
-        await supabase
-          .from(
-            'daily_reports'
-          )
-          .select('*')
-          .in(
-            'project_id',
-            projectIds
-          )
-          .order(
-            'report_date',
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            'report_number',
-            {
-              ascending:
-                false,
-            }
-          );
-
-      if (
-        allReportsError
-      ) {
-        setErrorMessage(
-          allReportsError.message
-        );
-
-        setIsLoading(false);
-        return;
-      }
-
-      const loadedAllReports =
-        allReportsData || [];
-
-      setAllReports(
-        loadedAllReports
-      );
-
-      /*
-       * ------------------------------------------------------
-       * PROJECT PORTFOLIO MODE
-       * ------------------------------------------------------
-       *
-       * No projectId:
-       * show project cards.
-       */
-
       if (!projectId) {
         setSelectedProject(
           null
@@ -576,12 +368,6 @@ export default function DailyReportsPage() {
         setIsLoading(false);
         return;
       }
-
-      /*
-       * ------------------------------------------------------
-       * PROJECT DAILY REPORT CENTER MODE
-       * ------------------------------------------------------
-       */
 
       const activeProject =
         availableProjects.find(
@@ -610,12 +396,45 @@ export default function DailyReportsPage() {
         activeProject
       );
 
-      const loadedReports =
-        loadedAllReports.filter(
-          (report) =>
-            report.project_id ===
+      const {
+        data: reportsData,
+        error: reportsError,
+      } =
+        await supabase
+          .from(
+            'daily_reports'
+          )
+          .select('*')
+          .eq(
+            'project_id',
             activeProject.id
+          )
+          .order(
+            'report_date',
+            {
+              ascending:
+                false,
+            }
+          )
+          .order(
+            'report_number',
+            {
+              ascending:
+                false,
+            }
+          );
+
+      if (reportsError) {
+        setErrorMessage(
+          reportsError.message
         );
+
+        setIsLoading(false);
+        return;
+      }
+
+      const loadedReports =
+        reportsData || [];
 
       setReports(
         loadedReports
@@ -640,15 +459,6 @@ export default function DailyReportsPage() {
         setIsLoading(false);
         return;
       }
-
-      /*
-       * ------------------------------------------------------
-       * TODAY SNAPSHOT
-       * ------------------------------------------------------
-       *
-       * Preserves the same queries from the existing
-       * Daily Report Center.
-       */
 
       const [
         workforceResult,
@@ -741,135 +551,6 @@ export default function DailyReportsPage() {
     today,
   ]);
 
-  /*
-   * ==========================================================
-   * PORTFOLIO DATA
-   * ==========================================================
-   */
-
-  const reportsByProject =
-    useMemo(() => {
-      const map =
-        new Map();
-
-      projects.forEach(
-        (project) => {
-          map.set(
-            project.id,
-            []
-          );
-        }
-      );
-
-      allReports.forEach(
-        (report) => {
-          if (
-            !map.has(
-              report.project_id
-            )
-          ) {
-            map.set(
-              report.project_id,
-              []
-            );
-          }
-
-          map
-            .get(
-              report.project_id
-            )
-            .push(report);
-        }
-      );
-
-      return map;
-    }, [
-      projects,
-      allReports,
-    ]);
-
-  const projectCards =
-    useMemo(
-      () =>
-        projects.map(
-          (project) => {
-            const projectReports =
-              reportsByProject.get(
-                project.id
-              ) || [];
-
-            const latestReport =
-              projectReports[0] ||
-              null;
-
-            const draftCount =
-              projectReports.filter(
-                (report) =>
-                  report.status ===
-                  'draft'
-              ).length;
-
-            return {
-              ...project,
-
-              reports:
-                projectReports,
-
-              latestReport,
-
-              draftCount,
-
-              coverUrl:
-                projectCoverUrls[
-                  project.id
-                ] || '',
-            };
-          }
-        ),
-      [
-        projects,
-        reportsByProject,
-        projectCoverUrls,
-      ]
-    );
-
-  const totalReports =
-    allReports.length;
-
-  const totalDraft =
-    allReports.filter(
-      (report) =>
-        report.status ===
-        'draft'
-    ).length;
-
-  const totalSubmitted =
-    allReports.filter(
-      (report) =>
-        report.status ===
-        'submitted'
-    ).length;
-
-  const totalReviewed =
-    allReports.filter(
-      (report) =>
-        report.status ===
-        'reviewed'
-    ).length;
-
-  const totalApproved =
-    allReports.filter(
-      (report) =>
-        report.status ===
-        'approved'
-    ).length;
-
-  /*
-   * ==========================================================
-   * SELECTED PROJECT DATA
-   * ==========================================================
-   */
-
   const filteredReports =
     useMemo(() => {
       const normalizedSearch =
@@ -950,16 +631,7 @@ export default function DailyReportsPage() {
     );
   }
 
-  /*
-   * ==========================================================
-   * LOADING
-   * ==========================================================
-   */
-
-  if (
-    isLoading &&
-    projects.length === 0
-  ) {
+  if (isLoading) {
     return (
       <main
         className={
@@ -968,42 +640,31 @@ export default function DailyReportsPage() {
       >
         <section
           className={
-            centerStyles.projectsPanel
+            centerStyles.loadingPanel
           }
         >
           <div
             className={
-              centerStyles.emptyState
+              centerStyles.loadingMark
             }
           >
-            <div
-              className={
-                centerStyles.emptyIcon
-              }
-            >
-              DR
-            </div>
+            DR
+          </div>
 
-            <h3>
+          <div>
+            <strong>
               Loading Daily Reports
-            </h3>
+            </strong>
 
             <p>
-              Loading project
-              portfolio and field
-              records...
+              Preparing your project
+              portfolio...
             </p>
           </div>
         </section>
       </main>
     );
   }
-
-  /*
-   * ==========================================================
-   * PORTFOLIO VIEW
-   * ==========================================================
-   */
 
   if (!selectedProject) {
     return (
@@ -1014,7 +675,7 @@ export default function DailyReportsPage() {
       >
         <section
           className={
-            centerStyles.header
+            centerStyles.portfolioHeader
           }
         >
           <div>
@@ -1040,287 +701,183 @@ export default function DailyReportsPage() {
               }
             >
               Select a project to
-              access its field
-              reporting workspace,
-              latest Daily Report and
-              reporting history.
+              access its Daily Reports.
             </p>
           </div>
-
-          <button
-            type="button"
-            className={
-              centerStyles.primaryButton
-            }
-            onClick={
-              openNewDailyReport
-            }
-          >
-            + New Daily Report
-          </button>
         </section>
 
         {errorMessage && (
           <div
-            style={{
-              padding:
-                '12px 14px',
-              color:
-                '#9f2929',
-              border:
-                '1px solid #fecaca',
-              borderRadius:
-                '9px',
-              background:
-                '#fff5f5',
-              fontSize:
-                '0.76rem',
-            }}
+            className={
+              centerStyles.errorMessage
+            }
           >
             {errorMessage}
           </div>
         )}
 
-        <section
-          className={
-            centerStyles.summaryGrid
-          }
-        >
-          <PortfolioSummaryCard
-            label="TOTAL REPORTS"
-            value={
-              totalReports
-            }
-            helper="All projects"
-            tone="teal"
-          />
-
-          <PortfolioSummaryCard
-            label="DRAFT"
-            value={
-              totalDraft
-            }
-            helper="Needs attention"
-            tone="amber"
-          />
-
-          <PortfolioSummaryCard
-            label="SUBMITTED"
-            value={
-              totalSubmitted
-            }
-            helper="In review"
-            tone="blue"
-          />
-
-          <PortfolioSummaryCard
-            label="REVIEWED"
-            value={
-              totalReviewed
-            }
-            helper="Ready for approval"
-            tone="purple"
-          />
-
-          <PortfolioSummaryCard
-            label="APPROVED"
-            value={
-              totalApproved
-            }
-            helper="Completed"
-            tone="green"
-          />
-
-          <PortfolioSummaryCard
-            label="PROJECTS"
-            value={
-              projects.length
-            }
-            helper="Available projects"
-            tone="teal"
-          />
-        </section>
-
-        <section
-          className={
-            centerStyles.projectsPanel
-          }
-        >
-          <div
+        {projects.length ===
+        0 ? (
+          <section
             className={
-              centerStyles.projectsHeader
+              centerStyles.emptyState
             }
           >
-            <div>
-              <p
-                className={
-                  centerStyles.sectionEyebrow
-                }
-              >
-                PROJECT PORTFOLIO
-              </p>
-
-              <h2
-                className={
-                  centerStyles.sectionTitle
-                }
-              >
-                Projects & Daily Reports
-              </h2>
-
-              <p
-                className={
-                  centerStyles.sectionDescription
-                }
-              >
-                Select a project to
-                open its Daily Report
-                Center.
-              </p>
-            </div>
-
-            <span
-              className={
-                centerStyles.projectCount
-              }
-            >
-              {projects.length ===
-              1
-                ? '1 project'
-                : `${projects.length} projects`}
-            </span>
-          </div>
-
-          {projectCards.length ===
-          0 ? (
             <div
               className={
-                centerStyles.emptyState
+                centerStyles.emptyIcon
               }
             >
-              <div
-                className={
-                  centerStyles.emptyIcon
-                }
-              >
-                PR
-              </div>
-
-              <h3>
-                No projects available
-              </h3>
-
-              <p>
-                Create a project
-                before starting field
-                Daily Reports.
-              </p>
-
-              <button
-                type="button"
-                className={
-                  centerStyles.primaryButton
-                }
-                onClick={() =>
-                  router.push(
-                    '/dashboard/projects/setup?mode=new'
-                  )
-                }
-              >
-                Create Project
-              </button>
+              PR
             </div>
-          ) : (
-            <div
+
+            <h2>
+              No projects available
+            </h2>
+
+            <p>
+              Create a project before
+              starting Daily Reports.
+            </p>
+
+            <button
+              type="button"
               className={
-                centerStyles.projectGrid
+                centerStyles.primaryButton
+              }
+              onClick={() =>
+                router.push(
+                  '/dashboard/projects/setup?mode=new'
+                )
               }
             >
-              {projectCards.map(
-                (project) => {
-                  const latest =
-                    project.latestReport;
+              Create Project
+            </button>
+          </section>
+        ) : (
+          <section
+            className={
+              centerStyles.projectGrid
+            }
+          >
+            {projects.map(
+              (project) => {
+                const coverUrl =
+                  projectCoverUrls[
+                    project.id
+                  ] || '';
 
-                  return (
-                    <article
-                      key={
+                const progress =
+                  null;
+
+                return (
+                  <button
+                    type="button"
+                    key={
+                      project.id
+                    }
+                    className={
+                      centerStyles.projectCard
+                    }
+                    onClick={() =>
+                      openProject(
                         project.id
-                      }
+                      )
+                    }
+                  >
+                    <div
                       className={
-                        centerStyles.projectCard
+                        centerStyles.coverArea
+                      }
+                    >
+                      {coverUrl ? (
+                        <img
+                          src={
+                            coverUrl
+                          }
+                          alt={`${project.name} project`}
+                          className={
+                            centerStyles.coverImage
+                          }
+                        />
+                      ) : (
+                        <div
+                          className={
+                            centerStyles.coverPlaceholder
+                          }
+                        >
+                          <span
+                            className={
+                              centerStyles.coverPlaceholderCode
+                            }
+                          >
+                            {project.code ||
+                              'PROJECT'}
+                          </span>
+
+                          <strong>
+                            Project image
+                          </strong>
+
+                          <small>
+                            Add a cover photo
+                            in Project Setup
+                          </small>
+                        </div>
+                      )}
+
+                      <div
+                        className={
+                          centerStyles.coverGradient
+                        }
+                      />
+
+                      <div
+                        className={
+                          centerStyles.coverIdentity
+                        }
+                      >
+                        <span
+                          className={
+                            centerStyles.coverProjectCode
+                          }
+                        >
+                          {project.code ||
+                            'Unassigned'}
+                        </span>
+
+                        <strong
+                          className={
+                            centerStyles.coverProjectName
+                          }
+                        >
+                          {
+                            project.name
+                          }
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div
+                      className={
+                        centerStyles.cardBody
                       }
                     >
                       <div
                         className={
-                          centerStyles.coverArea
+                          centerStyles.projectDetails
                         }
                       >
-                        {project.coverUrl ? (
-                          <img
-                            src={
-                              project.coverUrl
-                            }
-                            alt={`${project.name} project`}
-                            className={
-                              centerStyles.coverImage
-                            }
-                          />
-                        ) : (
-                          <div
-                            className={
-                              centerStyles.coverPlaceholder
-                            }
-                          >
-                            <span>
-                              PROJECT
-                            </span>
-
-                            <strong>
-                              {project.code ||
-                                'Unassigned'}
-                            </strong>
-
-                            <small>
-                              Add a project
-                              image in Project
-                              Setup
-                            </small>
-                          </div>
-                        )}
-
-                        {latest && (
+                        <div>
                           <span
-                            className={`${centerStyles.reportStatus} ${getCenterStatusClass(
-                              latest.status
-                            )}`}
-                          >
-                            {formatStatus(
-                              latest.status
-                            )}
-                          </span>
-                        )}
-                      </div>
-
-                      <div
-                        className={
-                          centerStyles.cardBody
-                        }
-                      >
-                        <div
-                          className={
-                            centerStyles.projectIdentity
-                          }
-                        >
-                          <p
                             className={
-                              centerStyles.projectCode
+                              centerStyles.projectLabel
                             }
                           >
-                            {project.code ||
-                              'Unassigned'}
-                          </p>
+                            PROJECT
+                          </span>
 
-                          <h3
+                          <h2
                             className={
                               centerStyles.projectName
                             }
@@ -1328,11 +885,11 @@ export default function DailyReportsPage() {
                             {
                               project.name
                             }
-                          </h3>
+                          </h2>
 
                           <p
                             className={
-                              centerStyles.projectClient
+                              centerStyles.projectMeta
                             }
                           >
                             {project.client_name ||
@@ -1349,147 +906,92 @@ export default function DailyReportsPage() {
                             )}
                           </p>
                         </div>
-
-                        <div
-                          className={
-                            centerStyles.latestReport
-                          }
-                        >
-                          <div>
-                            <span>
-                              Last Report
-                            </span>
-
-                            <strong>
-                              {latest
-                                ? formatDate(
-                                    latest.report_date
-                                  )
-                                : 'No reports yet'}
-                            </strong>
-                          </div>
-
-                          <div>
-                            <span>
-                              Report #
-                            </span>
-
-                            <strong>
-                              {latest
-                                ? formatReportNumber(
-                                    latest.report_number
-                                  )
-                                : '—'}
-                            </strong>
-                          </div>
-                        </div>
-
-                        <div
-                          className={
-                            centerStyles.metrics
-                          }
-                        >
-                          <ProjectMetric
-                            value={
-                              project
-                                .reports
-                                .length
-                            }
-                            label="Reports"
-                          />
-
-                          <ProjectMetric
-                            value={
-                              project
-                                .draftCount
-                            }
-                            label="Draft"
-                          />
-
-                          <ProjectMetric
-                            value={
-                              latest
-                                ? formatStatus(
-                                    latest.status
-                                  )
-                                : '—'
-                            }
-                            label="Latest Status"
-                            compact
-                          />
-                        </div>
-
-                        <div
-                          className={
-                            centerStyles.cardActions
-                          }
-                        >
-                          <button
-                            type="button"
-                            className={
-                              centerStyles.primaryButton
-                            }
-                            onClick={() =>
-                              openProject(
-                                project.id
-                              )
-                            }
-                          >
-                            Open Project
-                          </button>
-
-                          {latest && (
-                            <button
-                              type="button"
-                              className={
-                                centerStyles.secondaryButton
-                              }
-                              onClick={() =>
-                                router.push(
-                                  `/dashboard/projects/daily-reports/${latest.id}`
-                                )
-                              }
-                            >
-                              Latest Report
-                            </button>
-                          )}
-
-                          {!latest && (
-                            <button
-                              type="button"
-                              className={
-                                centerStyles.secondaryButton
-                              }
-                              onClick={() =>
-                                router.push(
-                                  `/dashboard/projects/daily-reports/new?projectId=${project.id}`
-                                )
-                              }
-                            >
-                              Create Report
-                            </button>
-                          )}
-                        </div>
                       </div>
-                    </article>
-                  );
-                }
-              )}
-            </div>
-          )}
-        </section>
+
+                      <div
+                        className={
+                          centerStyles.progressSection
+                        }
+                      >
+                        <div
+                          className={
+                            centerStyles.progressHeader
+                          }
+                        >
+                          <span>
+                            Overall Progress
+                          </span>
+
+                          <strong>
+                            {progress ===
+                            null
+                              ? '—'
+                              : `${progress}%`}
+                          </strong>
+                        </div>
+
+                        <div
+                          className={
+                            centerStyles.progressTrack
+                          }
+                        >
+                          <div
+                            className={
+                              centerStyles.progressFill
+                            }
+                            style={{
+                              width:
+                                progress ===
+                                null
+                                  ? '0%'
+                                  : `${progress}%`,
+                            }}
+                          />
+                        </div>
+
+                        <p
+                          className={
+                            centerStyles.progressHelper
+                          }
+                        >
+                          {progress ===
+                          null
+                            ? 'Production Control data not available yet.'
+                            : 'Calculated from Production Control.'}
+                        </p>
+                      </div>
+
+                      <div
+                        className={
+                          centerStyles.cardFooter
+                        }
+                      >
+                        <span
+                          className={
+                            centerStyles.openProjectText
+                          }
+                        >
+                          Open Project
+                        </span>
+
+                        <span
+                          className={
+                            centerStyles.openArrow
+                          }
+                        >
+                          →
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              }
+            )}
+          </section>
+        )}
       </main>
     );
   }
-
-  /*
-   * ==========================================================
-   * SELECTED PROJECT DAILY REPORT CENTER
-   * ==========================================================
-   *
-   * This preserves the existing operational Daily Report
-   * Center behavior.
-   */
 
   return (
     <main
@@ -1509,12 +1011,6 @@ export default function DailyReportsPage() {
               openPortfolio
             }
             style={{
-              display:
-                'inline-flex',
-              alignItems:
-                'center',
-              gap:
-                '6px',
               marginBottom:
                 '12px',
               padding: 0,
@@ -1558,8 +1054,8 @@ export default function DailyReportsPage() {
             }
           >
             {selectedProject.code ||
-              'Unassigned'}{' '}
-            ·{' '}
+              'Unassigned'}
+            {' · '}
             {selectedProject.name}
           </p>
         </div>
@@ -1647,7 +1143,7 @@ export default function DailyReportsPage() {
               inset:
                 'auto 0 0 0',
               padding:
-                '28px 22px 18px',
+                '32px 22px 18px',
               background:
                 'linear-gradient(transparent, rgba(3, 25, 42, 0.82))',
               color:
@@ -1657,7 +1153,7 @@ export default function DailyReportsPage() {
             <div
               style={{
                 fontSize:
-                  '0.72rem',
+                  '0.7rem',
                 fontWeight:
                   800,
                 opacity:
@@ -1673,7 +1169,7 @@ export default function DailyReportsPage() {
                 marginTop:
                   '4px',
                 fontSize:
-                  '1.3rem',
+                  '1.25rem',
                 fontWeight:
                   850,
               }}
@@ -1915,21 +1411,8 @@ export default function DailyReportsPage() {
           </div>
         </div>
 
-        {isLoading ? (
-          <div
-            style={{
-              padding:
-                '28px',
-              color:
-                '#64748b',
-              fontSize:
-                '0.8rem',
-            }}
-          >
-            Loading Daily Reports...
-          </div>
-        ) : filteredReports.length ===
-          0 ? (
+        {filteredReports.length ===
+        0 ? (
           <div
             style={{
               padding:
@@ -1958,26 +1441,11 @@ export default function DailyReportsPage() {
             >
               <thead>
                 <tr>
-                  <th>
-                    REPORT
-                  </th>
-
-                  <th>
-                    DATE
-                  </th>
-
-                  <th>
-                    PROJECT
-                  </th>
-
-                  <th>
-                    WEATHER
-                  </th>
-
-                  <th>
-                    STATUS
-                  </th>
-
+                  <th>REPORT</th>
+                  <th>DATE</th>
+                  <th>PROJECT</th>
+                  <th>WEATHER</th>
+                  <th>STATUS</th>
                   <th />
                 </tr>
               </thead>
@@ -1999,12 +1467,10 @@ export default function DailyReportsPage() {
                             )
                           }
                           style={{
-                            padding:
-                              0,
+                            padding: 0,
                             color:
                               '#1677d2',
-                            border:
-                              0,
+                            border: 0,
                             background:
                               'transparent',
                             cursor:
@@ -2035,22 +1501,6 @@ export default function DailyReportsPage() {
                             selectedProject.name
                           }
                         </strong>
-
-                        <span
-                          style={{
-                            display:
-                              'block',
-                            marginTop:
-                              '2px',
-                            color:
-                              '#94a3b8',
-                            fontSize:
-                              '0.68rem',
-                          }}
-                        >
-                          Daily field
-                          record
-                        </span>
                       </td>
 
                       <td>
@@ -2085,8 +1535,7 @@ export default function DailyReportsPage() {
                               '6px 10px',
                             color:
                               '#64748b',
-                            border:
-                              0,
+                            border: 0,
                             background:
                               'transparent',
                             cursor:
@@ -2096,7 +1545,6 @@ export default function DailyReportsPage() {
                             fontWeight:
                               800,
                           }}
-                          aria-label="Open Daily Report"
                         >
                           •••
                         </button>
@@ -2185,9 +1633,7 @@ export default function DailyReportsPage() {
               </span>
 
               <strong>
-                {
-                  workforceToday
-                }
+                {workforceToday}
               </strong>
             </div>
 
@@ -2201,9 +1647,7 @@ export default function DailyReportsPage() {
               </span>
 
               <strong>
-                {
-                  activitiesToday
-                }
+                {activitiesToday}
               </strong>
             </div>
 
@@ -2217,9 +1661,7 @@ export default function DailyReportsPage() {
               </span>
 
               <strong>
-                {
-                  occurrencesToday
-                }
+                {occurrencesToday}
               </strong>
             </div>
           </div>
