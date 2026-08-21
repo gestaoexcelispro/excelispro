@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Suspense,
   useEffect,
   useMemo,
   useState,
@@ -257,7 +258,7 @@ function MiniBar({
   );
 }
 
-export default function OperationalDashboardPage() {
+function OperationalDashboardContent() {
   const supabase =
     useMemo(
       () =>
@@ -1961,5 +1962,30 @@ export default function OperationalDashboardPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+
+export default function OperationalDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <main
+          className={
+            styles.page
+          }
+        >
+          <div
+            className={
+              styles.statePanel
+            }
+          >
+            Loading Operational Dashboard...
+          </div>
+        </main>
+      }
+    >
+      <OperationalDashboardContent />
+    </Suspense>
   );
 }
