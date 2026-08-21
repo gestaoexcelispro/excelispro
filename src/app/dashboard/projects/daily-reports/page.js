@@ -295,6 +295,12 @@ export default function DailyReportsPage() {
         availableProjects
       );
 
+      /*
+       * ======================================================
+       * PROJECT COVER IMAGES
+       * ======================================================
+       */
+
       const coverEntries =
         await Promise.all(
           availableProjects.map(
@@ -354,6 +360,12 @@ export default function DailyReportsPage() {
         )
       );
 
+      /*
+       * ======================================================
+       * PORTFOLIO MODE
+       * ======================================================
+       */
+
       if (!projectId) {
         setSelectedProject(
           null
@@ -368,6 +380,12 @@ export default function DailyReportsPage() {
         setIsLoading(false);
         return;
       }
+
+      /*
+       * ======================================================
+       * SELECTED PROJECT
+       * ======================================================
+       */
 
       const activeProject =
         availableProjects.find(
@@ -395,6 +413,12 @@ export default function DailyReportsPage() {
       setSelectedProject(
         activeProject
       );
+
+      /*
+       * ======================================================
+       * PROJECT DAILY REPORTS
+       * ======================================================
+       */
 
       const {
         data: reportsData,
@@ -459,6 +483,12 @@ export default function DailyReportsPage() {
         setIsLoading(false);
         return;
       }
+
+      /*
+       * ======================================================
+       * TODAY FIELD SNAPSHOT
+       * ======================================================
+       */
 
       const [
         workforceResult,
@@ -606,18 +636,22 @@ export default function DailyReportsPage() {
         'draft'
     ).length;
 
+  /*
+   * ==========================================================
+   * NAVIGATION
+   * ==========================================================
+   */
+
   function openProject(
     projectId
   ) {
-    router.push(
-      `/dashboard/projects/daily-reports?projectId=${projectId}`
-    );
+    window.location.href =
+      `/dashboard/projects/daily-reports?projectId=${projectId}`;
   }
 
   function openPortfolio() {
-    router.push(
-      '/dashboard/projects/daily-reports'
-    );
+    window.location.href =
+      '/dashboard/projects/daily-reports';
   }
 
   function openNewDailyReport() {
@@ -630,6 +664,12 @@ export default function DailyReportsPage() {
       `/dashboard/projects/daily-reports/new${projectQuery}`
     );
   }
+
+  /*
+   * ==========================================================
+   * LOADING
+   * ==========================================================
+   */
 
   if (isLoading) {
     return (
@@ -665,6 +705,12 @@ export default function DailyReportsPage() {
       </main>
     );
   }
+
+  /*
+   * ==========================================================
+   * PROJECT PORTFOLIO
+   * ==========================================================
+   */
 
   if (!selectedProject) {
     return (
@@ -767,6 +813,10 @@ export default function DailyReportsPage() {
                     project.id
                   ] || '';
 
+                /*
+                 * Future source:
+                 * Production Control.
+                 */
                 const progress =
                   null;
 
@@ -784,6 +834,7 @@ export default function DailyReportsPage() {
                         project.id
                       )
                     }
+                    aria-label={`Open Daily Reports for ${project.name}`}
                   >
                     <div
                       className={
@@ -992,6 +1043,12 @@ export default function DailyReportsPage() {
       </main>
     );
   }
+
+  /*
+   * ==========================================================
+   * SELECTED PROJECT DAILY REPORT CENTER
+   * ==========================================================
+   */
 
   return (
     <main
@@ -1441,11 +1498,26 @@ export default function DailyReportsPage() {
             >
               <thead>
                 <tr>
-                  <th>REPORT</th>
-                  <th>DATE</th>
-                  <th>PROJECT</th>
-                  <th>WEATHER</th>
-                  <th>STATUS</th>
+                  <th>
+                    REPORT
+                  </th>
+
+                  <th>
+                    DATE
+                  </th>
+
+                  <th>
+                    PROJECT
+                  </th>
+
+                  <th>
+                    WEATHER
+                  </th>
+
+                  <th>
+                    STATUS
+                  </th>
+
                   <th />
                 </tr>
               </thead>
@@ -1467,10 +1539,12 @@ export default function DailyReportsPage() {
                             )
                           }
                           style={{
-                            padding: 0,
+                            padding:
+                              0,
                             color:
                               '#1677d2',
-                            border: 0,
+                            border:
+                              0,
                             background:
                               'transparent',
                             cursor:
@@ -1545,6 +1619,9 @@ export default function DailyReportsPage() {
                             fontWeight:
                               800,
                           }}
+                          aria-label={`Open ${formatReportNumber(
+                            report.report_number
+                          )}`}
                         >
                           •••
                         </button>
@@ -1633,7 +1710,9 @@ export default function DailyReportsPage() {
               </span>
 
               <strong>
-                {workforceToday}
+                {
+                  workforceToday
+                }
               </strong>
             </div>
 
@@ -1647,7 +1726,9 @@ export default function DailyReportsPage() {
               </span>
 
               <strong>
-                {activitiesToday}
+                {
+                  activitiesToday
+                }
               </strong>
             </div>
 
@@ -1661,7 +1742,9 @@ export default function DailyReportsPage() {
               </span>
 
               <strong>
-                {occurrencesToday}
+                {
+                  occurrencesToday
+                }
               </strong>
             </div>
           </div>
