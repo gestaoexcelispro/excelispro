@@ -85,6 +85,8 @@ function formatEventType(value) {
     check_out: 'Check-Out',
     manual_adjustment:
       'Manual Adjustment',
+    session_cancelled:
+      'Session Cancelled',
   }
 
   return (
@@ -144,6 +146,9 @@ export default function AttendanceAuditPage() {
 
   const [events, setEvents] =
     useState([])
+
+  const [actorsById, setActorsById] =
+    useState(new Map())
 
   const [
     selectedProjectId,
@@ -246,6 +251,95 @@ export default function AttendanceAuditPage() {
       )
     }, [])
 
+  const resolveActors =
+    useCallback(
+      async (attendanceEvents) => {
+        const actorIds = [
+          ...new Set(
+            attendanceEvents
+              .map(
+                (event) =>
+                  event.recorded_by
+              )
+              .filter(Boolean)
+          ),
+        ]
+
+        if (actorIds.length === 0) {
+          setActorsById(
+            new Map()
+          )
+          return
+        }
+
+        const resolvedActors =
+          await Promise.all(
+            actorIds.map(
+              async (userId) => {
+                const {
+                  data,
+                  error:
+                    actorError,
+                } =
+                  await supabase.rpc(
+                    'field_resolve_attendance_actor',
+                    {
+                      p_user_id:
+                        userId,
+                    }
+                  )
+
+                if (actorError) {
+                  console.error(
+                    actorError
+                  )
+
+                  return [
+                    userId,
+                    {
+                      user_id:
+                        userId,
+                      display_name:
+                        'Unknown user',
+                      email: null,
+                      job_title:
+                        null,
+                    },
+                  ]
+                }
+
+                const actor =
+                  Array.isArray(
+                    data
+                  )
+                    ? data[0]
+                    : data
+
+                return [
+                  userId,
+                  actor || {
+                    user_id:
+                      userId,
+                    display_name:
+                      'Unknown user',
+                    email: null,
+                    job_title:
+                      null,
+                  },
+                ]
+              }
+            )
+          )
+
+        setActorsById(
+          new Map(
+            resolvedActors
+          )
+        )
+      },
+      []
+    )
+
   const loadEvents =
     useCallback(
       async (
@@ -260,6 +354,9 @@ export default function AttendanceAuditPage() {
           !workDate
         ) {
           setEvents([])
+          setActorsById(
+            new Map()
+          )
           return
         }
 
@@ -270,20 +367,19 @@ export default function AttendanceAuditPage() {
         try {
           setError('')
 
-          const start =
-            `${workDate}T00:00:00`
-
-          const nextDate =
+          const startDate =
             new Date(
               `${workDate}T00:00:00`
             )
 
-          nextDate.setDate(
-            nextDate.getDate() + 1
-          )
+          const endDate =
+            new Date(
+              `${workDate}T00:00:00`
+            )
 
-          const end =
-            nextDate.toISOString()
+          endDate.setDate(
+            endDate.getDate() + 1
+          )
 
           const {
             data,
@@ -314,13 +410,11 @@ export default function AttendanceAuditPage() {
             )
             .gte(
               'event_at',
-              new Date(
-                start
-              ).toISOString()
+              startDate.toISOString()
             )
             .lt(
               'event_at',
-              end
+              endDate.toISOString()
             )
             .order(
               'event_at',
@@ -333,12 +427,19 @@ export default function AttendanceAuditPage() {
             throw eventsError
           }
 
-          setEvents(
+          const loadedEvents =
             data || []
+
+          setEvents(
+            loadedEvents
           )
 
           setExpandedEventId(
             null
+          )
+
+          await resolveActors(
+            loadedEvents
           )
         } catch (
           loadError
@@ -357,7 +458,7 @@ export default function AttendanceAuditPage() {
           }
         }
       },
-      []
+      [resolveActors]
     )
 
   useEffect(() => {
@@ -365,6 +466,8 @@ export default function AttendanceAuditPage() {
       setLoading(true)
 
       try {
+        setError('')
+
         await Promise.all([
           loadProjects(),
           loadWorkers(),
@@ -408,20 +511,6 @@ export default function AttendanceAuditPage() {
     selectedDate,
     loadEvents,
   ])
-
-  const selectedProject =
-    useMemo(() => {
-      return (
-        projects.find(
-          (project) =>
-            project.id ===
-            selectedProjectId
-        ) || null
-      )
-    }, [
-      projects,
-      selectedProjectId,
-    ])
 
   const workerById =
     useMemo(() => {
@@ -547,7 +636,8 @@ export default function AttendanceAuditPage() {
               }}
             >
               Review original
-              attendance events and
+              attendance events,
+              responsible users, and
               audited supervisor
               corrections without
               overwriting historical
@@ -610,6 +700,13 @@ export default function AttendanceAuditPage() {
             }
             style={inputStyle}
           >
+            {projects.length ===
+              0 && (
+              <option value="">
+                No projects available
+              </option>
+            )}
+
             {projects.map(
               (project) => (
                 <option
@@ -666,6 +763,10 @@ export default function AttendanceAuditPage() {
 
             <option value="manual_adjustment">
               Manual Adjustment
+            </option>
+
+            <option value="session_cancelled">
+              Session Cancelled
             </option>
           </select>
         </FormField>
@@ -769,7 +870,7 @@ export default function AttendanceAuditPage() {
             <table
               style={{
                 width: '100%',
-                minWidth: '1150px',
+                minWidth: '1350px',
                 borderCollapse:
                   'collapse',
               }}
@@ -795,6 +896,10 @@ export default function AttendanceAuditPage() {
 
                   <TableHeader>
                     Event
+                  </TableHeader>
+
+                  <TableHeader>
+                    Recorded By
                   </TableHeader>
 
                   <TableHeader>
@@ -825,6 +930,13 @@ export default function AttendanceAuditPage() {
                         event.worker_id
                       )
 
+                    const actor =
+                      event.recorded_by
+                        ? actorsById.get(
+                            event.recorded_by
+                          )
+                        : null
+
                     const isExpanded =
                       expandedEventId ===
                       event.id
@@ -834,6 +946,7 @@ export default function AttendanceAuditPage() {
                         key={event.id}
                         event={event}
                         worker={worker}
+                        actor={actor}
                         isExpanded={
                           isExpanded
                         }
@@ -858,6 +971,7 @@ export default function AttendanceAuditPage() {
 function AuditRows({
   event,
   worker,
+  actor,
   isExpanded,
   onToggle,
 }) {
@@ -909,6 +1023,15 @@ function AuditRows({
         </TableCell>
 
         <TableCell>
+          <ActorIdentity
+            actor={actor}
+            recordedBy={
+              event.recorded_by
+            }
+          />
+        </TableCell>
+
+        <TableCell>
           {formatMethod(
             event.method
           )}
@@ -953,7 +1076,7 @@ function AuditRows({
       {isExpanded && (
         <tr>
           <td
-            colSpan={8}
+            colSpan={9}
             style={{
               padding: 0,
               borderTop:
@@ -964,6 +1087,7 @@ function AuditRows({
           >
             <EventDetails
               event={event}
+              actor={actor}
             />
           </td>
         </tr>
@@ -972,8 +1096,98 @@ function AuditRows({
   )
 }
 
+function ActorIdentity({
+  actor,
+  recordedBy,
+}) {
+  if (!recordedBy) {
+    return (
+      <span
+        style={{
+          color: '#94a3b8',
+        }}
+      >
+        System / Unknown
+      </span>
+    )
+  }
+
+  if (!actor) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+        }}
+      >
+        <strong
+          style={{
+            color: '#475569',
+            fontSize: '0.78rem',
+          }}
+        >
+          Unknown user
+        </strong>
+
+        <span
+          style={{
+            color: '#94a3b8',
+            fontSize: '0.65rem',
+          }}
+        >
+          Identity unavailable
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        maxWidth: '230px',
+      }}
+    >
+      <strong
+        style={{
+          color: '#0f172a',
+          fontSize: '0.78rem',
+          whiteSpace: 'normal',
+        }}
+      >
+        {actor.display_name ||
+          actor.email ||
+          'Unknown user'}
+      </strong>
+
+      {(actor.job_title ||
+        actor.email) && (
+        <span
+          style={{
+            color: '#64748b',
+            fontSize: '0.66rem',
+            lineHeight: 1.35,
+            whiteSpace: 'normal',
+          }}
+        >
+          {[
+            actor.job_title,
+            actor.email,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function EventDetails({
   event,
+  actor,
 }) {
   const {
     before,
@@ -996,62 +1210,154 @@ function EventDetails({
         style={{
           display: 'grid',
           gridTemplateColumns:
-            isCorrection
-              ? 'repeat(2, minmax(0, 1fr))'
-              : 'minmax(0, 1fr)',
+            'minmax(220px, 0.65fr) minmax(0, 1.35fr)',
           gap: '14px',
         }}
       >
-        {isCorrection ? (
-          <>
-            <AuditPanel
-              title="Before"
-              data={before}
-            />
-
-            <AuditPanel
-              title="After"
-              data={after}
-              tone="after"
-            />
-          </>
-        ) : (
+        <div
+          style={{
+            padding:
+              '14px 16px',
+            border:
+              '1px solid #e2e8f0',
+            borderRadius:
+              '10px',
+            background:
+              '#ffffff',
+          }}
+        >
           <div
             style={{
-              padding:
-                '14px 16px',
-              border:
-                '1px solid #e2e8f0',
-              borderRadius:
-                '10px',
-              background:
-                '#ffffff',
+              marginBottom:
+                '12px',
+              color: '#475569',
+              fontSize:
+                '0.72rem',
+              fontWeight: 800,
+              textTransform:
+                'uppercase',
+              letterSpacing:
+                '0.05em',
             }}
           >
-            <strong
-              style={{
-                color: '#0f172a',
-              }}
-            >
-              Original Attendance Event
-            </strong>
-
-            <p
-              style={{
-                margin:
-                  '8px 0 0',
-                color: '#64748b',
-                fontSize:
-                  '0.8rem',
-                lineHeight: 1.5,
-              }}
-            >
-              This event is part of
-              the original immutable
-              attendance audit trail.
-            </p>
+            Event Accountability
           </div>
-        )}
+
+          <AuditValue
+            label="Recorded By"
+            value={
+              actor?.display_name ||
+              actor?.email ||
+              (
+                event.recorded_by
+                  ? 'Unknown user'
+                  : 'System / Unknown'
+              )
+            }
+          />
+
+          <div
+            style={{
+              height: '9px',
+            }}
+          />
+
+          <AuditValue
+            label="Job Title"
+            value={
+              actor?.job_title ||
+              '—'
+            }
+          />
+
+          <div
+            style={{
+              height: '9px',
+            }}
+          />
+
+          <AuditValue
+            label="Account"
+            value={
+              actor?.email ||
+              '—'
+            }
+          />
+
+          <div
+            style={{
+              height: '9px',
+            }}
+          />
+
+          <AuditValue
+            label="Event Time"
+            value={formatDateTime(
+              event.event_at
+            )}
+          />
+        </div>
+
+        <div>
+          {isCorrection ? (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns:
+                  'repeat(2, minmax(0, 1fr))',
+                gap: '14px',
+              }}
+            >
+              <AuditPanel
+                title="Before"
+                data={before}
+              />
+
+              <AuditPanel
+                title="After"
+                data={after}
+                tone="after"
+              />
+            </div>
+          ) : (
+            <div
+              style={{
+                height: '100%',
+                padding:
+                  '14px 16px',
+                border:
+                  '1px solid #e2e8f0',
+                borderRadius:
+                  '10px',
+                background:
+                  '#ffffff',
+              }}
+            >
+              <strong
+                style={{
+                  color: '#0f172a',
+                }}
+              >
+                Original Attendance Event
+              </strong>
+
+              <p
+                style={{
+                  margin:
+                    '8px 0 0',
+                  color: '#64748b',
+                  fontSize:
+                    '0.8rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                This event is part of
+                the original immutable
+                attendance audit trail.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {isCorrection && (
@@ -1226,6 +1532,8 @@ function AuditValue({
           color: '#334155',
           fontSize: '0.8rem',
           fontWeight: 700,
+          overflowWrap:
+            'anywhere',
         }}
       >
         {value}
@@ -1254,6 +1562,12 @@ function EventBadge({
       background: '#f0f9ff',
       border: '#bae6fd',
       color: '#0369a1',
+    },
+
+    session_cancelled: {
+      background: '#fef2f2',
+      border: '#fecaca',
+      color: '#b91c1c',
     },
   }
 
@@ -1450,7 +1764,8 @@ const inputStyle = {
 const secondaryButtonStyle = {
   minHeight: '36px',
   padding: '0 12px',
-  border: '1px solid #cbd5e1',
+  border:
+    '1px solid #cbd5e1',
   borderRadius: '8px',
   background: '#ffffff',
   color: '#082a4a',
