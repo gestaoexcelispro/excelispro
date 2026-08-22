@@ -327,6 +327,15 @@ function formatGeofenceResult(event) {
 
   if (
     event.geofence_status ===
+    'uncertain'
+  ) {
+    return distance
+      ? ` Geofence uncertain · ${distance} from project. GPS accuracy overlaps the configured boundary.`
+      : ' Geofence uncertain · GPS accuracy overlaps the configured boundary.'
+  }
+
+  if (
+    event.geofence_status ===
     'unavailable'
   ) {
     return ' Location could not be evaluated.'
