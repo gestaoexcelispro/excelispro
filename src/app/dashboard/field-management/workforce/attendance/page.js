@@ -212,7 +212,6 @@ function formatBalance(
   )} remaining`
 }
 
-
 function getDeviceLocation() {
   return new Promise((resolve) => {
     if (
@@ -351,6 +350,50 @@ function formatGeofenceResult(event) {
   return ''
 }
 
+function formatGpsPolicyResult(event) {
+  if (!event) {
+    return ''
+  }
+
+  const maxGpsAccuracy =
+    event?.metadata
+      ?.max_gps_accuracy_m ??
+    null
+
+  if (
+    maxGpsAccuracy === null ||
+    maxGpsAccuracy === undefined
+  ) {
+    return ''
+  }
+
+  if (
+    event.gps_accuracy_m === null ||
+    event.gps_accuracy_m === undefined
+  ) {
+    return ` GPS accuracy unavailable · project maximum ${maxGpsAccuracy} m.`
+  }
+
+  const gpsAccuracy = Number(
+    event.gps_accuracy_m
+  )
+
+  if (!Number.isFinite(gpsAccuracy)) {
+    return ''
+  }
+
+  const policyExceeded =
+    event?.metadata
+      ?.gps_accuracy_policy_exceeded ===
+      true ||
+    gpsAccuracy >
+      Number(maxGpsAccuracy)
+
+  return policyExceeded
+    ? ` GPS accuracy ${Math.round(gpsAccuracy)} m · exceeds project maximum of ${maxGpsAccuracy} m.`
+    : ` GPS accuracy ${Math.round(gpsAccuracy)} m · within project limit of ${maxGpsAccuracy} m.`
+}
+
 export default function AttendancePage() {
   const [projects, setProjects] =
     useState([])
@@ -443,7 +486,8 @@ export default function AttendancePage() {
             latitude,
             longitude,
             geofence_radius_m,
-            geofence_enabled
+            geofence_enabled,
+            max_gps_accuracy_m
           `
         )
         .order('name')
@@ -1017,7 +1061,8 @@ export default function AttendancePage() {
         gps_accuracy_m,
         distance_to_project_m,
         geofence_status,
-        event_at
+        event_at,
+        metadata
       `)
       .eq(
         'session_id',
@@ -1136,6 +1181,8 @@ export default function AttendancePage() {
           worker
         )} checked in successfully.${formatGeofenceResult(
           attendanceEvent
+        )}${formatGpsPolicyResult(
+          attendanceEvent
         )}`
       )
 
@@ -1247,6 +1294,8 @@ export default function AttendancePage() {
           worker
         )} checked out successfully.${formatGeofenceResult(
           attendanceEvent
+        )}${formatGpsPolicyResult(
+          attendanceEvent
         )}`
       )
 
@@ -1270,7 +1319,6 @@ export default function AttendancePage() {
       )
     }
   }
-
 
   return (
     <div
@@ -1475,6 +1523,20 @@ export default function AttendancePage() {
                 ? `Enabled · ${selectedProject.geofence_radius_m} m`
                 : 'Enabled'
               : 'Disabled'
+          }
+        />
+
+        <InfoField
+          label="Maximum GPS Accuracy"
+          value={
+            selectedProject
+              ?.max_gps_accuracy_m ===
+              null ||
+            selectedProject
+              ?.max_gps_accuracy_m ===
+              undefined
+              ? 'Not configured'
+              : `${selectedProject.max_gps_accuracy_m} m`
           }
         />
       </section>
