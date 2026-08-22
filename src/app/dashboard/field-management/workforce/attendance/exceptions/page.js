@@ -167,6 +167,9 @@ function formatExceptionCode(code) {
     LOCATION_UNAVAILABLE:
       'Location Unavailable',
 
+    GEOFENCE_UNCERTAIN:
+      'Geofence Uncertain',
+
     MULTIPLE_ATTENDANCE_EXCEPTIONS:
       'Multiple Attendance Exceptions',
   }
@@ -2483,6 +2486,13 @@ function GeofenceEvidenceCard({
       color: '#b91c1c',
       background: '#fef2f2',
       border: '#fecaca',
+    },
+
+    uncertain: {
+      label: 'Uncertain',
+      color: '#92400e',
+      background: '#fffbeb',
+      border: '#fde68a',
     },
 
     unavailable: {
