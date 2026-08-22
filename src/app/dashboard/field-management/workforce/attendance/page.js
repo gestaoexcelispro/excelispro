@@ -1,9 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { createClient } from '../../../../../lib/supabase/client'
 
 const supabase = createClient()
+
+const APPROACHING_LIMIT_MINUTES = 60
 
 function formatWorkerName(worker) {
   if (!worker) {
@@ -57,7 +64,7 @@ function formatTime(value) {
   ).format(new Date(value))
 }
 
-function formatWorkedMinutes(minutes) {
+function formatMinutes(minutes) {
   if (
     minutes === null ||
     minutes === undefined
@@ -65,7 +72,10 @@ function formatWorkedMinutes(minutes) {
     return '—'
   }
 
-  const total = Number(minutes)
+  const total = Math.max(
+    0,
+    Math.floor(Number(minutes))
+  )
 
   if (!Number.isFinite(total)) {
     return '—'
@@ -84,6 +94,7 @@ function getTodayKey() {
   const now = new Date()
 
   const year = now.getFullYear()
+
   const month = String(
     now.getMonth() + 1
   ).padStart(2, '0')
@@ -93,6 +104,112 @@ function getTodayKey() {
   ).padStart(2, '0')
 
   return `${year}-${month}-${day}`
+}
+
+function calculateOpenSessionMinutes(
+  session,
+  currentTime
+) {
+  if (
+    !session ||
+    !session.check_in_at
+  ) {
+    return 0
+  }
+
+  const checkInTime =
+    new Date(
+      session.check_in_at
+    ).getTime()
+
+  if (
+    !Number.isFinite(checkInTime)
+  ) {
+    return 0
+  }
+
+  const difference =
+    currentTime - checkInTime
+
+  if (difference <= 0) {
+    return 0
+  }
+
+  return Math.floor(
+    difference / 60000
+  )
+}
+
+function getHoursControlStatus(
+  workedMinutes,
+  allowedMinutes
+) {
+  if (
+    allowedMinutes === null ||
+    allowedMinutes === undefined
+  ) {
+    return {
+      key: 'not_configured',
+      label: 'Not Configured',
+      balanceMinutes: null,
+    }
+  }
+
+  const worked =
+    Number(workedMinutes) || 0
+
+  const allowed =
+    Number(allowedMinutes)
+
+  const balance =
+    allowed - worked
+
+  if (worked > allowed) {
+    return {
+      key: 'over',
+      label: 'Over Limit',
+      balanceMinutes: balance,
+    }
+  }
+
+  if (
+    balance >= 0 &&
+    balance <=
+      APPROACHING_LIMIT_MINUTES
+  ) {
+    return {
+      key: 'approaching',
+      label: 'Approaching Limit',
+      balanceMinutes: balance,
+    }
+  }
+
+  return {
+    key: 'normal',
+    label: 'Normal',
+    balanceMinutes: balance,
+  }
+}
+
+function formatBalance(
+  balanceMinutes
+) {
+  if (
+    balanceMinutes === null ||
+    balanceMinutes === undefined
+  ) {
+    return 'Not configured'
+  }
+
+  if (balanceMinutes < 0) {
+    return `+${formatMinutes(
+      Math.abs(balanceMinutes)
+    )} over`
+  }
+
+  return `${formatMinutes(
+    balanceMinutes
+  )} remaining`
 }
 
 export default function AttendancePage() {
@@ -138,6 +255,9 @@ export default function AttendancePage() {
     setProcessingSessionId,
   ] = useState(null)
 
+  const [currentTime, setCurrentTime] =
+    useState(() => Date.now())
+
   const [error, setError] =
     useState('')
 
@@ -149,6 +269,19 @@ export default function AttendancePage() {
     []
   )
 
+  useEffect(() => {
+    const intervalId =
+      window.setInterval(() => {
+        setCurrentTime(Date.now())
+      }, 30000)
+
+    return () => {
+      window.clearInterval(
+        intervalId
+      )
+    }
+  }, [])
+
   const loadProjects =
     useCallback(async () => {
       const {
@@ -157,7 +290,13 @@ export default function AttendancePage() {
       } = await supabase
         .from('projects')
         .select(
-          'id, code, name, status'
+          `
+            id,
+            code,
+            name,
+            status,
+            standard_daily_minutes
+          `
         )
         .order('name')
 
@@ -239,7 +378,8 @@ export default function AttendancePage() {
       )
 
       setCompanies(
-        companiesResult.data || []
+        companiesResult.data ||
+          []
       )
 
       setTrades(
@@ -285,8 +425,13 @@ export default function AttendancePage() {
                 'project_id',
                 projectId
               )
-              .eq('status', 'active')
-              .order('start_date'),
+              .eq(
+                'status',
+                'active'
+              )
+              .order(
+                'start_date'
+              ),
 
             supabase
               .from(
@@ -297,11 +442,7 @@ export default function AttendancePage() {
                 'project_id',
                 projectId
               )
-              .gte(
-                'work_date',
-                todayKey
-              )
-              .lte(
+              .eq(
                 'work_date',
                 todayKey
               )
@@ -319,7 +460,9 @@ export default function AttendancePage() {
             throw assignmentsResult.error
           }
 
-          if (sessionsResult.error) {
+          if (
+            sessionsResult.error
+          ) {
             throw sessionsResult.error
           }
 
@@ -332,8 +475,14 @@ export default function AttendancePage() {
             sessionsResult.data ||
               []
           )
+
+          setCurrentTime(
+            Date.now()
+          )
         } catch (loadError) {
-          console.error(loadError)
+          console.error(
+            loadError
+          )
 
           setError(
             loadError?.message ||
@@ -359,7 +508,9 @@ export default function AttendancePage() {
           loadProjects(),
           loadReferenceData(),
         ])
-      } catch (initializeError) {
+      } catch (
+        initializeError
+      ) {
         console.error(
           initializeError
         )
@@ -395,10 +546,12 @@ export default function AttendancePage() {
   const workerById =
     useMemo(() => {
       return new Map(
-        workers.map((worker) => [
-          worker.id,
-          worker,
-        ])
+        workers.map(
+          (worker) => [
+            worker.id,
+            worker,
+          ]
+        )
       )
     }, [workers])
 
@@ -417,20 +570,24 @@ export default function AttendancePage() {
   const tradeById =
     useMemo(() => {
       return new Map(
-        trades.map((trade) => [
-          trade.id,
-          trade,
-        ])
+        trades.map(
+          (trade) => [
+            trade.id,
+            trade,
+          ]
+        )
       )
     }, [trades])
 
   const roleById =
     useMemo(() => {
       return new Map(
-        roles.map((role) => [
-          role.id,
-          role,
-        ])
+        roles.map(
+          (role) => [
+            role.id,
+            role,
+          ]
+        )
       )
     }, [roles])
 
@@ -447,6 +604,25 @@ export default function AttendancePage() {
       projects,
       selectedProjectId,
     ])
+
+  const allowedDailyMinutes =
+    useMemo(() => {
+      if (
+        selectedProject
+          ?.standard_daily_minutes ===
+          null ||
+        selectedProject
+          ?.standard_daily_minutes ===
+          undefined
+      ) {
+        return null
+      }
+
+      return Number(
+        selectedProject
+          .standard_daily_minutes
+      )
+    }, [selectedProject])
 
   const openSessionByWorkerId =
     useMemo(() => {
@@ -496,7 +672,7 @@ export default function AttendancePage() {
       return map
     }, [sessions])
 
-  const workedMinutesByWorkerId =
+  const closedMinutesByWorkerId =
     useMemo(() => {
       const totals = new Map()
 
@@ -506,47 +682,153 @@ export default function AttendancePage() {
             session.status ===
             'closed'
         )
-        .forEach((session) => {
-          const current =
-            totals.get(
-              session.worker_id
-            ) || 0
+        .forEach(
+          (session) => {
+            const current =
+              totals.get(
+                session.worker_id
+              ) || 0
 
-          const sessionMinutes =
-            Number(
-              session.worked_minutes ||
-                0
-            )
-
-          totals.set(
-            session.worker_id,
-            current +
-              (Number.isFinite(
-                sessionMinutes
+            const sessionMinutes =
+              Number(
+                session.worked_minutes ||
+                  0
               )
-                ? sessionMinutes
-                : 0)
-          )
-        })
+
+            totals.set(
+              session.worker_id,
+              current +
+                (Number.isFinite(
+                  sessionMinutes
+                )
+                  ? sessionMinutes
+                  : 0)
+            )
+          }
+        )
 
       return totals
     }, [sessions])
 
+  const boardRows =
+    useMemo(() => {
+      return assignments
+        .map(
+          (assignment) => {
+            const worker =
+              workerById.get(
+                assignment.worker_id
+              )
+
+            const company =
+              companyById.get(
+                assignment.company_id
+              )
+
+            const trade =
+              tradeById.get(
+                assignment.trade_id
+              )
+
+            const role =
+              roleById.get(
+                assignment.role_id
+              )
+
+            const openSession =
+              openSessionByWorkerId.get(
+                assignment.worker_id
+              )
+
+            const latestClosedSession =
+              latestClosedSessionByWorkerId.get(
+                assignment.worker_id
+              )
+
+            const closedMinutes =
+              closedMinutesByWorkerId.get(
+                assignment.worker_id
+              ) || 0
+
+            const currentSessionMinutes =
+              calculateOpenSessionMinutes(
+                openSession,
+                currentTime
+              )
+
+            const totalWorkedMinutes =
+              closedMinutes +
+              currentSessionMinutes
+
+            const hoursControl =
+              getHoursControlStatus(
+                totalWorkedMinutes,
+                allowedDailyMinutes
+              )
+
+            return {
+              assignment,
+              worker,
+              company,
+              trade,
+              role,
+              openSession,
+              latestClosedSession,
+              currentSessionMinutes,
+              totalWorkedMinutes,
+              hoursControl,
+            }
+          }
+        )
+        .sort((a, b) =>
+          formatWorkerName(
+            a.worker
+          ).localeCompare(
+            formatWorkerName(
+              b.worker
+            )
+          )
+        )
+    }, [
+      assignments,
+      workerById,
+      companyById,
+      tradeById,
+      roleById,
+      openSessionByWorkerId,
+      latestClosedSessionByWorkerId,
+      closedMinutesByWorkerId,
+      currentTime,
+      allowedDailyMinutes,
+    ])
+
   const onSiteCount =
     useMemo(() => {
-      return new Set(
-        sessions
-          .filter(
-            (session) =>
-              session.status ===
-              'open'
+      return boardRows.filter(
+        (row) =>
+          Boolean(
+            row.openSession
           )
-          .map(
-            (session) =>
-              session.worker_id
-          )
-      ).size
-    }, [sessions])
+      ).length
+    }, [boardRows])
+
+  const approachingLimitCount =
+    useMemo(() => {
+      return boardRows.filter(
+        (row) =>
+          row.hoursControl.key ===
+          'approaching'
+      ).length
+    }, [boardRows])
+
+  const overLimitCount =
+    useMemo(() => {
+      return boardRows.filter(
+        (row) =>
+          row.hoursControl.key ===
+          'over'
+      ).length
+    }, [boardRows])
 
   const checkedOutCount =
     useMemo(() => {
@@ -580,7 +862,6 @@ export default function AttendancePage() {
 
     try {
       const {
-        data,
         error: checkInError,
       } = await supabase.rpc(
         'field_worker_check_in',
@@ -614,8 +895,6 @@ export default function AttendancePage() {
       await loadAttendance(
         selectedProjectId
       )
-
-      return data
     } catch (checkInError) {
       console.error(
         checkInError
@@ -648,7 +927,6 @@ export default function AttendancePage() {
 
     try {
       const {
-        data,
         error: checkOutError,
       } = await supabase.rpc(
         'field_worker_check_out',
@@ -682,9 +960,9 @@ export default function AttendancePage() {
       await loadAttendance(
         selectedProjectId
       )
-
-      return data
-    } catch (checkOutError) {
+    } catch (
+      checkOutError
+    ) {
       console.error(
         checkOutError
       )
@@ -699,76 +977,6 @@ export default function AttendancePage() {
       )
     }
   }
-
-  const boardRows =
-    useMemo(() => {
-      return assignments
-        .map((assignment) => {
-          const worker =
-            workerById.get(
-              assignment.worker_id
-            )
-
-          const company =
-            companyById.get(
-              assignment.company_id
-            )
-
-          const trade =
-            tradeById.get(
-              assignment.trade_id
-            )
-
-          const role =
-            roleById.get(
-              assignment.role_id
-            )
-
-          const openSession =
-            openSessionByWorkerId.get(
-              assignment.worker_id
-            )
-
-          const latestClosedSession =
-            latestClosedSessionByWorkerId.get(
-              assignment.worker_id
-            )
-
-          const totalWorkedMinutes =
-            workedMinutesByWorkerId.get(
-              assignment.worker_id
-            ) || 0
-
-          return {
-            assignment,
-            worker,
-            company,
-            trade,
-            role,
-            openSession,
-            latestClosedSession,
-            totalWorkedMinutes,
-          }
-        })
-        .sort((a, b) =>
-          formatWorkerName(
-            a.worker
-          ).localeCompare(
-            formatWorkerName(
-              b.worker
-            )
-          )
-        )
-    }, [
-      assignments,
-      workerById,
-      companyById,
-      tradeById,
-      roleById,
-      openSessionByWorkerId,
-      latestClosedSessionByWorkerId,
-      workedMinutesByWorkerId,
-    ])
 
   return (
     <div
@@ -816,17 +1024,17 @@ export default function AttendancePage() {
 
             <p
               style={{
-                margin:
-                  '8px 0 0',
-                maxWidth: '760px',
+                margin: '8px 0 0',
+                maxWidth: '820px',
                 color: '#64748b',
                 lineHeight: 1.55,
               }}
             >
-              Manage supervisor
-              check-in and check-out
-              for workers assigned to
-              active projects.
+              Monitor check-in,
+              check-out, daily worked
+              time, and workers
+              approaching or exceeding
+              their allowed hours.
             </p>
           </div>
 
@@ -941,53 +1149,34 @@ export default function AttendancePage() {
           </select>
         </label>
 
-        <div
-          style={{
-            minWidth: '180px',
-          }}
-        >
-          <div
-            style={{
-              marginBottom: '7px',
-              color: '#334155',
-              fontSize: '0.76rem',
-              fontWeight: 800,
-            }}
-          >
-            Attendance Date
-          </div>
+        <InfoField
+          label="Attendance Date"
+          value={new Intl.DateTimeFormat(
+            undefined,
+            {
+              dateStyle: 'medium',
+            }
+          ).format(new Date())}
+        />
 
-          <div
-            style={{
-              minHeight: '44px',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '0 12px',
-              border:
-                '1px solid #e2e8f0',
-              borderRadius: '9px',
-              background: '#f8fafc',
-              color: '#334155',
-              fontWeight: 700,
-            }}
-          >
-            {new Intl.DateTimeFormat(
-              undefined,
-              {
-                dateStyle:
-                  'medium',
-              }
-            ).format(new Date())}
-          </div>
-        </div>
+        <InfoField
+          label="Standard Daily Hours"
+          value={
+            allowedDailyMinutes ===
+            null
+              ? 'Not configured'
+              : formatMinutes(
+                  allowedDailyMinutes
+                )
+          }
+        />
       </section>
 
       {error && (
         <div
           role="alert"
           style={{
-            padding:
-              '12px 14px',
+            padding: '12px 14px',
             border:
               '1px solid #fecaca',
             borderRadius: '10px',
@@ -1004,8 +1193,7 @@ export default function AttendancePage() {
         <div
           role="status"
           style={{
-            padding:
-              '12px 14px',
+            padding: '12px 14px',
             border:
               '1px solid #99f6e4',
             borderRadius: '10px',
@@ -1027,26 +1215,36 @@ export default function AttendancePage() {
         }}
       >
         <MetricCard
-          label="Assigned Workers"
-          value={assignments.length}
-        />
-
-        <MetricCard
           label="On Site"
           value={onSiteCount}
         />
 
         <MetricCard
-          label="Checked Out Today"
-          value={checkedOutCount}
+          label="Approaching Limit"
+          value={
+            approachingLimitCount
+          }
+          tone={
+            approachingLimitCount >
+            0
+              ? 'warning'
+              : 'default'
+          }
         />
 
         <MetricCard
-          label="Project"
-          value={
-            selectedProject?.code ||
-            '—'
+          label="Over Allowed Hours"
+          value={overLimitCount}
+          tone={
+            overLimitCount > 0
+              ? 'danger'
+              : 'default'
           }
+        />
+
+        <MetricCard
+          label="Checked Out Today"
+          value={checkedOutCount}
         />
       </section>
 
@@ -1061,8 +1259,7 @@ export default function AttendancePage() {
       >
         <div
           style={{
-            padding:
-              '16px 18px',
+            padding: '16px 18px',
             borderBottom:
               '1px solid #e2e8f0',
           }}
@@ -1109,7 +1306,7 @@ export default function AttendancePage() {
             <table
               style={{
                 width: '100%',
-                minWidth: '1050px',
+                minWidth: '1420px',
                 borderCollapse:
                   'collapse',
               }}
@@ -1138,10 +1335,6 @@ export default function AttendancePage() {
                   </TableHeader>
 
                   <TableHeader>
-                    Role
-                  </TableHeader>
-
-                  <TableHeader>
                     Status
                   </TableHeader>
 
@@ -1150,7 +1343,19 @@ export default function AttendancePage() {
                   </TableHeader>
 
                   <TableHeader>
+                    Current Session
+                  </TableHeader>
+
+                  <TableHeader>
                     Worked Today
+                  </TableHeader>
+
+                  <TableHeader>
+                    Allowed Today
+                  </TableHeader>
+
+                  <TableHeader>
+                    Balance
                   </TableHeader>
 
                   <TableHeader
@@ -1168,10 +1373,11 @@ export default function AttendancePage() {
                     worker,
                     company,
                     trade,
-                    role,
                     openSession,
                     latestClosedSession,
+                    currentSessionMinutes,
                     totalWorkedMinutes,
+                    hoursControl,
                   }) => {
                     const isOnSite =
                       Boolean(
@@ -1233,58 +1439,14 @@ export default function AttendancePage() {
                         </TableCell>
 
                         <TableCell>
-                          {role?.name ||
-                            role?.role_name ||
-                            '—'}
-                        </TableCell>
-
-                        <TableCell>
-                          <span
-                            style={{
-                              display:
-                                'inline-flex',
-                              alignItems:
-                                'center',
-                              gap: '6px',
-                              padding:
-                                '5px 9px',
-                              borderRadius:
-                                '999px',
-                              color:
-                                isOnSite
-                                  ? '#047857'
-                                  : '#475569',
-                              background:
-                                isOnSite
-                                  ? '#d1fae5'
-                                  : '#f1f5f9',
-                              fontSize:
-                                '0.72rem',
-                              fontWeight:
-                                800,
-                            }}
-                          >
-                            <span
-                              style={{
-                                width:
-                                  '7px',
-                                height:
-                                  '7px',
-                                borderRadius:
-                                  '50%',
-                                background:
-                                  isOnSite
-                                    ? '#10b981'
-                                    : '#94a3b8',
-                              }}
-                            />
-
-                            {isOnSite
-                              ? 'On Site'
-                              : latestClosedSession
-                                ? 'Checked Out'
-                                : 'Not On Site'}
-                          </span>
+                          <AttendanceStatus
+                            isOnSite={
+                              isOnSite
+                            }
+                            hasClosedSession={Boolean(
+                              latestClosedSession
+                            )}
+                          />
                         </TableCell>
 
                         <TableCell>
@@ -1294,9 +1456,41 @@ export default function AttendancePage() {
                         </TableCell>
 
                         <TableCell>
-                          {formatWorkedMinutes(
-                            totalWorkedMinutes
-                          )}
+                          {isOnSite
+                            ? formatMinutes(
+                                currentSessionMinutes
+                              )
+                            : '—'}
+                        </TableCell>
+
+                        <TableCell>
+                          <strong
+                            style={{
+                              color:
+                                '#0f172a',
+                            }}
+                          >
+                            {formatMinutes(
+                              totalWorkedMinutes
+                            )}
+                          </strong>
+                        </TableCell>
+
+                        <TableCell>
+                          {allowedDailyMinutes ===
+                          null
+                            ? '—'
+                            : formatMinutes(
+                                allowedDailyMinutes
+                              )}
+                        </TableCell>
+
+                        <TableCell>
+                          <HoursBalance
+                            hoursControl={
+                              hoursControl
+                            }
+                          />
                         </TableCell>
 
                         <TableCell
@@ -1391,6 +1585,62 @@ export default function AttendancePage() {
           </div>
         )}
       </section>
+
+      <p
+        style={{
+          margin: 0,
+          color: '#94a3b8',
+          fontSize: '0.72rem',
+          lineHeight: 1.5,
+        }}
+      >
+        Approaching Limit currently
+        means 60 minutes or less
+        remaining. This threshold will
+        become configurable in the
+        Work Schedule layer.
+      </p>
+    </div>
+  )
+}
+
+function InfoField({
+  label,
+  value,
+}) {
+  return (
+    <div
+      style={{
+        minWidth: '180px',
+      }}
+    >
+      <div
+        style={{
+          marginBottom: '7px',
+          color: '#334155',
+          fontSize: '0.76rem',
+          fontWeight: 800,
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          minHeight: '44px',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 12px',
+          border:
+            '1px solid #e2e8f0',
+          borderRadius: '9px',
+          background: '#f8fafc',
+          color: '#334155',
+          fontWeight: 700,
+        }}
+      >
+        {value}
+      </div>
     </div>
   )
 }
@@ -1398,15 +1648,40 @@ export default function AttendancePage() {
 function MetricCard({
   label,
   value,
+  tone = 'default',
 }) {
+  const tones = {
+    default: {
+      border: '#e2e8f0',
+      background: '#ffffff',
+      value: '#061b2f',
+    },
+
+    warning: {
+      border: '#fde68a',
+      background: '#fffbeb',
+      value: '#92400e',
+    },
+
+    danger: {
+      border: '#fecaca',
+      background: '#fef2f2',
+      value: '#b91c1c',
+    },
+  }
+
+  const colors =
+    tones[tone] ||
+    tones.default
+
   return (
     <div
       style={{
         padding: '17px 18px',
-        border:
-          '1px solid #e2e8f0',
+        border: `1px solid ${colors.border}`,
         borderRadius: '13px',
-        background: '#ffffff',
+        background:
+          colors.background,
       }}
     >
       <div
@@ -1426,13 +1701,134 @@ function MetricCard({
       <div
         style={{
           marginTop: '7px',
-          color: '#061b2f',
+          color: colors.value,
           fontSize: '1.55rem',
           fontWeight: 850,
         }}
       >
         {value}
       </div>
+    </div>
+  )
+}
+
+function AttendanceStatus({
+  isOnSite,
+  hasClosedSession,
+}) {
+  const label =
+    isOnSite
+      ? 'On Site'
+      : hasClosedSession
+        ? 'Checked Out'
+        : 'Not On Site'
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '5px 9px',
+        borderRadius: '999px',
+        color:
+          isOnSite
+            ? '#047857'
+            : '#475569',
+        background:
+          isOnSite
+            ? '#d1fae5'
+            : '#f1f5f9',
+        fontSize: '0.72rem',
+        fontWeight: 800,
+      }}
+    >
+      <span
+        style={{
+          width: '7px',
+          height: '7px',
+          borderRadius: '50%',
+          background:
+            isOnSite
+              ? '#10b981'
+              : '#94a3b8',
+        }}
+      />
+
+      {label}
+    </span>
+  )
+}
+
+function HoursBalance({
+  hoursControl,
+}) {
+  const stylesByStatus = {
+    normal: {
+      color: '#166534',
+      background: '#f0fdf4',
+      border: '#bbf7d0',
+    },
+
+    approaching: {
+      color: '#92400e',
+      background: '#fffbeb',
+      border: '#fde68a',
+    },
+
+    over: {
+      color: '#b91c1c',
+      background: '#fef2f2',
+      border: '#fecaca',
+    },
+
+    not_configured: {
+      color: '#475569',
+      background: '#f8fafc',
+      border: '#e2e8f0',
+    },
+  }
+
+  const visual =
+    stylesByStatus[
+      hoursControl.key
+    ] ||
+    stylesByStatus
+      .not_configured
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        flexDirection: 'column',
+        gap: '2px',
+        minWidth: '130px',
+        padding: '6px 9px',
+        border: `1px solid ${visual.border}`,
+        borderRadius: '9px',
+        background:
+          visual.background,
+      }}
+    >
+      <strong
+        style={{
+          color: visual.color,
+          fontSize: '0.72rem',
+        }}
+      >
+        {hoursControl.label}
+      </strong>
+
+      <span
+        style={{
+          color: visual.color,
+          fontSize: '0.7rem',
+        }}
+      >
+        {formatBalance(
+          hoursControl.balanceMinutes
+        )}
+      </span>
     </div>
   )
 }
@@ -1444,8 +1840,7 @@ function TableHeader({
   return (
     <th
       style={{
-        padding:
-          '11px 14px',
+        padding: '11px 14px',
         color: '#64748b',
         fontSize: '0.68rem',
         fontWeight: 800,
@@ -1469,8 +1864,7 @@ function TableCell({
   return (
     <td
       style={{
-        padding:
-          '13px 14px',
+        padding: '13px 14px',
         color: '#475569',
         fontSize: '0.82rem',
         textAlign: align,
