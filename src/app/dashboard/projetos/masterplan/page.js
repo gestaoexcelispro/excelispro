@@ -35,6 +35,75 @@ const getContrastYIQ = (hexcolor) => {
   return (yiq >= 128) ? '#000000' : '#ffffff';
 };
 
+
+// Master Plan visual package codes must always be 1-3 characters.
+// Project service IDs/codes such as SERVICE_xxx are internal identifiers and
+// must never expand the Line of Balance date columns.
+const normalizeText = (value = '') =>
+  String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim();
+
+const buildServiceAcronym = (service, index, usedCodes) => {
+  const rawCode = normalizeText(service?.service_code || '').replace(/[^A-Z0-9]/g, '');
+  const serviceName = String(service?.service_name || '').trim();
+  const normalizedName = normalizeText(serviceName);
+
+  // Reuse the established RitsuFlow Master Plan codes whenever the service
+  // name matches one of the existing standard activities.
+  const standardMatch = Object.entries(DEFAULT_SERVICOS_CORES).find(([key, info]) => {
+    if (!key) return false;
+    return normalizeText(info.labelEn) === normalizedName || normalizeText(info.labelPt) === normalizedName;
+  });
+
+  let baseCode = standardMatch?.[0] || '';
+
+  // Only accept a database service code when it is already a valid visual
+  // package code (maximum 3 characters).
+  if (!baseCode && rawCode.length >= 1 && rawCode.length <= 3) {
+    baseCode = rawCode;
+  }
+
+  // Otherwise build a compact acronym from the service name.
+  if (!baseCode) {
+    const words = normalizedName
+      .replace(/[^A-Z0-9 ]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (words.length >= 2) {
+      baseCode = words.slice(0, 3).map((word) => word[0]).join('');
+    } else if (words.length === 1) {
+      baseCode = words[0].slice(0, 3);
+    } else {
+      baseCode = `S${index + 1}`.slice(0, 3);
+    }
+  }
+
+  baseCode = baseCode.slice(0, 3) || 'SRV';
+
+  // Keep codes unique while respecting the three-character limit.
+  if (!usedCodes.has(baseCode)) {
+    usedCodes.add(baseCode);
+    return baseCode;
+  }
+
+  for (let n = 1; n <= 99; n += 1) {
+    const suffix = String(n);
+    const candidate = `${baseCode.slice(0, Math.max(1, 3 - suffix.length))}${suffix}`.slice(0, 3);
+    if (!usedCodes.has(candidate)) {
+      usedCodes.add(candidate);
+      return candidate;
+    }
+  }
+
+  const fallback = `S${index + 1}`.slice(-3);
+  usedCodes.add(fallback);
+  return fallback;
+};
+
 export default function MasterPlanPage() {
   const { lang } = useLanguage();
   const isEn = lang === 'en-US';
@@ -468,13 +537,12 @@ export default function MasterPlanPage() {
       ];
 
       const projectServiceMap = {};
+      const usedServiceCodes = new Set(
+        Object.keys(DEFAULT_SERVICOS_CORES).filter(Boolean)
+      );
 
       (servicesResult.data || []).forEach((service, index) => {
-        const code = String(
-          service.service_code || `S${index + 1}`
-        ).trim().toUpperCase();
-
-        if (!code) return;
+        const code = buildServiceAcronym(service, index, usedServiceCodes);
 
         const existing = DEFAULT_SERVICOS_CORES[code];
         const color = existing?.color || palette[index % palette.length];
@@ -485,6 +553,7 @@ export default function MasterPlanPage() {
           color,
           text: existing?.text || getContrastYIQ(color),
           projectServiceId: service.id,
+          sourceServiceCode: service.service_code || null,
           unit: service.unit || ''
         };
       });
@@ -1553,13 +1622,13 @@ export default function MasterPlanPage() {
                             const inputBloqueado = isRealizado ? false : linhaDeBaseCongelada;
 
                             return (
-                              <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: bgColor, textAlign: 'center', minWidth: '45px', height: '26px' }}>
+                              <td key={cellKey} style={{ borderRight: '1px dotted #cbd5e0', padding: '1px', backgroundColor: bgColor, textAlign: 'center', width: '45px', minWidth: '45px', maxWidth: '45px', height: '26px', overflow: 'hidden' }}>
                                 <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <select
                                     value={valorEfetivo}
                                     onChange={(e) => isRealizado ? handleCellRealizadoChange(linha.id, d.dataIso, e.target.value) : handleCellChange(linha.id, d.dataIso, e.target.value)}
                                     disabled={inputBloqueado}
-                                    style={{ width: '100%', height: '100%', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.7rem', fontWeight: 'bold', textAlign: 'center', textAlignLast: 'center', appearance: 'none', cursor: inputBloqueado ? 'default' : 'pointer', borderRadius: '2px', opacity: (modoControle && !isRealizado && valorEfetivo) ? 0.6 : 1, padding: '0 4px' }}
+                                    style={{ width: '43px', minWidth: 0, maxWidth: '43px', height: '100%', backgroundColor: configCor.color, color: configCor.text, border: 'none', outline: 'none', fontSize: '0.7rem', fontWeight: 'bold', textAlign: 'center', textAlignLast: 'center', appearance: 'none', cursor: inputBloqueado ? 'default' : 'pointer', borderRadius: '2px', opacity: (modoControle && !isRealizado && valorEfetivo) ? 0.6 : 1, padding: '0 4px', overflow: 'hidden' }}
                                   >
                                     <option value=""></option>
                                     {Object.keys(servicosCores).filter(k => k !== '').map(sigla => (
