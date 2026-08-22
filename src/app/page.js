@@ -84,7 +84,7 @@ export default function HomePage() {
             aria-label="RitsuFlow home"
           >
             <Image
-              src="/logo.jpg"
+              src="/logo.png"
               alt="RitsuFlow"
               width={220}
               height={90}
@@ -151,6 +151,7 @@ export default function HomePage() {
                   styles.eyebrowDot
                 }
               />
+
               Coming soon ·
               Location-based
               construction planning
@@ -479,6 +480,7 @@ export default function HomePage() {
                     styles.eyebrowDot
                   }
                 />
+
                 One connected planning
                 system
               </p>
@@ -562,6 +564,7 @@ export default function HomePage() {
                     styles.eyebrowDot
                   }
                 />
+
                 Built around production
                 flow
               </p>
