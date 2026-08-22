@@ -249,6 +249,16 @@ export default function AttendanceExceptionsPage() {
   ] = useState('')
 
   const [
+    exceptionEvidence,
+    setExceptionEvidence,
+  ] = useState([])
+
+  const [
+    loadingEvidence,
+    setLoadingEvidence,
+  ] = useState(false)
+
+  const [
     processingResolution,
     setProcessingResolution,
   ] = useState(false)
@@ -292,7 +302,9 @@ export default function AttendanceExceptionsPage() {
           id,
           code,
           name,
-          standard_daily_minutes
+          standard_daily_minutes,
+          geofence_radius_m,
+          geofence_enabled
         `)
         .order('name')
 
@@ -997,7 +1009,88 @@ export default function AttendanceExceptionsPage() {
       ).length
     }, [exceptions])
 
-  function openExceptionReview(
+  async function loadExceptionEvidence(
+    sessionId
+  ) {
+    if (!sessionId) {
+      setExceptionEvidence([])
+      return
+    }
+
+    setLoadingEvidence(true)
+
+    try {
+      const {
+        data,
+        error: evidenceError,
+      } = await supabase
+        .from(
+          'field_attendance_events'
+        )
+        .select(`
+          id,
+          session_id,
+          event_type,
+          event_at,
+          latitude,
+          longitude,
+          gps_accuracy_m,
+          distance_to_project_m,
+          geofence_status,
+          method,
+          source
+        `)
+        .eq(
+          'session_id',
+          sessionId
+        )
+        .in(
+          'event_type',
+          [
+            'check_in',
+            'check_out',
+          ]
+        )
+        .order(
+          'event_at',
+          {
+            ascending: true,
+          }
+        )
+
+      if (evidenceError) {
+        throw evidenceError
+      }
+
+      setExceptionEvidence(
+        (data || []).filter(
+          (event) =>
+            event.geofence_status ||
+            event.latitude !== null ||
+            event.longitude !== null ||
+            event.gps_accuracy_m !== null ||
+            event.distance_to_project_m !== null
+        )
+      )
+    } catch (
+      evidenceError
+    ) {
+      console.error(
+        evidenceError
+      )
+
+      setExceptionEvidence([])
+
+      setError(
+        evidenceError?.message ||
+          'Unable to load geofence evidence for this exception.'
+      )
+    } finally {
+      setLoadingEvidence(false)
+    }
+  }
+
+  async function openExceptionReview(
     exception
   ) {
     if (!exception?.persisted) {
@@ -1016,6 +1109,12 @@ export default function AttendanceExceptionsPage() {
         .exception_resolution_notes ||
         ''
     )
+
+    setExceptionEvidence([])
+
+    await loadExceptionEvidence(
+      exception.session.id
+    )
   }
 
   function closeExceptionReview() {
@@ -1025,6 +1124,7 @@ export default function AttendanceExceptionsPage() {
 
     setSelectedException(null)
     setResolutionNotes('')
+    setExceptionEvidence([])
   }
 
   async function handleMarkReviewed() {
@@ -1800,6 +1900,17 @@ export default function AttendanceExceptionsPage() {
           resolutionNotes={
             resolutionNotes
           }
+          evidence={
+            exceptionEvidence
+          }
+          loadingEvidence={
+            loadingEvidence
+          }
+          geofenceRadius={
+            selectedProject
+              ?.geofence_radius_m ??
+            null
+          }
           processing={
             processingResolution
           }
@@ -1825,6 +1936,9 @@ function ExceptionReviewModal({
   exception,
   resolver,
   resolutionNotes,
+  evidence,
+  loadingEvidence,
+  geofenceRadius,
   processing,
   onNotesChange,
   onClose,
@@ -2009,6 +2123,16 @@ function ExceptionReviewModal({
               />
             </ReadOnlyPanel>
           </div>
+
+          <GeofenceEvidencePanel
+            evidence={evidence}
+            loading={
+              loadingEvidence
+            }
+            geofenceRadius={
+              geofenceRadius
+            }
+          />
 
           {isResolved ? (
             <div
@@ -2220,6 +2344,300 @@ function ExceptionReviewModal({
             </>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function GeofenceEvidencePanel({
+  evidence,
+  loading,
+  geofenceRadius,
+}) {
+  return (
+    <div
+      style={{
+        padding: '14px 16px',
+        border:
+          '1px solid #bae6fd',
+        borderRadius: '10px',
+        background: '#f0f9ff',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent:
+            'space-between',
+          gap: '12px',
+          marginBottom: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: '#075985',
+              fontSize: '0.7rem',
+              fontWeight: 800,
+              textTransform:
+                'uppercase',
+              letterSpacing:
+                '0.05em',
+            }}
+          >
+            Geofence Evidence
+          </div>
+
+          <div
+            style={{
+              marginTop: '3px',
+              color: '#0c4a6e',
+              fontSize: '0.76rem',
+              lineHeight: 1.45,
+            }}
+          >
+            Immutable GPS evidence recorded
+            with the original attendance
+            event.
+          </div>
+        </div>
+
+        <span
+          style={{
+            color: '#0369a1',
+            fontSize: '0.72rem',
+            fontWeight: 800,
+          }}
+        >
+          Allowed radius:{' '}
+          {geofenceRadius !== null &&
+          geofenceRadius !== undefined
+            ? `${geofenceRadius} m`
+            : 'Not configured'}
+        </span>
+      </div>
+
+      {loading ? (
+        <div
+          style={{
+            padding: '16px 0',
+            color: '#0369a1',
+            fontSize: '0.8rem',
+          }}
+        >
+          Loading geofence evidence...
+        </div>
+      ) : evidence.length === 0 ? (
+        <div
+          style={{
+            padding: '12px 0',
+            color: '#64748b',
+            fontSize: '0.8rem',
+          }}
+        >
+          No GPS evidence is available for
+          this attendance session.
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns:
+              'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '10px',
+          }}
+        >
+          {evidence.map(
+            (event) => (
+              <GeofenceEvidenceCard
+                key={event.id}
+                event={event}
+                geofenceRadius={
+                  geofenceRadius
+                }
+              />
+            )
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GeofenceEvidenceCard({
+  event,
+  geofenceRadius,
+}) {
+  const statusVisual = {
+    inside: {
+      label: 'Inside',
+      color: '#166534',
+      background: '#f0fdf4',
+      border: '#bbf7d0',
+    },
+
+    outside: {
+      label: 'Outside',
+      color: '#b91c1c',
+      background: '#fef2f2',
+      border: '#fecaca',
+    },
+
+    unavailable: {
+      label: 'Unavailable',
+      color: '#92400e',
+      background: '#fffbeb',
+      border: '#fde68a',
+    },
+
+    not_evaluated: {
+      label: 'Not Evaluated',
+      color: '#475569',
+      background: '#f8fafc',
+      border: '#e2e8f0',
+    },
+  }
+
+  const visual =
+    statusVisual[
+      event.geofence_status
+    ] ||
+    statusVisual.not_evaluated
+
+  const distance =
+    event.distance_to_project_m ===
+      null ||
+    event.distance_to_project_m ===
+      undefined
+      ? '—'
+      : Number(
+          event.distance_to_project_m
+        ) >= 1000
+        ? `${(
+            Number(
+              event.distance_to_project_m
+            ) / 1000
+          ).toFixed(2)} km`
+        : `${Number(
+            event.distance_to_project_m
+          ).toFixed(1)} m`
+
+  const accuracy =
+    event.gps_accuracy_m === null ||
+    event.gps_accuracy_m === undefined
+      ? '—'
+      : `${Number(
+          event.gps_accuracy_m
+        ).toFixed(0)} m`
+
+  const coordinates =
+    event.latitude === null ||
+    event.longitude === null
+      ? '—'
+      : `${Number(
+          event.latitude
+        ).toFixed(6)}, ${Number(
+          event.longitude
+        ).toFixed(6)}`
+
+  return (
+    <div
+      style={{
+        padding: '12px 13px',
+        border:
+          '1px solid #bae6fd',
+        borderRadius: '9px',
+        background: '#ffffff',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent:
+            'space-between',
+          alignItems: 'center',
+          gap: '10px',
+          marginBottom: '11px',
+        }}
+      >
+        <strong
+          style={{
+            color: '#0f172a',
+            fontSize: '0.8rem',
+          }}
+        >
+          {event.event_type ===
+          'check_in'
+            ? 'Check-In'
+            : 'Check-Out'}
+        </strong>
+
+        <span
+          style={{
+            display: 'inline-flex',
+            padding: '4px 7px',
+            border: `1px solid ${visual.border}`,
+            borderRadius: '999px',
+            background:
+              visual.background,
+            color: visual.color,
+            fontSize: '0.66rem',
+            fontWeight: 800,
+          }}
+        >
+          {visual.label}
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gap: '8px',
+        }}
+      >
+        <ReadOnlyValue
+          label="Event Time"
+          value={formatDateTime(
+            event.event_at
+          )}
+        />
+
+        <ReadOnlyValue
+          label="Distance to Project"
+          value={distance}
+        />
+
+        <ReadOnlyValue
+          label="Allowed Radius"
+          value={
+            geofenceRadius !== null &&
+            geofenceRadius !== undefined
+              ? `${geofenceRadius} m`
+              : '—'
+          }
+        />
+
+        <ReadOnlyValue
+          label="GPS Accuracy"
+          value={accuracy}
+        />
+
+        <ReadOnlyValue
+          label="Captured Coordinates"
+          value={coordinates}
+        />
+
+        <ReadOnlyValue
+          label="Method / Source"
+          value={[
+            event.method,
+            event.source,
+          ]
+            .filter(Boolean)
+            .join(' · ') || '—'}
+        />
       </div>
     </div>
   )
