@@ -1,19 +1,10 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/server'
-import ProjectForm from '../../projetos/coleta/ProjectForm'
-import styles from '../../projetos/coleta/project-setup.module.css'
-import selectorStyles from './selector.module.css'
+import ProjectForm from './ProjectForm'
+import styles from './project-setup.module.css'
 
 export const dynamic = 'force-dynamic'
-
-const statusLabels = {
-  planning: 'Planning',
-  active: 'Active',
-  on_hold: 'On hold',
-  completed: 'Completed',
-  archived: 'Archived',
-}
 
 function createSuggestedCode(projects) {
   const highestNumber = projects.reduce(
@@ -26,9 +17,11 @@ function createSuggestedCode(projects) {
         return currentHighest
       }
 
+      const projectNumber = Number(match[1])
+
       return Math.max(
         currentHighest,
-        Number(match[1])
+        projectNumber
       )
     },
     0
@@ -37,22 +30,6 @@ function createSuggestedCode(projects) {
   return `RF-${String(
     highestNumber + 1
   ).padStart(4, '0')}`
-}
-
-function formatLocation(project) {
-  const locationParts = [
-    project.city,
-    project.state_region,
-  ].filter(Boolean)
-
-  if (locationParts.length > 0) {
-    return locationParts.join(', ')
-  }
-
-  return (
-    project.country_code ||
-    'Location not specified'
-  )
 }
 
 export default async function ProjectSetupPage({
@@ -64,21 +41,11 @@ export default async function ProjectSetupPage({
   const rawProjectId =
     resolvedSearchParams?.projectId
 
-  const rawMode =
-    resolvedSearchParams?.mode
-
   const projectId = Array.isArray(
     rawProjectId
   )
     ? rawProjectId[0]
     : rawProjectId
-
-  const mode = Array.isArray(rawMode)
-    ? rawMode[0]
-    : rawMode
-
-  const isCreateMode =
-    mode === 'new' && !projectId
 
   const supabase = await createClient()
 
@@ -102,10 +69,7 @@ export default async function ProjectSetupPage({
     .limit(1)
     .maybeSingle()
 
-  if (
-    organizationError ||
-    !organization
-  ) {
+  if (organizationError || !organization) {
     console.error(
       'RitsuFlow organization could not be loaded.',
       organizationError
@@ -140,63 +104,65 @@ export default async function ProjectSetupPage({
   }
 
   const {
-    data: projectsData,
-    error: projectsError,
+    data: projectCodes,
+    error: projectCodesError,
   } = await supabase
     .from('projects')
-    .select(`
-      id,
-      code,
-      name,
-      client_name,
-      status,
-      city,
-      state_region,
-      country_code,
-      proposal_number,
-      contract_number,
-      contract_value,
-      currency_code,
-      planned_start_date,
-      planned_finish_date,
-      address_line,
-      neighborhood,
-      postal_code,
-      cover_image_path,
-      latitude,
-      longitude,
-      geofence_radius_m,
-      geofence_enabled,
-      max_gps_accuracy_m
-    `)
+    .select('code')
     .eq(
       'organization_id',
       organization.id
     )
-    .order('created_at', {
-      ascending: false,
-    })
 
-  if (projectsError) {
+  if (projectCodesError) {
     console.error(
-      'RitsuFlow projects could not be loaded.',
-      projectsError
+      'Project codes could not be loaded.',
+      projectCodesError
     )
   }
 
-  const projects =
-    projectsData || []
-
-  let selectedProject = null
+  let project = null
 
   if (projectId) {
-    selectedProject =
-      projects.find(
-        (project) =>
-          project.id === projectId
-      ) || null
+    const {
+      data: projectData,
+      error: projectError,
+    } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        code,
+        name,
+        client_name,
+        status,
+        proposal_number,
+        contract_number,
+        contract_value,
+        currency_code,
+        planned_start_date,
+        planned_finish_date,
+        address_line,
+        neighborhood,
+        city,
+        state_region,
+        postal_code,
+        country_code,
+        cover_image_path,
+        latitude,
+        longitude,
+        geofence_radius_m,
+        geofence_enabled,
+        max_gps_accuracy_m
+      `)
+      .eq('id', projectId)
+      .maybeSingle()
 
-    if (!selectedProject) {
+    if (projectError || !projectData) {
+      console.error(
+        'Requested project could not be loaded.',
+        projectError
+      )
+
       return (
         <div className={styles.container}>
           <div className={styles.errorPanel}>
@@ -217,290 +183,51 @@ export default async function ProjectSetupPage({
             </p>
 
             <Link
-              href="/dashboard/projects/setup"
+              href="/dashboard/projetos/lista"
               className={styles.backLink}
             >
-              Select another project
+              Return to projects
             </Link>
           </div>
         </div>
       )
     }
+
+    project = projectData
   }
 
   const suggestedCode =
-    createSuggestedCode(projects)
-
-  if (
-    !selectedProject &&
-    !isCreateMode
-  ) {
-    return (
-      <div className={styles.container}>
-        <section className={styles.heading}>
-          <div
-            className={
-              styles.headingContent
-            }
-          >
-            <p className={styles.eyebrow}>
-              Project foundation
-            </p>
-
-            <h1 className={styles.title}>
-              Project Setup
-            </h1>
-
-            <p
-              className={
-                styles.description
-              }
-            >
-              Select a project from your
-              portfolio to review or update its
-              identity, contract information,
-              planned dates, geographic data,
-              and project cover image.
-            </p>
-          </div>
-
-          <Link
-            href="/dashboard/projects"
-            className={styles.backLink}
-          >
-            ← Back to projects
-          </Link>
-        </section>
-
-        <div className={styles.contextBar}>
-          <div
-            className={
-              styles.contextIdentity
-            }
-          >
-            <span
-              className={
-                styles.contextIcon
-              }
-            >
-              OR
-            </span>
-
-            <div>
-              <p
-                className={
-                  styles.contextLabel
-                }
-              >
-                Organization
-              </p>
-
-              <p
-                className={
-                  styles.contextValue
-                }
-              >
-                {organization.name}
-              </p>
-            </div>
-          </div>
-
-          <span
-            className={
-              styles.contextMode
-            }
-          >
-            {projects.length === 1
-              ? '1 project'
-              : `${projects.length} projects`}
-          </span>
-        </div>
-
-        <article
-          className={styles.formPanel}
-        >
-          <div
-            className={`${styles.formHeader} ${selectorStyles.selectorHeader}`}
-          >
-            <div>
-              <h2
-                className={
-                  styles.formTitle
-                }
-              >
-                Select a project
-              </h2>
-
-              <p
-                className={
-                  styles.formDescription
-                }
-              >
-                Choose the project whose setup
-                you want to review or update.
-              </p>
-            </div>
-
-            <Link
-              href="/dashboard/projects/setup?mode=new"
-              className={
-                styles.primaryButton
-              }
-            >
-              + Create new project
-            </Link>
-          </div>
-
-          {projects.length === 0 ? (
-            <div
-              className={
-                selectorStyles.emptyState
-              }
-            >
-              <h3
-                className={
-                  selectorStyles.emptyTitle
-                }
-              >
-                No projects available.
-              </h3>
-
-              <p
-                className={
-                  selectorStyles.emptyDescription
-                }
-              >
-                Create the first project before
-                defining its location structure
-                and production scope.
-              </p>
-
-              <Link
-                href="/dashboard/projects/setup?mode=new"
-                className={
-                  styles.primaryButton
-                }
-              >
-                Create first project
-              </Link>
-            </div>
-          ) : (
-            <div className={styles.section}>
-              <div
-                className={
-                  selectorStyles.projectList
-                }
-              >
-                {projects.map((project) => (
-                  <article
-                    className={
-                      selectorStyles.projectCard
-                    }
-                    key={project.id}
-                  >
-                    <span
-                      className={
-                        selectorStyles.projectCode
-                      }
-                    >
-                      {project.code ||
-                        'Unassigned'}
-                    </span>
-
-                    <div
-                      className={
-                        selectorStyles.projectIdentity
-                      }
-                    >
-                      <span
-                        className={
-                          selectorStyles.projectName
-                        }
-                      >
-                        {project.name}
-                      </span>
-
-                      <span
-                        className={
-                          selectorStyles.projectLocation
-                        }
-                      >
-                        {formatLocation(project)}
-                      </span>
-                    </div>
-
-                    <span
-                      className={
-                        selectorStyles.projectClient
-                      }
-                    >
-                      {project.client_name ||
-                        'Client not specified'}
-                    </span>
-
-                    <span
-                      className={
-                        selectorStyles.projectStatus
-                      }
-                    >
-                      {statusLabels[
-                        project.status
-                      ] || project.status}
-                    </span>
-
-                    <Link
-                      href={`/dashboard/projects/setup?projectId=${project.id}`}
-                      className={
-                        selectorStyles.configureLink
-                      }
-                    >
-                      Configure →
-                    </Link>
-                  </article>
-                ))}
-              </div>
-            </div>
-          )}
-        </article>
-      </div>
+    createSuggestedCode(
+      projectCodes || []
     )
-  }
 
   return (
     <div className={styles.container}>
       <section className={styles.heading}>
-        <div
-          className={
-            styles.headingContent
-          }
-        >
+        <div className={styles.headingContent}>
           <p className={styles.eyebrow}>
             Project foundation
           </p>
 
           <h1 className={styles.title}>
-            {selectedProject
+            {project
               ? 'Edit Project'
-              : 'Create Project'}
+              : 'Project Setup'}
           </h1>
 
-          <p
-            className={
-              styles.description
-            }
-          >
-            Establish the project identity,
-            project image, planned boundaries,
-            geographic information, and
-            production foundation.
+          <p className={styles.description}>
+            Establish the project identity and
+            planned boundaries before defining
+            its location breakdown structure and
+            production scope.
           </p>
         </div>
 
         <Link
-          href="/dashboard/projects/setup"
+          href="/dashboard/projetos/lista"
           className={styles.backLink}
         >
-          ← Select project
+          ← Back to projects
         </Link>
       </section>
 
@@ -510,7 +237,7 @@ export default async function ProjectSetupPage({
           organization.name
         }
         userId={user.id}
-        project={selectedProject}
+        project={project}
         suggestedCode={suggestedCode}
       />
     </div>
