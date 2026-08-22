@@ -166,7 +166,8 @@ export default async function ProjectSetupPage({
       latitude,
       longitude,
       geofence_radius_m,
-      geofence_enabled
+      geofence_enabled,
+      max_gps_accuracy_m
     `)
     .eq(
       'organization_id',
