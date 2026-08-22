@@ -214,6 +214,7 @@ export default function MasterPlanPage() {
   };
 
   const [projetosLista, setProjetosLista] = useState([]);
+  const [projectCoverUrls, setProjectCoverUrls] = useState({});
   const [projetoSelecionado, setProjetoSelecionado] = useState('');
 
   const [linhaDeBaseCongelada, setLinhaDeBaseCongelada] = useState(false);
@@ -407,7 +408,18 @@ export default function MasterPlanPage() {
     const fetchProjetos = async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, code, name, client_name, status, created_at')
+        .select(`
+          id,
+          code,
+          name,
+          client_name,
+          status,
+          city,
+          state_region,
+          country_code,
+          cover_image_path,
+          created_at
+        `)
         .neq('status', 'archived')
         .order('created_at', { ascending: false });
 
@@ -416,7 +428,36 @@ export default function MasterPlanPage() {
         return;
       }
 
-      setProjetosLista(data || []);
+      const projects = data || [];
+      setProjetosLista(projects);
+
+      // If the user opened a project card, restore that project directly
+      // from the URL while keeping the sidebar route unchanged.
+      const projectIdFromUrl = new URLSearchParams(window.location.search).get('projectId');
+      if (projectIdFromUrl && projects.some((project) => project.id === projectIdFromUrl)) {
+        setProjetoSelecionado(projectIdFromUrl);
+      }
+
+      // Project covers use the same private Storage bucket already used by
+      // Project Setup and Daily Reports project cards.
+      const coverEntries = await Promise.all(
+        projects.map(async (project) => {
+          if (!project.cover_image_path) return [project.id, ''];
+
+          const { data: signedData, error: signedError } = await supabase.storage
+            .from('project-covers')
+            .createSignedUrl(project.cover_image_path, 60 * 60);
+
+          if (signedError) {
+            console.warn('Master Plan - project cover:', signedError);
+            return [project.id, ''];
+          }
+
+          return [project.id, signedData?.signedUrl || ''];
+        })
+      );
+
+      setProjectCoverUrls(Object.fromEntries(coverEntries));
     };
 
     fetchProjetos();
@@ -1182,6 +1223,96 @@ export default function MasterPlanPage() {
     fontSize: '0.75rem', display: 'inline-block', marginTop: '5px'
   };
 
+  // ----------------------------------------------------
+  // MASTER PLAN PROJECT SELECTOR
+  // ----------------------------------------------------
+  // The sidebar opens this portfolio view first. Selecting a project keeps
+  // the existing Master Plan workspace on the same route using ?projectId=.
+  if (!projetoSelecionado) {
+    return (
+      <main style={{ minHeight: 'calc(100vh - 80px)', padding: '24px 22px 50px', background: 'radial-gradient(circle at top right, rgba(8, 170, 150, 0.06), transparent 28%), #f8fafc', fontFamily: 'sans-serif' }}>
+        <section style={{ marginBottom: '30px' }}>
+          <p style={{ margin: '0 0 10px', color: '#009f8e', fontSize: '0.78rem', fontWeight: 900, letterSpacing: '0.13em', textTransform: 'uppercase' }}>
+            PLANNING &amp; PRODUCTION CONTROL
+          </p>
+          <h1 style={{ margin: 0, color: '#061b2f', fontSize: '3.35rem', lineHeight: 1, fontWeight: 900, letterSpacing: '-0.04em' }}>
+            Master Plan
+          </h1>
+          <p style={{ margin: '18px 0 0', color: '#536a86', fontSize: '0.95rem' }}>
+            Select a project to access its Master Plan.
+          </p>
+        </section>
+
+        {projetosLista.length === 0 ? (
+          <div style={{ maxWidth: '620px', padding: '28px', border: '1px dashed #cbd5e1', borderRadius: '14px', background: '#fff', color: '#64748b' }}>
+            No projects are available for Master Plan.
+          </div>
+        ) : (
+          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 365px))', gap: '22px', alignItems: 'start' }}>
+            {projetosLista.map((project) => {
+              const locationText = [project.city, project.state_region].filter(Boolean).join(', ');
+              const coverUrl = projectCoverUrls[project.id];
+
+              return (
+                <article key={project.id} style={{ overflow: 'hidden', border: '1px solid #d9e2ec', borderRadius: '15px', background: '#fff', boxShadow: '0 14px 30px rgba(15, 23, 42, 0.055)' }}>
+                  <div style={{ position: 'relative', height: '215px', overflow: 'hidden', background: 'linear-gradient(135deg, #173b5f, #2f6e78)' }}>
+                    {coverUrl ? (
+                      <img src={coverUrl} alt={`${project.name} project`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.72)', fontSize: '0.8rem', fontWeight: 800, letterSpacing: '0.08em' }}>
+                        PROJECT COVER
+                      </div>
+                    )}
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(4, 24, 43, 0.86) 0%, rgba(4, 24, 43, 0.2) 55%, rgba(4, 24, 43, 0.05) 100%)' }} />
+                    <div style={{ position: 'absolute', left: '18px', right: '18px', bottom: '17px', color: '#fff' }}>
+                      <div style={{ marginBottom: '6px', fontSize: '0.68rem', fontWeight: 900, letterSpacing: '0.12em' }}>
+                        {project.code || 'UNASSIGNED'}
+                      </div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 900, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                        {project.name}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '18px 19px 16px' }}>
+                    <p style={{ margin: '0 0 7px', color: '#00a18f', fontSize: '0.63rem', fontWeight: 900, letterSpacing: '0.13em' }}>PROJECT</p>
+                    <h2 style={{ margin: '0 0 7px', color: '#061b2f', fontSize: '1.05rem', fontWeight: 900 }}>{project.name}</h2>
+                    <p style={{ margin: '0 0 5px', color: '#536a86', fontSize: '0.78rem' }}>{project.client_name || 'Client not assigned'}</p>
+                    <p style={{ margin: 0, color: '#7890a8', fontSize: '0.74rem' }}>{locationText || project.country_code || 'Location not assigned'}</p>
+
+                    <div style={{ height: '1px', margin: '19px 0 17px', background: '#e6edf3' }} />
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', marginBottom: '11px' }}>
+                      <span style={{ color: '#36516d', fontSize: '0.68rem', fontWeight: 900 }}>Overall Progress</span>
+                      <span style={{ color: '#00a18f', fontSize: '0.72rem', fontWeight: 900 }}>—</span>
+                    </div>
+                    <div style={{ width: '100%', height: '7px', overflow: 'hidden', borderRadius: '999px', background: '#e5ebf0' }}>
+                      <div style={{ width: '0%', height: '100%', borderRadius: '999px', background: '#00aa96' }} />
+                    </div>
+                    <p style={{ margin: '9px 0 0', color: '#91a3b5', fontSize: '0.66rem' }}>
+                      Production Control data not available yet.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = `/dashboard/projetos/masterplan?projectId=${project.id}`;
+                    }}
+                    style={{ width: '100%', minHeight: '48px', padding: '0 19px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: 0, borderTop: '1px solid #e6edf3', background: '#fff', color: '#071c31', cursor: 'pointer', fontSize: '0.73rem', fontWeight: 900, textAlign: 'left' }}
+                  >
+                    <span>Open Project</span>
+                    <span style={{ width: '28px', height: '28px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', background: '#e8faf6', color: '#008f80', fontSize: '1rem' }}>→</span>
+                  </button>
+                </article>
+              );
+            })}
+          </section>
+        )}
+      </main>
+    );
+  }
+
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
       
@@ -1200,7 +1331,7 @@ export default function MasterPlanPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <select
                 value={projetoSelecionado}
-                onChange={(e) => setProjetoSelecionado(e.target.value)}
+                onChange={(e) => { const projectId = e.target.value; setProjetoSelecionado(projectId); if (projectId) window.history.replaceState({}, '', `/dashboard/projetos/masterplan?projectId=${projectId}`); }}
                 style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e0', minWidth: '300px', fontSize: '0.9rem', outline: 'none' }}
               >
                 <option value="">{t.selectProject}</option>
