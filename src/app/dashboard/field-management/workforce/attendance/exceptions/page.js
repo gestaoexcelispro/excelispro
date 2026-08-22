@@ -32,14 +32,16 @@ function formatWorkerName(worker) {
     return 'Unknown worker'
   }
 
-  return [
-    worker.first_name,
-    worker.middle_name,
-    worker.last_name,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .trim() || 'Unnamed worker'
+  return (
+    [
+      worker.first_name,
+      worker.middle_name,
+      worker.last_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim() || 'Unnamed worker'
+  )
 }
 
 function formatProjectName(project) {
@@ -71,6 +73,22 @@ function formatTime(value) {
     {
       hour: '2-digit',
       minute: '2-digit',
+    }
+  ).format(
+    new Date(value)
+  )
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '—'
+  }
+
+  return new Intl.DateTimeFormat(
+    undefined,
+    {
+      dateStyle: 'medium',
+      timeStyle: 'short',
     }
   ).format(
     new Date(value)
@@ -137,6 +155,36 @@ function calculateOpenMinutes(
   )
 }
 
+function formatExceptionCode(code) {
+  if (!code) {
+    return 'Recorded Exception'
+  }
+
+  const labels = {
+    GEOFENCE_OUTSIDE:
+      'Outside Geofence',
+
+    LOCATION_UNAVAILABLE:
+      'Location Unavailable',
+
+    MULTIPLE_ATTENDANCE_EXCEPTIONS:
+      'Multiple Attendance Exceptions',
+  }
+
+  return (
+    labels[code] ||
+    code
+      .toLowerCase()
+      .split('_')
+      .map(
+        (word) =>
+          word.charAt(0).toUpperCase() +
+          word.slice(1)
+      )
+      .join(' ')
+  )
+}
+
 function buildException({
   type,
   severity,
@@ -145,6 +193,7 @@ function buildException({
   title,
   description,
   value,
+  persisted = false,
 }) {
   return {
     id: `${type}-${session.id}`,
@@ -155,6 +204,7 @@ function buildException({
     title,
     description,
     value,
+    persisted,
   }
 }
 
@@ -168,6 +218,9 @@ export default function AttendanceExceptionsPage() {
   const [sessions, setSessions] =
     useState([])
 
+  const [actorsById, setActorsById] =
+    useState(new Map())
+
   const [
     selectedProjectId,
     setSelectedProjectId,
@@ -180,6 +233,26 @@ export default function AttendanceExceptionsPage() {
     getLocalDateKey()
   )
 
+  const [
+    queueFilter,
+    setQueueFilter,
+  ] = useState('open')
+
+  const [
+    selectedException,
+    setSelectedException,
+  ] = useState(null)
+
+  const [
+    resolutionNotes,
+    setResolutionNotes,
+  ] = useState('')
+
+  const [
+    processingResolution,
+    setProcessingResolution,
+  ] = useState(false)
+
   const [loading, setLoading] =
     useState(true)
 
@@ -190,6 +263,9 @@ export default function AttendanceExceptionsPage() {
     useState(() => Date.now())
 
   const [error, setError] =
+    useState('')
+
+  const [success, setSuccess] =
     useState('')
 
   useEffect(() => {
@@ -283,6 +359,82 @@ export default function AttendanceExceptionsPage() {
       )
     }, [])
 
+  const resolveActors =
+    useCallback(
+      async (
+        attendanceSessions
+      ) => {
+        const actorIds = [
+          ...new Set(
+            attendanceSessions
+              .map(
+                (session) =>
+                  session.exception_resolved_by
+              )
+              .filter(Boolean)
+          ),
+        ]
+
+        if (
+          actorIds.length === 0
+        ) {
+          setActorsById(
+            new Map()
+          )
+          return
+        }
+
+        const resolved =
+          await Promise.all(
+            actorIds.map(
+              async (userId) => {
+                const {
+                  data,
+                  error:
+                    actorError,
+                } =
+                  await supabase.rpc(
+                    'field_resolve_attendance_actor',
+                    {
+                      p_user_id:
+                        userId,
+                    }
+                  )
+
+                if (actorError) {
+                  console.warn(
+                    'Exception resolver identity could not be loaded.',
+                    actorError
+                  )
+
+                  return [
+                    userId,
+                    null,
+                  ]
+                }
+
+                const actor =
+                  Array.isArray(
+                    data
+                  )
+                    ? data[0]
+                    : data
+
+                return [
+                  userId,
+                  actor || null,
+                ]
+              }
+            )
+          )
+
+        setActorsById(
+          new Map(resolved)
+        )
+      },
+      []
+    )
+
   const loadExceptionsData =
     useCallback(
       async (
@@ -297,6 +449,9 @@ export default function AttendanceExceptionsPage() {
           !workDate
         ) {
           setSessions([])
+          setActorsById(
+            new Map()
+          )
           return
         }
 
@@ -330,6 +485,11 @@ export default function AttendanceExceptionsPage() {
               has_exception,
               exception_code,
               exception_notes,
+              exception_resolution_status,
+              exception_resolution_action,
+              exception_resolution_notes,
+              exception_resolved_by,
+              exception_resolved_at,
               created_at,
               updated_at
             `)
@@ -352,8 +512,15 @@ export default function AttendanceExceptionsPage() {
             throw sessionsError
           }
 
-          setSessions(
+          const loadedSessions =
             data || []
+
+          setSessions(
+            loadedSessions
+          )
+
+          await resolveActors(
+            loadedSessions
           )
 
           setCurrentTime(
@@ -376,7 +543,7 @@ export default function AttendanceExceptionsPage() {
           }
         }
       },
-      []
+      [resolveActors]
     )
 
   useEffect(() => {
@@ -513,7 +680,9 @@ export default function AttendanceExceptionsPage() {
             workerSessions.filter(
               (session) =>
                 session.status ===
-                'closed'
+                'closed' ||
+                session.status ===
+                'corrected'
             )
 
           const openSessions =
@@ -602,6 +771,9 @@ export default function AttendanceExceptionsPage() {
                   totalWorkedMinutes -
                     allowedMinutes
                 )}`,
+
+                persisted:
+                  false,
               })
             )
           }
@@ -645,6 +817,9 @@ export default function AttendanceExceptionsPage() {
                     formatMinutes(
                       minutesOpen
                     ),
+
+                  persisted:
+                    false,
                 })
               )
             }
@@ -657,28 +832,43 @@ export default function AttendanceExceptionsPage() {
             )
             .forEach(
               (session) => {
+                const code =
+                  session.exception_code
+
+                const severity =
+                  code ===
+                  'MULTIPLE_ATTENDANCE_EXCEPTIONS'
+                    ? 'critical'
+                    : 'warning'
+
                 items.push(
                   buildException({
                     type:
                       'recorded_exception',
 
-                    severity:
-                      'warning',
+                    severity,
 
                     worker,
 
                     session,
 
                     title:
-                      session.exception_code ||
-                      'Recorded Exception',
+                      formatExceptionCode(
+                        code
+                      ),
 
                     description:
                       session.exception_notes ||
                       'This attendance session has been marked with an exception.',
 
                     value:
-                      'Review',
+                      session.exception_resolution_status ===
+                      'resolved'
+                        ? 'Resolved'
+                        : 'Review',
+
+                    persisted:
+                      true,
                   })
                 )
               }
@@ -729,41 +919,284 @@ export default function AttendanceExceptionsPage() {
       currentTime,
     ])
 
+  const filteredExceptions =
+    useMemo(() => {
+      if (
+        queueFilter === 'all'
+      ) {
+        return exceptions
+      }
+
+      if (
+        queueFilter === 'resolved'
+      ) {
+        return exceptions.filter(
+          (exception) =>
+            exception.persisted &&
+            exception.session
+              .exception_resolution_status ===
+              'resolved'
+        )
+      }
+
+      return exceptions.filter(
+        (exception) =>
+          !exception.persisted ||
+          exception.session
+            .exception_resolution_status !==
+            'resolved'
+      )
+    }, [
+      exceptions,
+      queueFilter,
+    ])
+
   const criticalCount =
     useMemo(() => {
-      return exceptions.filter(
+      return filteredExceptions.filter(
         (exception) =>
           exception.severity ===
           'critical'
       ).length
-    }, [exceptions])
+    }, [filteredExceptions])
 
   const warningCount =
     useMemo(() => {
-      return exceptions.filter(
+      return filteredExceptions.filter(
         (exception) =>
           exception.severity ===
           'warning'
       ).length
-    }, [exceptions])
+    }, [filteredExceptions])
 
   const openSessionCount =
     useMemo(() => {
-      return exceptions.filter(
+      return filteredExceptions.filter(
         (exception) =>
           exception.type ===
             'open_session'
       ).length
-    }, [exceptions])
+    }, [filteredExceptions])
 
-  const overAllowedCount =
+  const recordedCount =
+    useMemo(() => {
+      return filteredExceptions.filter(
+        (exception) =>
+          exception.persisted
+      ).length
+    }, [filteredExceptions])
+
+  const resolvedCount =
     useMemo(() => {
       return exceptions.filter(
         (exception) =>
-          exception.type ===
-            'over_allowed_hours'
+          exception.persisted &&
+          exception.session
+            .exception_resolution_status ===
+            'resolved'
       ).length
     }, [exceptions])
+
+  function openExceptionReview(
+    exception
+  ) {
+    if (!exception?.persisted) {
+      return
+    }
+
+    setError('')
+    setSuccess('')
+
+    setSelectedException(
+      exception
+    )
+
+    setResolutionNotes(
+      exception.session
+        .exception_resolution_notes ||
+        ''
+    )
+  }
+
+  function closeExceptionReview() {
+    if (processingResolution) {
+      return
+    }
+
+    setSelectedException(null)
+    setResolutionNotes('')
+  }
+
+  async function handleMarkReviewed() {
+    if (
+      !selectedException?.persisted
+    ) {
+      return
+    }
+
+    setProcessingResolution(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const {
+        error: reviewError,
+      } = await supabase.rpc(
+        'field_review_attendance_exception',
+        {
+          p_session_id:
+            selectedException
+              .session.id,
+
+          p_review_notes:
+            resolutionNotes.trim() ||
+            null,
+        }
+      )
+
+      if (reviewError) {
+        throw reviewError
+      }
+
+      const workerName =
+        formatWorkerName(
+          selectedException.worker
+        )
+
+      await loadExceptionsData(
+        selectedProjectId,
+        selectedDate
+      )
+
+      setSelectedException(
+        null
+      )
+
+      setResolutionNotes('')
+
+      setSuccess(
+        `${workerName}'s attendance exception is now under review.`
+      )
+    } catch (
+      reviewError
+    ) {
+      console.error(
+        reviewError
+      )
+
+      setError(
+        reviewError?.message ||
+          'Unable to mark the exception as reviewed.'
+      )
+    } finally {
+      setProcessingResolution(
+        false
+      )
+    }
+  }
+
+  async function handleResolve(
+    action
+  ) {
+    if (
+      !selectedException?.persisted
+    ) {
+      return
+    }
+
+    const notes =
+      resolutionNotes.trim()
+
+    if (!notes) {
+      setError(
+        'Resolution notes are required before resolving an exception.'
+      )
+      return
+    }
+
+    setProcessingResolution(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const {
+        error: resolutionError,
+      } = await supabase.rpc(
+        'field_resolve_attendance_exception',
+        {
+          p_session_id:
+            selectedException
+              .session.id,
+
+          p_resolution_action:
+            action,
+
+          p_resolution_notes:
+            notes,
+        }
+      )
+
+      if (resolutionError) {
+        throw resolutionError
+      }
+
+      const workerName =
+        formatWorkerName(
+          selectedException.worker
+        )
+
+      const actionLabels = {
+        accepted:
+          'accepted',
+
+        rejected:
+          'rejected',
+
+        dismissed:
+          'dismissed',
+      }
+
+      await loadExceptionsData(
+        selectedProjectId,
+        selectedDate
+      )
+
+      setSelectedException(
+        null
+      )
+
+      setResolutionNotes('')
+
+      setSuccess(
+        `${workerName}'s attendance exception was ${actionLabels[action]}.`
+      )
+    } catch (
+      resolutionError
+    ) {
+      console.error(
+        resolutionError
+      )
+
+      setError(
+        resolutionError?.message ||
+          'Unable to resolve the attendance exception.'
+      )
+    } finally {
+      setProcessingResolution(
+        false
+      )
+    }
+  }
+
+  const selectedResolver =
+    selectedException
+      ?.session
+      ?.exception_resolved_by
+      ? actorsById.get(
+          selectedException.session
+            .exception_resolved_by
+        )
+      : null
 
   return (
     <div
@@ -815,17 +1248,15 @@ export default function AttendanceExceptionsPage() {
             <p
               style={{
                 margin: '8px 0 0',
-                maxWidth: '840px',
+                maxWidth: '860px',
                 color: '#64748b',
                 lineHeight: 1.55,
               }}
             >
-              Monitor workers
-              requiring attention
-              because of open
-              sessions, excessive
-              hours, or recorded
-              attendance exceptions.
+              Monitor operational alerts,
+              review recorded attendance
+              exceptions, and document
+              supervisor resolution decisions.
             </p>
           </div>
 
@@ -846,20 +1277,9 @@ export default function AttendanceExceptionsPage() {
                 }
               )
             }
-            style={{
-              minHeight: '40px',
-              padding: '0 15px',
-              border:
-                '1px solid #cbd5e1',
-              borderRadius: '9px',
-              background: '#ffffff',
-              color: '#082a4a',
-              cursor:
-                refreshing
-                  ? 'wait'
-                  : 'pointer',
-              fontWeight: 750,
-            }}
+            style={
+              secondaryButtonStyle
+            }
           >
             {refreshing
               ? 'Refreshing...'
@@ -872,7 +1292,7 @@ export default function AttendanceExceptionsPage() {
         style={{
           display: 'grid',
           gridTemplateColumns:
-            'minmax(280px, 1fr) minmax(180px, 240px) minmax(180px, 240px)',
+            'minmax(260px, 1fr) minmax(180px, 220px) minmax(180px, 220px) minmax(180px, 220px)',
           gap: '14px',
           padding: '18px',
           border:
@@ -932,6 +1352,32 @@ export default function AttendanceExceptionsPage() {
           />
         </FormField>
 
+        <FormField
+          label="Queue"
+        >
+          <select
+            value={queueFilter}
+            onChange={(event) =>
+              setQueueFilter(
+                event.target.value
+              )
+            }
+            style={inputStyle}
+          >
+            <option value="open">
+              Open / Review
+            </option>
+
+            <option value="resolved">
+              Resolved
+            </option>
+
+            <option value="all">
+              All
+            </option>
+          </select>
+        </FormField>
+
         <InfoField
           label="Daily Allowance"
           value={
@@ -953,17 +1399,18 @@ export default function AttendanceExceptionsPage() {
       {error && (
         <div
           role="alert"
-          style={{
-            padding: '12px 14px',
-            border:
-              '1px solid #fecaca',
-            borderRadius: '10px',
-            background: '#fef2f2',
-            color: '#991b1b',
-            fontSize: '0.84rem',
-          }}
+          style={errorMessageStyle}
         >
           {error}
+        </div>
+      )}
+
+      {success && (
+        <div
+          role="status"
+          style={successMessageStyle}
+        >
+          {success}
         </div>
       )}
 
@@ -971,7 +1418,7 @@ export default function AttendanceExceptionsPage() {
         style={{
           display: 'grid',
           gridTemplateColumns:
-            'repeat(auto-fit, minmax(190px, 1fr))',
+            'repeat(auto-fit, minmax(180px, 1fr))',
           gap: '14px',
         }}
       >
@@ -1001,13 +1448,18 @@ export default function AttendanceExceptionsPage() {
         />
 
         <MetricCard
-          label="Over Allowed"
-          value={overAllowedCount}
+          label="Recorded Exceptions"
+          value={recordedCount}
           tone={
-            overAllowedCount > 0
-              ? 'danger'
+            recordedCount > 0
+              ? 'info'
               : 'default'
           }
+        />
+
+        <MetricCard
+          label="Resolved Today"
+          value={resolvedCount}
         />
       </section>
 
@@ -1022,6 +1474,11 @@ export default function AttendanceExceptionsPage() {
       >
         <div
           style={{
+            display: 'flex',
+            justifyContent:
+              'space-between',
+            alignItems: 'center',
+            gap: '12px',
             padding: '16px 18px',
             borderBottom:
               '1px solid #e2e8f0',
@@ -1036,6 +1493,21 @@ export default function AttendanceExceptionsPage() {
           >
             Exception Queue
           </h3>
+
+          <span
+            style={{
+              color: '#64748b',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+            }}
+          >
+            {filteredExceptions.length}{' '}
+            item
+            {filteredExceptions.length ===
+            1
+              ? ''
+              : 's'}
+          </span>
         </div>
 
         {loading ? (
@@ -1043,13 +1515,12 @@ export default function AttendanceExceptionsPage() {
             Loading Attendance
             Exceptions...
           </MessageArea>
-        ) : exceptions.length ===
+        ) : filteredExceptions.length ===
           0 ? (
           <MessageArea>
-            No attendance
-            exceptions were
-            detected for this
-            project and date.
+            No attendance exceptions
+            were found for the selected
+            queue, project, and date.
           </MessageArea>
         ) : (
           <div
@@ -1060,7 +1531,7 @@ export default function AttendanceExceptionsPage() {
             <table
               style={{
                 width: '100%',
-                minWidth: '1250px',
+                minWidth: '1500px',
                 borderCollapse:
                   'collapse',
               }}
@@ -1105,152 +1576,191 @@ export default function AttendanceExceptionsPage() {
                   </TableHeader>
 
                   <TableHeader>
-                    Status
+                    Resolution
+                  </TableHeader>
+
+                  <TableHeader>
+                    Action
                   </TableHeader>
                 </tr>
               </thead>
 
               <tbody>
-                {exceptions.map(
-                  (exception) => (
-                    <tr
-                      key={
-                        exception.id
-                      }
-                      style={{
-                        borderTop:
-                          '1px solid #e2e8f0',
-                      }}
-                    >
-                      <TableCell>
-                        <SeverityBadge
-                          severity={
-                            exception.severity
-                          }
-                        />
-                      </TableCell>
-
-                      <TableCell>
-                        <span
-                          style={{
-                            fontFamily:
-                              'monospace',
-                            fontWeight:
-                              700,
-                          }}
-                        >
-                          {exception
-                            .worker
-                            ?.field_id ||
-                            '—'}
-                        </span>
-                      </TableCell>
-
-                      <TableCell>
-                        <strong
-                          style={{
-                            color:
-                              '#0f172a',
-                          }}
-                        >
-                          {formatWorkerName(
-                            exception.worker
-                          )}
-                        </strong>
-                      </TableCell>
-
-                      <TableCell>
-                        <strong
-                          style={{
-                            color:
-                              '#334155',
-                          }}
-                        >
-                          {
-                            exception.title
-                          }
-                        </strong>
-                      </TableCell>
-
-                      <TableCell>
-                        {formatTime(
-                          exception
+                {filteredExceptions.map(
+                  (exception) => {
+                    const resolutionStatus =
+                      exception.persisted
+                        ? exception
                             .session
-                            .check_in_at
-                        )}
-                      </TableCell>
+                            .exception_resolution_status ||
+                          'open'
+                        : 'operational'
 
-                      <TableCell>
-                        {exception
-                          .session
-                          .check_out_at
-                          ? formatTime(
-                              exception
-                                .session
-                                .check_out_at
-                            )
-                          : 'Open'}
-                      </TableCell>
+                    return (
+                      <tr
+                        key={
+                          exception.id
+                        }
+                        style={{
+                          borderTop:
+                            '1px solid #e2e8f0',
+                        }}
+                      >
+                        <TableCell>
+                          <SeverityBadge
+                            severity={
+                              exception.severity
+                            }
+                          />
+                        </TableCell>
 
-                      <TableCell>
-                        <strong>
-                          {
-                            exception.value
-                          }
-                        </strong>
-                      </TableCell>
+                        <TableCell>
+                          <span
+                            style={{
+                              fontFamily:
+                                'monospace',
+                              fontWeight:
+                                700,
+                            }}
+                          >
+                            {exception
+                              .worker
+                              ?.field_id ||
+                              '—'}
+                          </span>
+                        </TableCell>
 
-                      <TableCell>
-                        <span
-                          style={{
-                            display:
-                              'block',
-                            maxWidth:
-                              '320px',
-                            whiteSpace:
-                              'normal',
-                            lineHeight:
-                              1.45,
-                          }}
-                        >
-                          {
-                            exception.description
-                          }
-                        </span>
-                      </TableCell>
+                        <TableCell>
+                          <strong
+                            style={{
+                              color:
+                                '#0f172a',
+                            }}
+                          >
+                            {formatWorkerName(
+                              exception.worker
+                            )}
+                          </strong>
+                        </TableCell>
 
-                      <TableCell>
-                        <span
-                          style={{
-                            display:
-                              'inline-flex',
-                            padding:
-                              '5px 8px',
-                            border:
-                              '1px solid #e2e8f0',
-                            borderRadius:
-                              '999px',
-                            background:
-                              '#f8fafc',
-                            color:
-                              '#475569',
-                            fontSize:
-                              '0.7rem',
-                            fontWeight:
-                              800,
-                            textTransform:
-                              'capitalize',
-                          }}
-                        >
-                          {
+                        <TableCell>
+                          <strong
+                            style={{
+                              color:
+                                '#334155',
+                            }}
+                          >
+                            {
+                              exception.title
+                            }
+                          </strong>
+                        </TableCell>
+
+                        <TableCell>
+                          {formatTime(
                             exception
                               .session
-                              .status
-                          }
-                        </span>
-                      </TableCell>
-                    </tr>
-                  )
+                              .check_in_at
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          {exception
+                            .session
+                            .check_out_at
+                            ? formatTime(
+                                exception
+                                  .session
+                                  .check_out_at
+                              )
+                            : 'Open'}
+                        </TableCell>
+
+                        <TableCell>
+                          <strong>
+                            {
+                              exception.value
+                            }
+                          </strong>
+                        </TableCell>
+
+                        <TableCell>
+                          <span
+                            style={{
+                              display:
+                                'block',
+                              maxWidth:
+                                '360px',
+                              whiteSpace:
+                                'normal',
+                              lineHeight:
+                                1.45,
+                            }}
+                          >
+                            {
+                              exception.description
+                            }
+                          </span>
+                        </TableCell>
+
+                        <TableCell>
+                          <ResolutionStatusBadge
+                            status={
+                              resolutionStatus
+                            }
+                            action={
+                              exception.persisted
+                                ? exception
+                                    .session
+                                    .exception_resolution_action
+                                : null
+                            }
+                          />
+                        </TableCell>
+
+                        <TableCell>
+                          {exception.persisted ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openExceptionReview(
+                                  exception
+                                )
+                              }
+                              style={
+                                exception
+                                  .session
+                                  .exception_resolution_status ===
+                                'resolved'
+                                  ? secondaryButtonStyle
+                                  : primarySmallButtonStyle
+                              }
+                            >
+                              {exception
+                                .session
+                                .exception_resolution_status ===
+                              'resolved'
+                                ? 'View Resolution'
+                                : 'Review'}
+                            </button>
+                          ) : (
+                            <span
+                              style={{
+                                color:
+                                  '#94a3b8',
+                                fontSize:
+                                  '0.72rem',
+                                fontWeight:
+                                  700,
+                              }}
+                            >
+                              Operational alert
+                            </span>
+                          )}
+                        </TableCell>
+                      </tr>
+                    )
+                  }
                 )}
               </tbody>
             </table>
@@ -1270,17 +1780,514 @@ export default function AttendanceExceptionsPage() {
           lineHeight: 1.55,
         }}
       >
-        Current V1 rules:
-        open sessions are
-        monitored immediately,
-        sessions open for 12
-        hours or more are treated
-        as critical, and workers
-        exceeding the project's
-        standard daily allowance
-        are flagged automatically.
+        Operational alerts such as
+        open sessions and excessive
+        hours remain live monitoring
+        indicators. Resolution actions
+        apply only to persisted
+        attendance exceptions recorded
+        by the backend.
+      </div>
+
+      {selectedException && (
+        <ExceptionReviewModal
+          exception={
+            selectedException
+          }
+          resolver={
+            selectedResolver
+          }
+          resolutionNotes={
+            resolutionNotes
+          }
+          processing={
+            processingResolution
+          }
+          onNotesChange={
+            setResolutionNotes
+          }
+          onClose={
+            closeExceptionReview
+          }
+          onMarkReviewed={
+            handleMarkReviewed
+          }
+          onResolve={
+            handleResolve
+          }
+        />
+      )}
+    </div>
+  )
+}
+
+function ExceptionReviewModal({
+  exception,
+  resolver,
+  resolutionNotes,
+  processing,
+  onNotesChange,
+  onClose,
+  onMarkReviewed,
+  onResolve,
+}) {
+  const session =
+    exception.session
+
+  const status =
+    session.exception_resolution_status ||
+    'open'
+
+  const isResolved =
+    status === 'resolved'
+
+  return (
+    <div
+      style={modalOverlayStyle}
+      role="presentation"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exception-review-title"
+        style={modalStyle}
+      >
+        <div
+          style={modalHeaderStyle}
+        >
+          <div>
+            <p
+              style={{
+                margin: '0 0 5px',
+                color: '#64748b',
+                fontSize:
+                  '0.68rem',
+                fontWeight: 800,
+                letterSpacing:
+                  '0.08em',
+                textTransform:
+                  'uppercase',
+              }}
+            >
+              Attendance Exception
+            </p>
+
+            <h3
+              id="exception-review-title"
+              style={{
+                margin: 0,
+                color: '#061b2f',
+                fontSize:
+                  '1.25rem',
+              }}
+            >
+              {exception.title}
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            disabled={processing}
+            onClick={onClose}
+            style={closeButtonStyle}
+            aria-label="Close exception review"
+          >
+            ×
+          </button>
+        </div>
+
+        <div
+          style={{
+            padding: '20px 22px',
+            display: 'grid',
+            gap: '16px',
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'minmax(0, 1.4fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr)',
+              gap: '12px',
+              padding: '13px 14px',
+              border:
+                '1px solid #e2e8f0',
+              borderRadius:
+                '10px',
+              background:
+                '#f8fafc',
+            }}
+          >
+            <ReadOnlyValue
+              label="Worker"
+              value={formatWorkerName(
+                exception.worker
+              )}
+            />
+
+            <ReadOnlyValue
+              label="Field ID"
+              value={
+                exception.worker
+                  ?.field_id ||
+                '—'
+              }
+            />
+
+            <div>
+              <div
+                style={summaryLabelStyle}
+              >
+                Resolution
+              </div>
+
+              <ResolutionStatusBadge
+                status={status}
+                action={
+                  session.exception_resolution_action
+                }
+              />
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(2, minmax(0, 1fr))',
+              gap: '12px',
+            }}
+          >
+            <ReadOnlyPanel
+              title="Attendance Session"
+            >
+              <ReadOnlyValue
+                label="Check-In"
+                value={formatDateTime(
+                  session.check_in_at
+                )}
+              />
+
+              <ReadOnlyValue
+                label="Check-Out"
+                value={
+                  session.check_out_at
+                    ? formatDateTime(
+                        session.check_out_at
+                      )
+                    : 'Open'
+                }
+              />
+
+              <ReadOnlyValue
+                label="Session Status"
+                value={
+                  session.status ||
+                  '—'
+                }
+              />
+            </ReadOnlyPanel>
+
+            <ReadOnlyPanel
+              title="Detected Exception"
+            >
+              <ReadOnlyValue
+                label="Code"
+                value={
+                  session.exception_code ||
+                  '—'
+                }
+              />
+
+              <ReadOnlyValue
+                label="Description"
+                value={
+                  session.exception_notes ||
+                  exception.description ||
+                  '—'
+                }
+              />
+            </ReadOnlyPanel>
+          </div>
+
+          {isResolved ? (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns:
+                  'repeat(2, minmax(0, 1fr))',
+                gap: '12px',
+              }}
+            >
+              <ReadOnlyPanel
+                title="Resolution Decision"
+                tone="success"
+              >
+                <ReadOnlyValue
+                  label="Action"
+                  value={
+                    session.exception_resolution_action
+                      ? session.exception_resolution_action
+                          .charAt(0)
+                          .toUpperCase() +
+                        session.exception_resolution_action.slice(
+                          1
+                        )
+                      : '—'
+                  }
+                />
+
+                <ReadOnlyValue
+                  label="Resolution Notes"
+                  value={
+                    session.exception_resolution_notes ||
+                    '—'
+                  }
+                />
+              </ReadOnlyPanel>
+
+              <ReadOnlyPanel
+                title="Accountability"
+                tone="success"
+              >
+                <ReadOnlyValue
+                  label="Resolved By"
+                  value={
+                    resolver?.display_name ||
+                    resolver?.email ||
+                    (
+                      session.exception_resolved_by
+                        ? 'Unknown user'
+                        : '—'
+                    )
+                  }
+                />
+
+                <ReadOnlyValue
+                  label="Job Title"
+                  value={
+                    resolver?.job_title ||
+                    '—'
+                  }
+                />
+
+                <ReadOnlyValue
+                  label="Resolved At"
+                  value={formatDateTime(
+                    session.exception_resolved_at
+                  )}
+                />
+              </ReadOnlyPanel>
+            </div>
+          ) : (
+            <>
+              <FormField
+                label={
+                  status === 'reviewed'
+                    ? 'Review / Resolution Notes'
+                    : 'Review Notes'
+                }
+              >
+                <textarea
+                  value={
+                    resolutionNotes
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    onNotesChange(
+                      event.target.value
+                    )
+                  }
+                  disabled={processing}
+                  rows={5}
+                  placeholder="Document the supervisor review, circumstances, and reason for the final decision."
+                  style={textareaStyle}
+                />
+              </FormField>
+
+              <div
+                style={{
+                  padding:
+                    '12px 14px',
+                  border:
+                    '1px solid #bae6fd',
+                  borderRadius:
+                    '10px',
+                  background:
+                    '#f0f9ff',
+                  color: '#075985',
+                  fontSize:
+                    '0.76rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                Accept keeps the
+                attendance punch valid
+                while acknowledging the
+                exception. Reject records
+                that management action is
+                required. Dismiss records
+                that the exception was
+                determined to be
+                irrelevant or false.
+              </div>
+            </>
+          )}
+        </div>
+
+        <div
+          style={modalFooterStyle}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={processing}
+            style={
+              secondaryButtonStyle
+            }
+          >
+            {isResolved
+              ? 'Close'
+              : 'Cancel'}
+          </button>
+
+          {!isResolved && (
+            <>
+              {status === 'open' && (
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={
+                    onMarkReviewed
+                  }
+                  style={
+                    secondaryButtonStyle
+                  }
+                >
+                  {processing
+                    ? 'Saving...'
+                    : 'Mark Reviewed'}
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={processing}
+                onClick={() =>
+                  onResolve(
+                    'dismissed'
+                  )
+                }
+                style={
+                  neutralActionButtonStyle
+                }
+              >
+                Dismiss
+              </button>
+
+              <button
+                type="button"
+                disabled={processing}
+                onClick={() =>
+                  onResolve(
+                    'rejected'
+                  )
+                }
+                style={
+                  dangerActionButtonStyle
+                }
+              >
+                Reject
+              </button>
+
+              <button
+                type="button"
+                disabled={processing}
+                onClick={() =>
+                  onResolve(
+                    'accepted'
+                  )
+                }
+                style={
+                  acceptActionButtonStyle
+                }
+              >
+                {processing
+                  ? 'Saving...'
+                  : 'Accept Punch'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
+  )
+}
+
+function ResolutionStatusBadge({
+  status,
+  action,
+}) {
+  const visualMap = {
+    open: {
+      label: 'Open',
+      color: '#92400e',
+      background: '#fffbeb',
+      border: '#fde68a',
+    },
+
+    reviewed: {
+      label: 'Under Review',
+      color: '#075985',
+      background: '#f0f9ff',
+      border: '#bae6fd',
+    },
+
+    resolved: {
+      label: action
+        ? `Resolved · ${
+            action
+              .charAt(0)
+              .toUpperCase() +
+            action.slice(1)
+          }`
+        : 'Resolved',
+      color: '#166534',
+      background: '#f0fdf4',
+      border: '#bbf7d0',
+    },
+
+    operational: {
+      label: 'Live Alert',
+      color: '#475569',
+      background: '#f8fafc',
+      border: '#e2e8f0',
+    },
+  }
+
+  const visual =
+    visualMap[status] ||
+    visualMap.open
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        width: 'fit-content',
+        padding: '5px 8px',
+        border: `1px solid ${visual.border}`,
+        borderRadius: '999px',
+        background:
+          visual.background,
+        color: visual.color,
+        fontSize: '0.69rem',
+        fontWeight: 800,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {visual.label}
+    </span>
   )
 }
 
@@ -1355,6 +2362,12 @@ function MetricCard({
       border: '#fecaca',
       background: '#fef2f2',
       value: '#b91c1c',
+    },
+
+    info: {
+      border: '#bae6fd',
+      background: '#f0f9ff',
+      value: '#0369a1',
     },
   }
 
@@ -1471,6 +2484,83 @@ function InfoField({
   )
 }
 
+function ReadOnlyPanel({
+  title,
+  children,
+  tone = 'default',
+}) {
+  const success =
+    tone === 'success'
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gap: '11px',
+        padding: '14px 16px',
+        border: `1px solid ${
+          success
+            ? '#bbf7d0'
+            : '#e2e8f0'
+        }`,
+        borderRadius: '10px',
+        background:
+          success
+            ? '#f0fdf4'
+            : '#ffffff',
+      }}
+    >
+      <div
+        style={{
+          color:
+            success
+              ? '#166534'
+              : '#475569',
+          fontSize: '0.7rem',
+          fontWeight: 800,
+          letterSpacing:
+            '0.05em',
+          textTransform:
+            'uppercase',
+        }}
+      >
+        {title}
+      </div>
+
+      {children}
+    </div>
+  )
+}
+
+function ReadOnlyValue({
+  label,
+  value,
+}) {
+  return (
+    <div>
+      <div
+        style={summaryLabelStyle}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          color: '#334155',
+          fontSize: '0.8rem',
+          fontWeight: 700,
+          lineHeight: 1.45,
+          whiteSpace: 'normal',
+          overflowWrap:
+            'anywhere',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
 function TableHeader({
   children,
 }) {
@@ -1539,4 +2629,176 @@ const inputStyle = {
   background: '#ffffff',
   color: '#0f172a',
   fontSize: '0.9rem',
+}
+
+const textareaStyle = {
+  width: '100%',
+  minHeight: '118px',
+  boxSizing: 'border-box',
+  padding: '11px 12px',
+  border: '1px solid #cbd5e1',
+  borderRadius: '9px',
+  background: '#ffffff',
+  color: '#0f172a',
+  fontFamily: 'inherit',
+  fontSize: '0.86rem',
+  lineHeight: 1.5,
+  resize: 'vertical',
+}
+
+const errorMessageStyle = {
+  padding: '12px 14px',
+  border:
+    '1px solid #fecaca',
+  borderRadius: '10px',
+  background: '#fef2f2',
+  color: '#991b1b',
+  fontSize: '0.84rem',
+}
+
+const successMessageStyle = {
+  padding: '12px 14px',
+  border:
+    '1px solid #99f6e4',
+  borderRadius: '10px',
+  background: '#f0fdfa',
+  color: '#115e59',
+  fontSize: '0.84rem',
+}
+
+const secondaryButtonStyle = {
+  minHeight: '38px',
+  padding: '0 13px',
+  border:
+    '1px solid #cbd5e1',
+  borderRadius: '9px',
+  background: '#ffffff',
+  color: '#082a4a',
+  cursor: 'pointer',
+  fontWeight: 750,
+}
+
+const primarySmallButtonStyle = {
+  minHeight: '34px',
+  padding: '0 11px',
+  border:
+    '1px solid #078c7c',
+  borderRadius: '8px',
+  background: '#08aa96',
+  color: '#ffffff',
+  cursor: 'pointer',
+  fontSize: '0.74rem',
+  fontWeight: 800,
+  whiteSpace: 'nowrap',
+}
+
+const neutralActionButtonStyle = {
+  minHeight: '38px',
+  padding: '0 13px',
+  border:
+    '1px solid #cbd5e1',
+  borderRadius: '9px',
+  background: '#f8fafc',
+  color: '#475569',
+  cursor: 'pointer',
+  fontWeight: 800,
+}
+
+const dangerActionButtonStyle = {
+  minHeight: '38px',
+  padding: '0 13px',
+  border:
+    '1px solid #fecaca',
+  borderRadius: '9px',
+  background: '#fef2f2',
+  color: '#b91c1c',
+  cursor: 'pointer',
+  fontWeight: 800,
+}
+
+const acceptActionButtonStyle = {
+  minHeight: '38px',
+  padding: '0 13px',
+  border:
+    '1px solid #078c7c',
+  borderRadius: '9px',
+  background: '#08aa96',
+  color: '#ffffff',
+  cursor: 'pointer',
+  fontWeight: 800,
+}
+
+const modalOverlayStyle = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 1000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '24px',
+  background:
+    'rgba(6, 27, 47, 0.58)',
+  overflowY: 'auto',
+}
+
+const modalStyle = {
+  width: '100%',
+  maxWidth: '820px',
+  border:
+    '1px solid #e2e8f0',
+  borderRadius: '16px',
+  background: '#ffffff',
+  boxShadow:
+    '0 24px 70px rgba(15, 23, 42, 0.24)',
+  overflow: 'hidden',
+}
+
+const modalHeaderStyle = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent:
+    'space-between',
+  gap: '18px',
+  padding: '18px 22px',
+  borderBottom:
+    '1px solid #e2e8f0',
+}
+
+const modalFooterStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent:
+    'flex-end',
+  gap: '9px',
+  flexWrap: 'wrap',
+  padding: '16px 22px',
+  borderTop:
+    '1px solid #e2e8f0',
+  background: '#f8fafc',
+}
+
+const closeButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '36px',
+  height: '36px',
+  padding: 0,
+  border:
+    '1px solid #e2e8f0',
+  borderRadius: '9px',
+  background: '#ffffff',
+  color: '#64748b',
+  cursor: 'pointer',
+  fontSize: '1.35rem',
+  lineHeight: 1,
+}
+
+const summaryLabelStyle = {
+  marginBottom: '3px',
+  color: '#94a3b8',
+  fontSize: '0.64rem',
+  fontWeight: 800,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
 }
