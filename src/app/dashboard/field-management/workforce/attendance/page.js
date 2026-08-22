@@ -212,6 +212,136 @@ function formatBalance(
   )} remaining`
 }
 
+
+function getDeviceLocation() {
+  return new Promise((resolve) => {
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.geolocation
+    ) {
+      resolve({
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        available: false,
+        message:
+          'Geolocation is not supported by this device or browser.',
+      })
+
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude:
+            position.coords.latitude,
+          longitude:
+            position.coords.longitude,
+          accuracy:
+            position.coords.accuracy,
+          available: true,
+          message: '',
+        })
+      },
+      (locationError) => {
+        const messages = {
+          1: 'Location permission was denied.',
+          2: 'The device location is currently unavailable.',
+          3: 'The location request timed out.',
+        }
+
+        resolve({
+          latitude: null,
+          longitude: null,
+          accuracy: null,
+          available: false,
+          message:
+            messages[
+              locationError?.code
+            ] ||
+            'The device location could not be captured.',
+        })
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0,
+      }
+    )
+  })
+}
+
+function formatDistanceMeters(value) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null
+  }
+
+  const distance = Number(value)
+
+  if (!Number.isFinite(distance)) {
+    return null
+  }
+
+  if (distance < 1000) {
+    return `${distance.toFixed(
+      distance < 100 ? 1 : 0
+    )} m`
+  }
+
+  return `${(
+    distance / 1000
+  ).toFixed(2)} km`
+}
+
+function formatGeofenceResult(event) {
+  if (!event) {
+    return ''
+  }
+
+  const distance =
+    formatDistanceMeters(
+      event.distance_to_project_m
+    )
+
+  if (
+    event.geofence_status ===
+    'inside'
+  ) {
+    return distance
+      ? ` Inside geofence · ${distance} from project.`
+      : ' Inside geofence.'
+  }
+
+  if (
+    event.geofence_status ===
+    'outside'
+  ) {
+    return distance
+      ? ` Outside geofence · ${distance} from project.`
+      : ' Outside geofence.'
+  }
+
+  if (
+    event.geofence_status ===
+    'unavailable'
+  ) {
+    return ' Location could not be evaluated.'
+  }
+
+  if (
+    event.geofence_status ===
+    'not_evaluated'
+  ) {
+    return ' Project geofence is disabled.'
+  }
+
+  return ''
+}
+
 export default function AttendancePage() {
   const [projects, setProjects] =
     useState([])
@@ -264,6 +394,11 @@ export default function AttendancePage() {
   const [success, setSuccess] =
     useState('')
 
+  const [
+    locationNotice,
+    setLocationNotice,
+  ] = useState('')
+
   const todayKey = useMemo(
     () => getTodayKey(),
     []
@@ -295,7 +430,11 @@ export default function AttendancePage() {
             code,
             name,
             status,
-            standard_daily_minutes
+            standard_daily_minutes,
+            latitude,
+            longitude,
+            geofence_radius_m,
+            geofence_enabled
           `
         )
         .order('name')
@@ -846,6 +985,60 @@ export default function AttendancePage() {
       ).size
     }, [sessions])
 
+  async function getLatestAttendanceEvent(
+    sessionId,
+    eventType
+  ) {
+    if (!sessionId) {
+      return null
+    }
+
+    const {
+      data,
+      error: eventError,
+    } = await supabase
+      .from(
+        'field_attendance_events'
+      )
+      .select(`
+        id,
+        event_type,
+        latitude,
+        longitude,
+        gps_accuracy_m,
+        distance_to_project_m,
+        geofence_status,
+        event_at
+      `)
+      .eq(
+        'session_id',
+        sessionId
+      )
+      .eq(
+        'event_type',
+        eventType
+      )
+      .order(
+        'event_at',
+        {
+          ascending: false,
+        }
+      )
+      .limit(1)
+      .maybeSingle()
+
+    if (eventError) {
+      console.warn(
+        'Attendance location result could not be loaded.',
+        eventError
+      )
+
+      return null
+    }
+
+    return data || null
+  }
+
   async function handleCheckIn(
     assignment
   ) {
@@ -859,9 +1052,28 @@ export default function AttendancePage() {
 
     setError('')
     setSuccess('')
+    setLocationNotice(
+      'Requesting device location...'
+    )
 
     try {
+      const location =
+        await getDeviceLocation()
+
+      if (location.available) {
+        setLocationNotice(
+          `Location captured · GPS accuracy approximately ${Math.round(
+            location.accuracy || 0
+          )} m.`
+        )
+      } else {
+        setLocationNotice(
+          `${location.message} Attendance will still be recorded and marked as location unavailable when geofence evaluation is required.`
+        )
+      }
+
       const {
+        data: checkInData,
         error: checkInError,
       } = await supabase.rpc(
         'field_worker_check_in',
@@ -872,14 +1084,38 @@ export default function AttendancePage() {
           p_method:
             'supervisor',
 
-          p_geofence_status:
-            'not_evaluated',
+          p_latitude:
+            location.latitude,
+
+          p_longitude:
+            location.longitude,
+
+          p_gps_accuracy_m:
+            location.accuracy,
+
+          p_notes:
+            location.available
+              ? null
+              : location.message,
         }
       )
 
       if (checkInError) {
         throw checkInError
       }
+
+      const createdSession =
+        Array.isArray(
+          checkInData
+        )
+          ? checkInData[0]
+          : checkInData
+
+      const attendanceEvent =
+        await getLatestAttendanceEvent(
+          createdSession?.session_id,
+          'check_in'
+        )
 
       const worker =
         workerById.get(
@@ -889,7 +1125,9 @@ export default function AttendancePage() {
       setSuccess(
         `${formatWorkerName(
           worker
-        )} checked in successfully.`
+        )} checked in successfully.${formatGeofenceResult(
+          attendanceEvent
+        )}`
       )
 
       await loadAttendance(
@@ -924,9 +1162,28 @@ export default function AttendancePage() {
 
     setError('')
     setSuccess('')
+    setLocationNotice(
+      'Requesting device location...'
+    )
 
     try {
+      const location =
+        await getDeviceLocation()
+
+      if (location.available) {
+        setLocationNotice(
+          `Location captured · GPS accuracy approximately ${Math.round(
+            location.accuracy || 0
+          )} m.`
+        )
+      } else {
+        setLocationNotice(
+          `${location.message} Attendance will still be recorded and marked as location unavailable when geofence evaluation is required.`
+        )
+      }
+
       const {
+        data: checkOutData,
         error: checkOutError,
       } = await supabase.rpc(
         'field_worker_check_out',
@@ -937,14 +1194,39 @@ export default function AttendancePage() {
           p_method:
             'supervisor',
 
-          p_geofence_status:
-            'not_evaluated',
+          p_latitude:
+            location.latitude,
+
+          p_longitude:
+            location.longitude,
+
+          p_gps_accuracy_m:
+            location.accuracy,
+
+          p_notes:
+            location.available
+              ? null
+              : location.message,
         }
       )
 
       if (checkOutError) {
         throw checkOutError
       }
+
+      const closedSession =
+        Array.isArray(
+          checkOutData
+        )
+          ? checkOutData[0]
+          : checkOutData
+
+      const attendanceEvent =
+        await getLatestAttendanceEvent(
+          closedSession?.session_id ||
+            session.id,
+          'check_out'
+        )
 
       const worker =
         workerById.get(
@@ -954,7 +1236,9 @@ export default function AttendancePage() {
       setSuccess(
         `${formatWorkerName(
           worker
-        )} checked out successfully.`
+        )} checked out successfully.${formatGeofenceResult(
+          attendanceEvent
+        )}`
       )
 
       await loadAttendance(
@@ -977,6 +1261,7 @@ export default function AttendancePage() {
       )
     }
   }
+
 
   return (
     <div
@@ -1170,6 +1455,19 @@ export default function AttendancePage() {
                 )
           }
         />
+
+        <InfoField
+          label="Attendance Geofence"
+          value={
+            selectedProject
+              ?.geofence_enabled
+              ? selectedProject
+                  ?.geofence_radius_m
+                ? `Enabled · ${selectedProject.geofence_radius_m} m`
+                : 'Enabled'
+              : 'Disabled'
+          }
+        />
       </section>
 
       {error && (
@@ -1203,6 +1501,23 @@ export default function AttendancePage() {
           }}
         >
           {success}
+        </div>
+      )}
+
+      {locationNotice && (
+        <div
+          style={{
+            padding: '11px 14px',
+            border:
+              '1px solid #bae6fd',
+            borderRadius: '10px',
+            background: '#f0f9ff',
+            color: '#075985',
+            fontSize: '0.78rem',
+            lineHeight: 1.5,
+          }}
+        >
+          {locationNotice}
         </div>
       )}
 
