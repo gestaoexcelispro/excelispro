@@ -1,26 +1,40 @@
-'use client';
-import { createContext, useState, useContext } from 'react';
+'use client'
 
-// Cria o cofre do idioma
-const LanguageContext = createContext();
+import {
+  createContext,
+  useContext,
+} from 'react'
 
-export function LanguageProvider({ children }) {
-  // Define o Português como padrão
-  const [lang, setLang] = useState('pt-BR');
+const LanguageContext = createContext(null)
 
-  // Função que inverte o idioma
-  const toggleLanguage = () => {
-    setLang((prev) => (prev === 'pt-BR' ? 'en-US' : 'pt-BR'));
-  };
+const PRODUCT_LANGUAGE = 'en-US'
 
-  return (
-    <LanguageContext.Provider value={{ lang, toggleLanguage }}>
-      {children}
-    </LanguageContext.Provider>
-  );
+function keepEnglishLanguage() {
+  return PRODUCT_LANGUAGE
 }
 
-// Atalho para as páginas usarem
+export function LanguageProvider({ children }) {
+  return (
+    <LanguageContext.Provider
+      value={{
+        lang: PRODUCT_LANGUAGE,
+        changeLanguage: keepEnglishLanguage,
+        toggleLanguage: keepEnglishLanguage,
+      }}
+    >
+      {children}
+    </LanguageContext.Provider>
+  )
+}
+
 export function useLanguage() {
-  return useContext(LanguageContext);
+  const context = useContext(LanguageContext)
+
+  if (!context) {
+    throw new Error(
+      'useLanguage must be used inside LanguageProvider'
+    )
+  }
+
+  return context
 }
