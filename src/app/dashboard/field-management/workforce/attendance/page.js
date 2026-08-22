@@ -496,21 +496,72 @@ export default function AttendancePage() {
       return map
     }, [sessions])
 
+  const workedMinutesByWorkerId =
+    useMemo(() => {
+      const totals = new Map()
+
+      sessions
+        .filter(
+          (session) =>
+            session.status ===
+            'closed'
+        )
+        .forEach((session) => {
+          const current =
+            totals.get(
+              session.worker_id
+            ) || 0
+
+          const sessionMinutes =
+            Number(
+              session.worked_minutes ||
+                0
+            )
+
+          totals.set(
+            session.worker_id,
+            current +
+              (Number.isFinite(
+                sessionMinutes
+              )
+                ? sessionMinutes
+                : 0)
+          )
+        })
+
+      return totals
+    }, [sessions])
+
   const onSiteCount =
     useMemo(() => {
-      return sessions.filter(
-        (session) =>
-          session.status === 'open'
-      ).length
+      return new Set(
+        sessions
+          .filter(
+            (session) =>
+              session.status ===
+              'open'
+          )
+          .map(
+            (session) =>
+              session.worker_id
+          )
+      ).size
     }, [sessions])
 
   const checkedOutCount =
     useMemo(() => {
-      return sessions.filter(
-        (session) =>
-          session.status ===
-          'closed'
-      ).length
+      return new Set(
+        sessions
+          .filter(
+            (session) =>
+              session.status ===
+              'closed'
+          )
+          .map(
+            (session) =>
+              session.worker_id
+          )
+      ).size
     }, [sessions])
 
   async function handleCheckIn(
@@ -683,6 +734,11 @@ export default function AttendancePage() {
               assignment.worker_id
             )
 
+          const totalWorkedMinutes =
+            workedMinutesByWorkerId.get(
+              assignment.worker_id
+            ) || 0
+
           return {
             assignment,
             worker,
@@ -691,6 +747,7 @@ export default function AttendancePage() {
             role,
             openSession,
             latestClosedSession,
+            totalWorkedMinutes,
           }
         })
         .sort((a, b) =>
@@ -710,6 +767,7 @@ export default function AttendancePage() {
       roleById,
       openSessionByWorkerId,
       latestClosedSessionByWorkerId,
+      workedMinutesByWorkerId,
     ])
 
   return (
@@ -1092,7 +1150,7 @@ export default function AttendancePage() {
                   </TableHeader>
 
                   <TableHeader>
-                    Worked
+                    Worked Today
                   </TableHeader>
 
                   <TableHeader
@@ -1113,6 +1171,7 @@ export default function AttendancePage() {
                     role,
                     openSession,
                     latestClosedSession,
+                    totalWorkedMinutes,
                   }) => {
                     const isOnSite =
                       Boolean(
@@ -1235,11 +1294,9 @@ export default function AttendancePage() {
                         </TableCell>
 
                         <TableCell>
-                          {isOnSite
-                            ? 'In progress'
-                            : formatWorkedMinutes(
-                                latestClosedSession?.worked_minutes
-                              )}
+                          {formatWorkedMinutes(
+                            totalWorkedMinutes
+                          )}
                         </TableCell>
 
                         <TableCell
