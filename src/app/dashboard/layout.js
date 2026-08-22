@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import LogoutButton from '../../components/LogoutButton'
@@ -220,16 +221,22 @@ export default function DashboardLayout({
             }
             aria-label="RitsuFlow home"
           >
-            <span
-              className={styles.brandMark}
-              aria-hidden="true"
+            <Image
+              src="/logo.jpg"
+              alt="RitsuFlow"
+              width={500}
+              height={220}
+              priority
+              style={{
+                width: isCollapsed
+                  ? '48px'
+                  : '165px',
+                height: 'auto',
+                maxHeight: '54px',
+                objectFit: 'contain',
+                objectPosition: 'center',
+              }}
             />
-
-            <span
-              className={styles.brandText}
-            >
-              RitsuFlow
-            </span>
           </Link>
         </div>
 
