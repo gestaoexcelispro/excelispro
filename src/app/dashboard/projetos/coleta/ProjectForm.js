@@ -117,6 +117,10 @@ function createInitialFormData(
       project?.geofence_radius_m ??
       '',
 
+    max_gps_accuracy_m:
+      project?.max_gps_accuracy_m ??
+      '',
+
     geofence_enabled:
       Boolean(
         project?.geofence_enabled
@@ -681,6 +685,14 @@ export default function ProjectForm({
             formData.geofence_radius_m
           )
 
+    const maxGpsAccuracy =
+      formData.max_gps_accuracy_m ===
+      ''
+        ? null
+        : Number(
+            formData.max_gps_accuracy_m
+          )
+
     if (
       latitude !== null &&
       (
@@ -731,6 +743,26 @@ export default function ProjectForm({
     ) {
       setErrorMessage(
         'Geofence radius must be a positive whole number of meters.'
+      )
+
+      setIsSaving(false)
+      return
+    }
+
+    if (
+      maxGpsAccuracy !== null &&
+      (
+        Number.isNaN(
+          maxGpsAccuracy
+        ) ||
+        !Number.isInteger(
+          maxGpsAccuracy
+        ) ||
+        maxGpsAccuracy <= 0
+      )
+    ) {
+      setErrorMessage(
+        'Maximum GPS accuracy must be a positive whole number of meters.'
       )
 
       setIsSaving(false)
@@ -832,6 +864,9 @@ export default function ProjectForm({
 
       geofence_radius_m:
         geofenceRadius,
+
+      max_gps_accuracy_m:
+        maxGpsAccuracy,
 
       geofence_enabled:
         formData.geofence_enabled,
@@ -2036,6 +2071,48 @@ export default function ProjectForm({
                 >
                   Maximum allowed distance from the
                   reference point, in meters.
+                </p>
+              </div>
+
+              <div
+                className={`${styles.field} ${styles.span4}`}
+              >
+                <label
+                  className={
+                    styles.label
+                  }
+                  htmlFor="max_gps_accuracy_m"
+                >
+                  Maximum GPS accuracy
+                </label>
+
+                <input
+                  className={
+                    styles.input
+                  }
+                  id="max_gps_accuracy_m"
+                  name="max_gps_accuracy_m"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={
+                    formData.max_gps_accuracy_m
+                  }
+                  onChange={
+                    handleChange
+                  }
+                  placeholder="50"
+                />
+
+                <p
+                  className={
+                    styles.helpText
+                  }
+                >
+                  Maximum acceptable device GPS
+                  accuracy, in meters. Leave blank
+                  to disable the project-specific
+                  accuracy threshold.
                 </p>
               </div>
 
