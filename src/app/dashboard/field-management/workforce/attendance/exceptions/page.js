@@ -170,6 +170,9 @@ function formatExceptionCode(code) {
     GEOFENCE_UNCERTAIN:
       'Geofence Uncertain',
 
+    GPS_LOW_ACCURACY:
+      'GPS Low Accuracy',
+
     MULTIPLE_ATTENDANCE_EXCEPTIONS:
       'Multiple Attendance Exceptions',
   }
@@ -307,7 +310,8 @@ export default function AttendanceExceptionsPage() {
           name,
           standard_daily_minutes,
           geofence_radius_m,
-          geofence_enabled
+          geofence_enabled,
+          max_gps_accuracy_m
         `)
         .order('name')
 
@@ -1041,7 +1045,8 @@ export default function AttendanceExceptionsPage() {
           distance_to_project_m,
           geofence_status,
           method,
-          source
+          source,
+          metadata
         `)
         .eq(
           'session_id',
@@ -1914,6 +1919,11 @@ export default function AttendanceExceptionsPage() {
               ?.geofence_radius_m ??
             null
           }
+          maxGpsAccuracy={
+            selectedProject
+              ?.max_gps_accuracy_m ??
+            null
+          }
           processing={
             processingResolution
           }
@@ -1942,6 +1952,7 @@ function ExceptionReviewModal({
   evidence,
   loadingEvidence,
   geofenceRadius,
+  maxGpsAccuracy,
   processing,
   onNotesChange,
   onClose,
@@ -2134,6 +2145,9 @@ function ExceptionReviewModal({
             }
             geofenceRadius={
               geofenceRadius
+            }
+            maxGpsAccuracy={
+              maxGpsAccuracy
             }
           />
 
@@ -2356,6 +2370,7 @@ function GeofenceEvidencePanel({
   evidence,
   loading,
   geofenceRadius,
+  maxGpsAccuracy,
 }) {
   return (
     <div
@@ -2407,19 +2422,42 @@ function GeofenceEvidencePanel({
           </div>
         </div>
 
-        <span
+        <div
           style={{
-            color: '#0369a1',
-            fontSize: '0.72rem',
-            fontWeight: 800,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
           }}
         >
-          Allowed radius:{' '}
-          {geofenceRadius !== null &&
-          geofenceRadius !== undefined
-            ? `${geofenceRadius} m`
-            : 'Not configured'}
-        </span>
+          <span
+            style={{
+              color: '#0369a1',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+            }}
+          >
+            Allowed radius:{' '}
+            {geofenceRadius !== null &&
+            geofenceRadius !== undefined
+              ? `${geofenceRadius} m`
+              : 'Not configured'}
+          </span>
+
+          <span
+            style={{
+              color: '#0369a1',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+            }}
+          >
+            Max GPS accuracy:{' '}
+            {maxGpsAccuracy !== null &&
+            maxGpsAccuracy !== undefined
+              ? `${maxGpsAccuracy} m`
+              : 'Not configured'}
+          </span>
+        </div>
       </div>
 
       {loading ? (
@@ -2460,6 +2498,9 @@ function GeofenceEvidencePanel({
                 geofenceRadius={
                   geofenceRadius
                 }
+                maxGpsAccuracy={
+                  maxGpsAccuracy
+                }
               />
             )
           )}
@@ -2472,7 +2513,57 @@ function GeofenceEvidencePanel({
 function GeofenceEvidenceCard({
   event,
   geofenceRadius,
+  maxGpsAccuracy,
 }) {
+  const eventMaxGpsAccuracy =
+    event?.metadata
+      ?.max_gps_accuracy_m ??
+    maxGpsAccuracy ??
+    null
+
+  const gpsPolicyExceeded =
+    event?.metadata
+      ?.gps_accuracy_policy_exceeded ===
+      true ||
+    (
+      event?.metadata
+        ?.gps_accuracy_policy_exceeded ===
+        undefined &&
+      eventMaxGpsAccuracy !== null &&
+      eventMaxGpsAccuracy !== undefined &&
+      event.gps_accuracy_m !== null &&
+      event.gps_accuracy_m !== undefined &&
+      Number(event.gps_accuracy_m) >
+        Number(eventMaxGpsAccuracy)
+    )
+
+  const gpsPolicyStatus =
+    eventMaxGpsAccuracy === null ||
+    eventMaxGpsAccuracy === undefined
+      ? 'Not Configured'
+      : gpsPolicyExceeded
+        ? 'Exceeded'
+        : 'Acceptable'
+
+  const gpsPolicyVisual =
+    gpsPolicyStatus === 'Exceeded'
+      ? {
+          color: '#b91c1c',
+          background: '#fef2f2',
+          border: '#fecaca',
+        }
+      : gpsPolicyStatus === 'Acceptable'
+        ? {
+            color: '#166534',
+            background: '#f0fdf4',
+            border: '#bbf7d0',
+          }
+        : {
+            color: '#475569',
+            background: '#f8fafc',
+            border: '#e2e8f0',
+          }
+
   const statusVisual = {
     inside: {
       label: 'Inside',
@@ -2633,6 +2724,42 @@ function GeofenceEvidenceCard({
           label="GPS Accuracy"
           value={accuracy}
         />
+
+        <ReadOnlyValue
+          label="Project Maximum GPS Accuracy"
+          value={
+            eventMaxGpsAccuracy !== null &&
+            eventMaxGpsAccuracy !== undefined
+              ? `${eventMaxGpsAccuracy} m`
+              : 'Not configured'
+          }
+        />
+
+        <div>
+          <div
+            style={summaryLabelStyle}
+          >
+            GPS Policy Status
+          </div>
+
+          <span
+            style={{
+              display: 'inline-flex',
+              width: 'fit-content',
+              padding: '4px 7px',
+              border: `1px solid ${gpsPolicyVisual.border}`,
+              borderRadius: '999px',
+              background:
+                gpsPolicyVisual.background,
+              color:
+                gpsPolicyVisual.color,
+              fontSize: '0.66rem',
+              fontWeight: 800,
+            }}
+          >
+            {gpsPolicyStatus}
+          </span>
+        </div>
 
         <ReadOnlyValue
           label="Captured Coordinates"
