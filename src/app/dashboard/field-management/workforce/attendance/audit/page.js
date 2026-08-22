@@ -75,18 +75,30 @@ function formatDateTime(value) {
   ).format(new Date(value))
 }
 
-function formatEventType(value) {
+function formatMethod(value) {
   if (!value) {
-    return 'Unknown'
+    return '—'
+  }
+
+  return value
+    .split('_')
+    .map(
+      (word) =>
+        word.charAt(0).toUpperCase() +
+        word.slice(1)
+    )
+    .join(' ')
+}
+
+function formatResolutionAction(value) {
+  if (!value) {
+    return null
   }
 
   const labels = {
-    check_in: 'Check-In',
-    check_out: 'Check-Out',
-    manual_adjustment:
-      'Manual Adjustment',
-    session_cancelled:
-      'Session Cancelled',
+    accepted: 'Accepted',
+    rejected: 'Rejected',
+    dismissed: 'Dismissed',
   }
 
   return (
@@ -102,19 +114,73 @@ function formatEventType(value) {
   )
 }
 
-function formatMethod(value) {
-  if (!value) {
-    return '—'
+function getAuditAction(event) {
+  return (
+    event?.metadata?.audit_action ||
+    null
+  )
+}
+
+function getEventPresentation(event) {
+  const auditAction =
+    getAuditAction(event)
+
+  if (
+    auditAction ===
+    'exception_reviewed'
+  ) {
+    return {
+      label: 'Exception Reviewed',
+      tone: 'review',
+    }
   }
 
-  return value
-    .split('_')
-    .map(
-      (word) =>
-        word.charAt(0).toUpperCase() +
-        word.slice(1)
-    )
-    .join(' ')
+  if (
+    auditAction ===
+    'exception_resolved'
+  ) {
+    const resolutionAction =
+      formatResolutionAction(
+        event?.metadata
+          ?.resolution_action
+      )
+
+    return {
+      label:
+        resolutionAction
+          ? `Exception Resolved · ${resolutionAction}`
+          : 'Exception Resolved',
+      tone: 'resolution',
+    }
+  }
+
+  const labels = {
+    check_in: 'Check-In',
+    check_out: 'Check-Out',
+    manual_adjustment:
+      'Manual Adjustment',
+    session_cancelled:
+      'Session Cancelled',
+  }
+
+  return {
+    label:
+      labels[event?.event_type] ||
+      event?.event_type
+        ?.split('_')
+        .map(
+          (word) =>
+            word
+              .charAt(0)
+              .toUpperCase() +
+            word.slice(1)
+        )
+        .join(' ') ||
+      'Unknown',
+    tone:
+      event?.event_type ||
+      'default',
+  }
 }
 
 function getBeforeAfter(metadata) {
@@ -135,6 +201,45 @@ function getBeforeAfter(metadata) {
     after:
       metadata.after || null,
   }
+}
+
+function renderMetadataValue(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return '—'
+  }
+
+  if (typeof value === 'boolean') {
+    return value
+      ? 'Yes'
+      : 'No'
+  }
+
+  if (
+    typeof value === 'number'
+  ) {
+    return String(value)
+  }
+
+  if (
+    typeof value === 'string'
+  ) {
+    if (
+      value.includes('T') &&
+      !Number.isNaN(
+        new Date(value).getTime()
+      )
+    ) {
+      return formatDateTime(value)
+    }
+
+    return value
+  }
+
+  return JSON.stringify(value)
 }
 
 export default function AttendanceAuditPage() {
@@ -402,6 +507,11 @@ export default function AttendanceAuditPage() {
               recorded_by,
               notes,
               metadata,
+              latitude,
+              longitude,
+              gps_accuracy_m,
+              distance_to_project_m,
+              geofence_status,
               created_at
             `)
             .eq(
@@ -532,6 +642,32 @@ export default function AttendanceAuditPage() {
         return events
       }
 
+      if (
+        eventFilter ===
+        'exception_reviewed'
+      ) {
+        return events.filter(
+          (event) =>
+            getAuditAction(
+              event
+            ) ===
+            'exception_reviewed'
+        )
+      }
+
+      if (
+        eventFilter ===
+        'exception_resolved'
+      ) {
+        return events.filter(
+          (event) =>
+            getAuditAction(
+              event
+            ) ===
+            'exception_resolved'
+        )
+      }
+
       return events.filter(
         (event) =>
           event.event_type ===
@@ -565,7 +701,23 @@ export default function AttendanceAuditPage() {
       return events.filter(
         (event) =>
           event.event_type ===
-          'manual_adjustment'
+            'manual_adjustment' &&
+          !getAuditAction(event)
+      ).length
+    }, [events])
+
+  const exceptionAuditCount =
+    useMemo(() => {
+      return events.filter(
+        (event) =>
+          [
+            'exception_reviewed',
+            'exception_resolved',
+          ].includes(
+            getAuditAction(
+              event
+            )
+          )
       ).length
     }, [events])
 
@@ -630,18 +782,16 @@ export default function AttendanceAuditPage() {
             <p
               style={{
                 margin: '8px 0 0',
-                maxWidth: '840px',
+                maxWidth: '860px',
                 color: '#64748b',
                 lineHeight: 1.55,
               }}
             >
-              Review original
-              attendance events,
-              responsible users, and
-              audited supervisor
-              corrections without
-              overwriting historical
-              punches.
+              Review original attendance
+              events, supervisor corrections,
+              exception reviews, and final
+              resolution decisions in one
+              immutable history.
             </p>
           </div>
 
@@ -677,7 +827,7 @@ export default function AttendanceAuditPage() {
         style={{
           display: 'grid',
           gridTemplateColumns:
-            'minmax(260px, 1fr) minmax(180px, 220px) minmax(180px, 240px)',
+            'minmax(260px, 1fr) minmax(180px, 220px) minmax(200px, 260px)',
           gap: '14px',
           padding: '18px',
           border:
@@ -765,6 +915,14 @@ export default function AttendanceAuditPage() {
               Manual Adjustment
             </option>
 
+            <option value="exception_reviewed">
+              Exception Reviewed
+            </option>
+
+            <option value="exception_resolved">
+              Exception Resolved
+            </option>
+
             <option value="session_cancelled">
               Session Cancelled
             </option>
@@ -793,7 +951,7 @@ export default function AttendanceAuditPage() {
         style={{
           display: 'grid',
           gridTemplateColumns:
-            'repeat(auto-fit, minmax(190px, 1fr))',
+            'repeat(auto-fit, minmax(180px, 1fr))',
           gap: '14px',
         }}
       >
@@ -818,6 +976,16 @@ export default function AttendanceAuditPage() {
           tone={
             correctionCount > 0
               ? 'info'
+              : 'default'
+          }
+        />
+
+        <MetricCard
+          label="Exception Decisions"
+          value={exceptionAuditCount}
+          tone={
+            exceptionAuditCount > 0
+              ? 'review'
               : 'default'
           }
         />
@@ -870,7 +1038,7 @@ export default function AttendanceAuditPage() {
             <table
               style={{
                 width: '100%',
-                minWidth: '1350px',
+                minWidth: '1400px',
                 borderCollapse:
                   'collapse',
               }}
@@ -975,6 +1143,11 @@ function AuditRows({
   isExpanded,
   onToggle,
 }) {
+  const presentation =
+    getEventPresentation(
+      event
+    )
+
   return (
     <>
       <tr
@@ -1016,8 +1189,11 @@ function AuditRows({
 
         <TableCell>
           <EventBadge
-            eventType={
-              event.event_type
+            label={
+              presentation.label
+            }
+            tone={
+              presentation.tone
             }
           />
         </TableCell>
@@ -1045,7 +1221,7 @@ function AuditRows({
           <span
             style={{
               display: 'block',
-              maxWidth: '280px',
+              maxWidth: '300px',
               overflow: 'hidden',
               textOverflow:
                 'ellipsis',
@@ -1196,9 +1372,32 @@ function EventDetails({
     event.metadata
   )
 
+  const auditAction =
+    getAuditAction(event)
+
+  const isExceptionAudit =
+    [
+      'exception_reviewed',
+      'exception_resolved',
+    ].includes(
+      auditAction
+    )
+
   const isCorrection =
     event.event_type ===
-    'manual_adjustment'
+      'manual_adjustment' &&
+    !isExceptionAudit
+
+  if (isExceptionAudit) {
+    return (
+      <ExceptionAuditDetails
+        event={event}
+        actor={actor}
+        before={before}
+        after={after}
+      />
+    )
+  }
 
   return (
     <div
@@ -1214,89 +1413,10 @@ function EventDetails({
           gap: '14px',
         }}
       >
-        <div
-          style={{
-            padding:
-              '14px 16px',
-            border:
-              '1px solid #e2e8f0',
-            borderRadius:
-              '10px',
-            background:
-              '#ffffff',
-          }}
-        >
-          <div
-            style={{
-              marginBottom:
-                '12px',
-              color: '#475569',
-              fontSize:
-                '0.72rem',
-              fontWeight: 800,
-              textTransform:
-                'uppercase',
-              letterSpacing:
-                '0.05em',
-            }}
-          >
-            Event Accountability
-          </div>
-
-          <AuditValue
-            label="Recorded By"
-            value={
-              actor?.display_name ||
-              actor?.email ||
-              (
-                event.recorded_by
-                  ? 'Unknown user'
-                  : 'System / Unknown'
-              )
-            }
-          />
-
-          <div
-            style={{
-              height: '9px',
-            }}
-          />
-
-          <AuditValue
-            label="Job Title"
-            value={
-              actor?.job_title ||
-              '—'
-            }
-          />
-
-          <div
-            style={{
-              height: '9px',
-            }}
-          />
-
-          <AuditValue
-            label="Account"
-            value={
-              actor?.email ||
-              '—'
-            }
-          />
-
-          <div
-            style={{
-              height: '9px',
-            }}
-          />
-
-          <AuditValue
-            label="Event Time"
-            value={formatDateTime(
-              event.event_at
-            )}
-          />
-        </div>
+        <AccountabilityPanel
+          event={event}
+          actor={actor}
+        />
 
         <div>
           {isCorrection ? (
@@ -1320,42 +1440,9 @@ function EventDetails({
               />
             </div>
           ) : (
-            <div
-              style={{
-                height: '100%',
-                padding:
-                  '14px 16px',
-                border:
-                  '1px solid #e2e8f0',
-                borderRadius:
-                  '10px',
-                background:
-                  '#ffffff',
-              }}
-            >
-              <strong
-                style={{
-                  color: '#0f172a',
-                }}
-              >
-                Original Attendance Event
-              </strong>
-
-              <p
-                style={{
-                  margin:
-                    '8px 0 0',
-                  color: '#64748b',
-                  fontSize:
-                    '0.8rem',
-                  lineHeight: 1.5,
-                }}
-              >
-                This event is part of
-                the original immutable
-                attendance audit trail.
-              </p>
-            </div>
+            <OriginalEventPanel
+              event={event}
+            />
           )}
         </div>
       </div>
@@ -1401,6 +1488,453 @@ function EventDetails({
                 ?.correction_reason ||
               '—'}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ExceptionAuditDetails({
+  event,
+  actor,
+  before,
+  after,
+}) {
+  const auditAction =
+    getAuditAction(event)
+
+  const resolutionAction =
+    formatResolutionAction(
+      event.metadata
+        ?.resolution_action
+    )
+
+  const reviewed =
+    auditAction ===
+    'exception_reviewed'
+
+  return (
+    <div
+      style={{
+        padding: '18px 22px',
+      }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'minmax(220px, 0.65fr) minmax(0, 1.35fr)',
+          gap: '14px',
+        }}
+      >
+        <AccountabilityPanel
+          event={event}
+          actor={actor}
+        />
+
+        <div
+          style={{
+            display: 'grid',
+            gap: '14px',
+          }}
+        >
+          <div
+            style={{
+              padding: '14px 16px',
+              border: reviewed
+                ? '1px solid #bae6fd'
+                : '1px solid #bbf7d0',
+              borderRadius: '10px',
+              background: reviewed
+                ? '#f0f9ff'
+                : '#f0fdf4',
+            }}
+          >
+            <div
+              style={{
+                marginBottom: '12px',
+                color: reviewed
+                  ? '#075985'
+                  : '#166534',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                textTransform:
+                  'uppercase',
+                letterSpacing:
+                  '0.05em',
+              }}
+            >
+              {reviewed
+                ? 'Exception Review'
+                : 'Exception Resolution'}
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns:
+                  'repeat(2, minmax(0, 1fr))',
+                gap: '12px',
+              }}
+            >
+              <AuditValue
+                label="Exception Code"
+                value={
+                  event.metadata
+                    ?.exception_code ||
+                  '—'
+                }
+              />
+
+              <AuditValue
+                label="Decision"
+                value={
+                  resolutionAction ||
+                  (
+                    reviewed
+                      ? 'Under Review'
+                      : '—'
+                  )
+                }
+              />
+
+              <AuditValue
+                label="Exception Notes"
+                value={
+                  event.metadata
+                    ?.exception_notes ||
+                  '—'
+                }
+              />
+
+              <AuditValue
+                label="Action Notes"
+                value={
+                  event.notes ||
+                  after
+                    ?.resolution_notes ||
+                  '—'
+                }
+              />
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(2, minmax(0, 1fr))',
+              gap: '14px',
+            }}
+          >
+            <ResolutionStatePanel
+              title="Before"
+              data={before}
+            />
+
+            <ResolutionStatePanel
+              title="After"
+              data={after}
+              tone="after"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AccountabilityPanel({
+  event,
+  actor,
+}) {
+  return (
+    <div
+      style={{
+        padding:
+          '14px 16px',
+        border:
+          '1px solid #e2e8f0',
+        borderRadius:
+          '10px',
+        background:
+          '#ffffff',
+      }}
+    >
+      <div
+        style={{
+          marginBottom:
+            '12px',
+          color: '#475569',
+          fontSize:
+            '0.72rem',
+          fontWeight: 800,
+          textTransform:
+            'uppercase',
+          letterSpacing:
+            '0.05em',
+        }}
+      >
+        Event Accountability
+      </div>
+
+      <AuditValue
+        label="Recorded By"
+        value={
+          actor?.display_name ||
+          actor?.email ||
+          (
+            event.recorded_by
+              ? 'Unknown user'
+              : 'System / Unknown'
+          )
+        }
+      />
+
+      <div
+        style={{
+          height: '9px',
+        }}
+      />
+
+      <AuditValue
+        label="Job Title"
+        value={
+          actor?.job_title ||
+          '—'
+        }
+      />
+
+      <div
+        style={{
+          height: '9px',
+        }}
+      />
+
+      <AuditValue
+        label="Account"
+        value={
+          actor?.email ||
+          '—'
+        }
+      />
+
+      <div
+        style={{
+          height: '9px',
+        }}
+      />
+
+      <AuditValue
+        label="Event Time"
+        value={formatDateTime(
+          event.event_at
+        )}
+      />
+    </div>
+  )
+}
+
+function OriginalEventPanel({
+  event,
+}) {
+  const hasLocationEvidence =
+    event.latitude !== null &&
+    event.latitude !== undefined
+
+  return (
+    <div
+      style={{
+        height: '100%',
+        padding:
+          '14px 16px',
+        border:
+          '1px solid #e2e8f0',
+        borderRadius:
+          '10px',
+        background:
+          '#ffffff',
+      }}
+    >
+      <strong
+        style={{
+          color: '#0f172a',
+        }}
+      >
+        Original Attendance Event
+      </strong>
+
+      <p
+        style={{
+          margin:
+            '8px 0 14px',
+          color: '#64748b',
+          fontSize:
+            '0.8rem',
+          lineHeight: 1.5,
+        }}
+      >
+        This event is part of
+        the original immutable
+        attendance audit trail.
+      </p>
+
+      {hasLocationEvidence && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns:
+              'repeat(2, minmax(0, 1fr))',
+            gap: '10px',
+          }}
+        >
+          <AuditValue
+            label="Geofence Status"
+            value={
+              event.geofence_status ||
+              '—'
+            }
+          />
+
+          <AuditValue
+            label="Distance to Project"
+            value={
+              event.distance_to_project_m ===
+                null ||
+              event.distance_to_project_m ===
+                undefined
+                ? '—'
+                : `${Number(
+                    event.distance_to_project_m
+                  ).toFixed(1)} m`
+            }
+          />
+
+          <AuditValue
+            label="GPS Accuracy"
+            value={
+              event.gps_accuracy_m ===
+                null ||
+              event.gps_accuracy_m ===
+                undefined
+                ? '—'
+                : `${Number(
+                    event.gps_accuracy_m
+                  ).toFixed(0)} m`
+            }
+          />
+
+          <AuditValue
+            label="Coordinates"
+            value={
+              event.latitude !==
+                null &&
+              event.longitude !==
+                null
+                ? `${Number(
+                    event.latitude
+                  ).toFixed(
+                    6
+                  )}, ${Number(
+                    event.longitude
+                  ).toFixed(6)}`
+                : '—'
+            }
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ResolutionStatePanel({
+  title,
+  data,
+  tone = 'before',
+}) {
+  const isAfter =
+    tone === 'after'
+
+  return (
+    <div
+      style={{
+        padding: '14px 16px',
+        border: `1px solid ${
+          isAfter
+            ? '#bae6fd'
+            : '#e2e8f0'
+        }`,
+        borderRadius: '10px',
+        background:
+          isAfter
+            ? '#f8fcff'
+            : '#ffffff',
+      }}
+    >
+      <div
+        style={{
+          marginBottom: '12px',
+          color:
+            isAfter
+              ? '#0369a1'
+              : '#475569',
+          fontSize: '0.72rem',
+          fontWeight: 800,
+          textTransform:
+            'uppercase',
+          letterSpacing:
+            '0.05em',
+        }}
+      >
+        {title}
+      </div>
+
+      {!data ? (
+        <span
+          style={{
+            color: '#94a3b8',
+            fontSize: '0.8rem',
+          }}
+        >
+          No values available.
+        </span>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gap: '9px',
+          }}
+        >
+          <AuditValue
+            label="Resolution Status"
+            value={renderMetadataValue(
+              data.resolution_status
+            )}
+          />
+
+          <AuditValue
+            label="Resolution Action"
+            value={
+              formatResolutionAction(
+                data.resolution_action
+              ) ||
+              '—'
+            }
+          />
+
+          <AuditValue
+            label="Resolution Notes"
+            value={renderMetadataValue(
+              data.resolution_notes
+            )}
+          />
+
+          <AuditValue
+            label="Resolved At"
+            value={renderMetadataValue(
+              data.resolved_at
+            )}
+          />
         </div>
       )}
     </div>
@@ -1534,6 +2068,7 @@ function AuditValue({
           fontWeight: 700,
           overflowWrap:
             'anywhere',
+          whiteSpace: 'normal',
         }}
       >
         {value}
@@ -1543,7 +2078,8 @@ function AuditValue({
 }
 
 function EventBadge({
-  eventType,
+  label,
+  tone,
 }) {
   const map = {
     check_in: {
@@ -1569,10 +2105,22 @@ function EventBadge({
       border: '#fecaca',
       color: '#b91c1c',
     },
+
+    review: {
+      background: '#f0f9ff',
+      border: '#bae6fd',
+      color: '#075985',
+    },
+
+    resolution: {
+      background: '#f0fdf4',
+      border: '#bbf7d0',
+      color: '#166534',
+    },
   }
 
   const visual =
-    map[eventType] || {
+    map[tone] || {
       background: '#f8fafc',
       border: '#e2e8f0',
       color: '#475569',
@@ -1590,11 +2138,10 @@ function EventBadge({
         color: visual.color,
         fontSize: '0.7rem',
         fontWeight: 800,
+        whiteSpace: 'nowrap',
       }}
     >
-      {formatEventType(
-        eventType
-      )}
+      {label}
     </span>
   )
 }
@@ -1615,6 +2162,12 @@ function MetricCard({
       border: '#bae6fd',
       background: '#f0f9ff',
       value: '#0369a1',
+    },
+
+    review: {
+      border: '#bbf7d0',
+      background: '#f0fdf4',
+      value: '#166534',
     },
   }
 
