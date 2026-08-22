@@ -53,6 +53,8 @@ export default function MasterPlanPage() {
     duplicateScenario: isEn ? '📑 Duplicate' : '📑 Duplicar',
     promptDuplicate: isEn ? 'Enter a name for the copied Scenario:' : 'Digite um nome para a cópia do Cenário:',
     scenarioUpdated: isEn ? 'Scenario updated successfully!' : 'Cenário atualizado com sucesso!',
+    scenarioSaveError: isEn ? 'The scenario could not be saved.' : 'Não foi possível salvar o cenário.',
+    scenarioLoadError: isEn ? 'The Master Plan could not be loaded.' : 'Não foi possível carregar o Master Plan.',
     
     freezeBase: isEn ? '🔒 Freeze Baseline' : '🔒 Congelar Linha de Base',
     editBase: isEn ? '🔓 Edit Baseline' : '🔓 Editar Base',
@@ -153,8 +155,13 @@ export default function MasterPlanPage() {
   const [ocultarFinaisDeSemana, setOcultarFinaisDeSemana] = useState(false);
 
   // ESTADO PARA SERVIÇOS CUSTOMIZADOS (Cores e Atividades Dinâmicas)
+  const [servicosProjeto, setServicosProjeto] = useState({});
   const [servicosCustomizados, setServicosCustomizados] = useState({});
-  const servicosCores = { ...DEFAULT_SERVICOS_CORES, ...servicosCustomizados };
+  const servicosCores = {
+    ...DEFAULT_SERVICOS_CORES,
+    ...servicosProjeto,
+    ...servicosCustomizados
+  };
 
   // MODAL DE NOVA ATIVIDADE
   const [showNovaAtivModal, setShowNovaAtivModal] = useState(false);
@@ -254,40 +261,261 @@ export default function MasterPlanPage() {
   };
   // ----------------------------------------------------
 
+  const formatarDataVersao = (valor) => {
+    if (!valor) return '';
+    return new Date(valor).toLocaleDateString(
+      isEn ? 'en-US' : 'pt-BR',
+      {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }
+    );
+  };
+
+  const mapearRegistroVersao = (registro) => ({
+    id: registro.id,
+    nome: registro.name,
+    data: formatarDataVersao(registro.updated_at || registro.created_at),
+    status: registro.status,
+    isBaseline: Boolean(registro.is_baseline),
+    plannedStartDate: registro.planned_start_date,
+    plannedFinishDate: registro.planned_finish_date,
+    planData: registro.plan_data || {}
+  });
+
+  const aplicarPlanoSalvo = (versao) => {
+    const plano = versao?.planData || {};
+
+    setPacotesLancados(Array.isArray(plano.packages) ? plano.packages : []);
+    setFeriados(Array.isArray(plano.holidays) ? plano.holidays : []);
+    setServicosCustomizados(
+      plano.customServices && typeof plano.customServices === 'object'
+        ? plano.customServices
+        : {}
+    );
+
+    if (Array.isArray(plano.sections) && plano.sections.length > 0) {
+      setSecoes(plano.sections);
+    }
+
+    setDadosCelulas(
+      plano.plannedCells && typeof plano.plannedCells === 'object'
+        ? plano.plannedCells
+        : {}
+    );
+
+    setDadosRealizado(
+      plano.actualCells && typeof plano.actualCells === 'object'
+        ? plano.actualCells
+        : {}
+    );
+
+    setOcultarFinaisDeSemana(Boolean(plano.hideWeekends));
+
+    if (versao?.plannedStartDate) setDataInicio(versao.plannedStartDate);
+    if (versao?.plannedFinishDate) setDataFim(versao.plannedFinishDate);
+
+    setLinhaDeBaseCongelada(Boolean(versao?.isBaseline));
+    setModoControle(Boolean(versao?.isBaseline));
+    setVersaoAtivaId(versao?.id || null);
+    setHistorico([]);
+  };
+
+  const montarPlanData = () => ({
+    sections: secoes,
+    packages: pacotesLancados,
+    plannedCells: dadosCelulas,
+    actualCells: dadosRealizado,
+    holidays: feriados,
+    customServices: servicosCustomizados,
+    hideWeekends: ocultarFinaisDeSemana
+  });
+
   useEffect(() => {
     const fetchProjetos = async () => {
-      const { data } = await supabase.from('projetos').select('id, nome_projeto').order('id', { ascending: false });
-      if (data) setProjetosLista(data);
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, code, name, client_name, status, created_at')
+        .neq('status', 'archived')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Master Plan - projects:', error);
+        return;
+      }
+
+      setProjetosLista(data || []);
     };
+
     fetchProjetos();
   }, []);
 
   useEffect(() => {
-    const fetchZonasDoProjeto = async () => {
-      if (!projetoSelecionado) { 
-        setZonasColeta([]); 
+    const carregarMasterPlanProjeto = async () => {
+      if (!projetoSelecionado) {
+        setZonasColeta([]);
+        setServicosProjeto({});
         setServicosCustomizados({});
-        setHistorico([]); // Limpa memória ao tirar o projeto
-        return; 
-      }
-      const { data } = await supabase.from('setorizacao_obras').select('pavimento, fase').eq('projeto_id', projetoSelecionado);
-      if (data) {
-        const unicas = [...new Set(data.map(d => `${d.pavimento || ''} ${d.fase || ''}`.trim()))].filter(Boolean);
-        setZonasColeta(unicas);
+        setVersoes([]);
+        setVersaoAtivaId(null);
+        setLinhaDeBaseCongelada(false);
+        setModoControle(false);
+        setHistorico([]);
+        return;
       }
 
-      // Carrega atividades personalizadas do localStorage por projeto
-      const savedCustomServices = localStorage.getItem(`custom_services_${projetoSelecionado}`);
-      if (savedCustomServices) {
-        setServicosCustomizados(JSON.parse(savedCustomServices));
+      const [locationsResult, servicesResult, scenariosResult] = await Promise.all([
+        supabase
+          .from('locations')
+          .select(`
+            id,
+            project_id,
+            parent_id,
+            name,
+            location_type,
+            environment_type,
+            sequence_number
+          `)
+          .eq('project_id', projetoSelecionado)
+          .order('sequence_number', { ascending: true })
+          .order('name', { ascending: true }),
+
+        supabase
+          .from('project_services')
+          .select(`
+            id,
+            project_id,
+            service_code,
+            service_name,
+            unit,
+            sequence_number,
+            is_active
+          `)
+          .eq('project_id', projetoSelecionado)
+          .eq('is_active', true)
+          .order('sequence_number', { ascending: true })
+          .order('service_name', { ascending: true }),
+
+        supabase
+          .from('master_plan_scenarios')
+          .select(`
+            id,
+            project_id,
+            name,
+            status,
+            planned_start_date,
+            planned_finish_date,
+            is_baseline,
+            plan_data,
+            created_at,
+            updated_at
+          `)
+          .eq('project_id', projetoSelecionado)
+          .order('is_baseline', { ascending: false })
+          .order('updated_at', { ascending: false })
+      ]);
+
+      const loadError =
+        locationsResult.error ||
+        servicesResult.error ||
+        scenariosResult.error;
+
+      if (loadError) {
+        console.error('Master Plan - load:', loadError);
+        alert(`${t.scenarioLoadError}\n${loadError.message}`);
+        return;
+      }
+
+      const locations = locationsResult.data || [];
+      const locationMap = new Map(locations.map((location) => [location.id, location]));
+      const pathCache = new Map();
+
+      const buildLocationPath = (location) => {
+        if (!location) return '';
+        if (pathCache.has(location.id)) return pathCache.get(location.id);
+
+        const parts = [];
+        const visited = new Set();
+        let current = location;
+
+        while (current && !visited.has(current.id)) {
+          visited.add(current.id);
+          if (current.name) parts.unshift(current.name);
+          current = current.parent_id ? locationMap.get(current.parent_id) : null;
+        }
+
+        const path = parts.join(' / ');
+        pathCache.set(location.id, path);
+        return path;
+      };
+
+      setZonasColeta(
+        [...new Set(locations.map(buildLocationPath).filter(Boolean))]
+      );
+
+      const palette = [
+        '#2b6cb0',
+        '#805ad5',
+        '#319795',
+        '#d69e2e',
+        '#c05621',
+        '#2f855a',
+        '#4a5568',
+        '#b83280'
+      ];
+
+      const projectServiceMap = {};
+
+      (servicesResult.data || []).forEach((service, index) => {
+        const code = String(
+          service.service_code || `S${index + 1}`
+        ).trim().toUpperCase();
+
+        if (!code) return;
+
+        const existing = DEFAULT_SERVICOS_CORES[code];
+        const color = existing?.color || palette[index % palette.length];
+
+        projectServiceMap[code] = {
+          labelPt: service.service_name || code,
+          labelEn: service.service_name || code,
+          color,
+          text: existing?.text || getContrastYIQ(color),
+          projectServiceId: service.id,
+          unit: service.unit || ''
+        };
+      });
+
+      setServicosProjeto(projectServiceMap);
+
+      const mappedVersions = (scenariosResult.data || []).map(mapearRegistroVersao);
+      setVersoes(mappedVersions);
+
+      const initialVersion =
+        mappedVersions.find((item) => item.isBaseline) ||
+        mappedVersions[0] ||
+        null;
+
+      if (initialVersion) {
+        aplicarPlanoSalvo(initialVersion);
       } else {
+        setVersaoAtivaId(null);
+        setLinhaDeBaseCongelada(false);
+        setModoControle(false);
         setServicosCustomizados({});
+        setPacotesLancados([]);
+        setFeriados([]);
+        setDadosCelulas({});
+        setDadosRealizado({});
+        setHistorico([]);
       }
-
-      setHistorico([]); // Reseta memória ao entrar num projeto
     };
-    fetchZonasDoProjeto();
-  }, [projetoSelecionado]);
+
+    carregarMasterPlanProjeto();
+  }, [projetoSelecionado, isEn]);
 
   // GERAÇÃO DO CALENDÁRIO COM DATAS INTERNACIONAIS
   useEffect(() => {
@@ -408,44 +636,204 @@ export default function MasterPlanPage() {
     setDadosRealizado(prev => ({ ...prev, [`${linhaId}___${dataIso}`]: valor }));
   };
 
-  const handleCongelarLinhaDeBase = () => {
-    if (window.confirm(t.confirmFreeze)) {
-      setLinhaDeBaseCongelada(true);
-      setModoControle(true);
+  const handleCongelarLinhaDeBase = async () => {
+    if (!window.confirm(t.confirmFreeze)) return;
+    if (!projetoSelecionado) return;
+
+    let targetScenarioId = versaoAtivaId;
+
+    if (!targetScenarioId) {
+      const nomeCenario = prompt(t.promptScenario);
+      if (!nomeCenario?.trim()) return;
+
+      const { data: createdScenario, error: createError } = await supabase
+        .from('master_plan_scenarios')
+        .insert({
+          project_id: projetoSelecionado,
+          name: nomeCenario.trim(),
+          status: 'draft',
+          planned_start_date: dataInicio || null,
+          planned_finish_date: dataFim || null,
+          plan_data: montarPlanData()
+        })
+        .select(`
+          id,
+          project_id,
+          name,
+          status,
+          planned_start_date,
+          planned_finish_date,
+          is_baseline,
+          plan_data,
+          created_at,
+          updated_at
+        `)
+        .single();
+
+      if (createError) {
+        console.error('Master Plan - create baseline scenario:', createError);
+        alert(`${t.scenarioSaveError}\n${createError.message}`);
+        return;
+      }
+
+      const createdVersion = mapearRegistroVersao(createdScenario);
+      setVersoes((prev) => [createdVersion, ...prev]);
+
+      targetScenarioId = createdScenario.id;
+      setVersaoAtivaId(targetScenarioId);
     }
+
+    const previousBaselines = versoes.filter(
+      (item) => item.isBaseline && item.id !== targetScenarioId
+    );
+
+    for (const baseline of previousBaselines) {
+      const { error: clearError } = await supabase
+        .from('master_plan_scenarios')
+        .update({
+          is_baseline: false,
+          status: 'active'
+        })
+        .eq('id', baseline.id)
+        .eq('project_id', projetoSelecionado);
+
+      if (clearError) {
+        console.error('Master Plan - clear previous baseline:', clearError);
+        alert(`${t.scenarioSaveError}\n${clearError.message}`);
+        return;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('master_plan_scenarios')
+      .update({
+        is_baseline: true,
+        status: 'baseline',
+        planned_start_date: dataInicio || null,
+        planned_finish_date: dataFim || null,
+        plan_data: montarPlanData()
+      })
+      .eq('id', targetScenarioId)
+      .eq('project_id', projetoSelecionado)
+      .select(`
+        id,
+        project_id,
+        name,
+        status,
+        planned_start_date,
+        planned_finish_date,
+        is_baseline,
+        plan_data,
+        created_at,
+        updated_at
+      `)
+      .single();
+
+    if (error) {
+      console.error('Master Plan - freeze baseline:', error);
+      alert(`${t.scenarioSaveError}\n${error.message}`);
+      return;
+    }
+
+    const frozenVersion = mapearRegistroVersao(data);
+
+    setVersoes((prev) =>
+      prev.map((item) => {
+        if (item.id === frozenVersion.id) return frozenVersion;
+
+        if (item.isBaseline) {
+          return {
+            ...item,
+            isBaseline: false,
+            status: item.status === 'baseline' ? 'active' : item.status
+          };
+        }
+
+        return item;
+      })
+    );
+
+    setVersaoAtivaId(frozenVersion.id);
+    setLinhaDeBaseCongelada(true);
+    setModoControle(true);
   };
 
-  const handleDescongelar = () => {
-    if (window.confirm(t.confirmUnfreeze)) {
-      setLinhaDeBaseCongelada(false);
-      setModoControle(false);
+  const handleDescongelar = async () => {
+    if (!window.confirm(t.confirmUnfreeze)) return;
+
+    if (versaoAtivaId) {
+      const { data, error } = await supabase
+        .from('master_plan_scenarios')
+        .update({
+          is_baseline: false,
+          status: 'active',
+          plan_data: montarPlanData(),
+          planned_start_date: dataInicio || null,
+          planned_finish_date: dataFim || null
+        })
+        .eq('id', versaoAtivaId)
+        .eq('project_id', projetoSelecionado)
+        .select(`
+          id,
+          project_id,
+          name,
+          status,
+          planned_start_date,
+          planned_finish_date,
+          is_baseline,
+          plan_data,
+          created_at,
+          updated_at
+        `)
+        .single();
+
+      if (error) {
+        console.error('Master Plan - unfreeze baseline:', error);
+        alert(`${t.scenarioSaveError}\n${error.message}`);
+        return;
+      }
+
+      const updatedVersion = mapearRegistroVersao(data);
+
+      setVersoes((prev) =>
+        prev.map((item) =>
+          item.id === updatedVersion.id ? updatedVersion : item
+        )
+      );
     }
+
+    setLinhaDeBaseCongelada(false);
+    setModoControle(false);
   };
 
   // ----------------------------------------------------
-  // NOVA ATIVIDADE: SALVAR NO CACHE
+  // NOVA ATIVIDADE CUSTOMIZADA
+  // A atividade fica dentro do Scenario / Version salvo.
   // ----------------------------------------------------
   const handleSalvarNovaAtividade = (e) => {
     e.preventDefault();
-    const siglaUpper = novaAtivSigla.toUpperCase().trim().substring(0, 3);
+
+    const siglaUpper = novaAtivSigla
+      .toUpperCase()
+      .trim()
+      .substring(0, 3);
+
     if (!siglaUpper || !novaAtivNome) return;
-    
+
     const textColor = getContrastYIQ(novaAtivCor);
-    
+
     const novoServico = {
       labelPt: novaAtivNome,
-      labelEn: novaAtivNome, // Permanece igual por simplicidade na criação dinâmica
+      labelEn: novaAtivNome,
       color: novaAtivCor,
       text: textColor
     };
 
-    const novosServicosCustomizados = { ...servicosCustomizados, [siglaUpper]: novoServico };
-    setServicosCustomizados(novosServicosCustomizados);
-    
-    if (projetoSelecionado) {
-      localStorage.setItem(`custom_services_${projetoSelecionado}`, JSON.stringify(novosServicosCustomizados));
-    }
-    
+    setServicosCustomizados((prev) => ({
+      ...prev,
+      [siglaUpper]: novoServico
+    }));
+
     setNovaAtivSigla('');
     setNovaAtivNome('');
     setNovaAtivCor('#3182ce');
@@ -453,59 +841,142 @@ export default function MasterPlanPage() {
   };
 
   // ----------------------------------------------------
-  // SISTEMA DE VERSÕES: SALVAR, ATUALIZAR E DUPLICAR
+  // SISTEMA DE VERSÕES: SUPABASE
   // ----------------------------------------------------
-  const handleSalvarVersao = () => {
+  const handleSalvarVersao = async () => {
+    if (!projetoSelecionado) return;
+
     const nomeCenario = prompt(t.promptScenario);
-    if (!nomeCenario) return;
+    if (!nomeCenario?.trim()) return;
 
-    const dataFormatada = new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const novaVersao = {
-      id: `v_${Date.now()}`,
-      nome: nomeCenario,
-      data: dataFormatada,
-      pacotes: [...pacotesLancados],
-      feriadosSalvos: [...feriados],
-      servicosCustomizadosSalvos: { ...servicosCustomizados } // Salva as cores criadas!
-    };
+    const { data, error } = await supabase
+      .from('master_plan_scenarios')
+      .insert({
+        project_id: projetoSelecionado,
+        name: nomeCenario.trim(),
+        status: 'draft',
+        planned_start_date: dataInicio || null,
+        planned_finish_date: dataFim || null,
+        plan_data: montarPlanData()
+      })
+      .select(`
+        id,
+        project_id,
+        name,
+        status,
+        planned_start_date,
+        planned_finish_date,
+        is_baseline,
+        plan_data,
+        created_at,
+        updated_at
+      `)
+      .single();
 
-    setVersoes([...versoes, novaVersao]);
+    if (error) {
+      console.error('Master Plan - save scenario:', error);
+      alert(`${t.scenarioSaveError}\n${error.message}`);
+      return;
+    }
+
+    const novaVersao = mapearRegistroVersao(data);
+
+    setVersoes((prev) => [
+      novaVersao,
+      ...prev.filter((item) => item.id !== novaVersao.id)
+    ]);
+
     setVersaoAtivaId(novaVersao.id);
     alert(t.scenarioSaved);
   };
 
-  const handleAtualizarVersao = () => {
+  const handleAtualizarVersao = async () => {
     if (!versaoAtivaId) return;
-    
-    const dataFormatada = new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR', { hour: '2-digit', minute: '2-digit' });
-    
-    setVersoes(versoes.map(v => v.id === versaoAtivaId ? {
-      ...v,
-      data: dataFormatada,
-      pacotes: [...pacotesLancados],
-      feriadosSalvos: [...feriados],
-      servicosCustomizadosSalvos: { ...servicosCustomizados }
-    } : v));
-    
+
+    const { data, error } = await supabase
+      .from('master_plan_scenarios')
+      .update({
+        planned_start_date: dataInicio || null,
+        planned_finish_date: dataFim || null,
+        plan_data: montarPlanData()
+      })
+      .eq('id', versaoAtivaId)
+      .eq('project_id', projetoSelecionado)
+      .select(`
+        id,
+        project_id,
+        name,
+        status,
+        planned_start_date,
+        planned_finish_date,
+        is_baseline,
+        plan_data,
+        created_at,
+        updated_at
+      `)
+      .single();
+
+    if (error) {
+      console.error('Master Plan - update scenario:', error);
+      alert(`${t.scenarioSaveError}\n${error.message}`);
+      return;
+    }
+
+    const versaoAtualizada = mapearRegistroVersao(data);
+
+    setVersoes((prev) =>
+      prev.map((item) =>
+        item.id === versaoAtualizada.id ? versaoAtualizada : item
+      )
+    );
+
     alert(t.scenarioUpdated);
   };
 
-  const handleDuplicarVersao = () => {
+  const handleDuplicarVersao = async () => {
+    if (!projetoSelecionado) return;
+
     const nomeCopia = prompt(t.promptDuplicate);
-    if (!nomeCopia) return;
+    if (!nomeCopia?.trim()) return;
 
-    const dataFormatada = new Date().toLocaleDateString(isEn ? 'en-US' : 'pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const novaVersao = {
-      id: `v_${Date.now()}`,
-      nome: nomeCopia,
-      data: dataFormatada,
-      pacotes: [...pacotesLancados],
-      feriadosSalvos: [...feriados],
-      servicosCustomizadosSalvos: { ...servicosCustomizados }
-    };
+    const { data, error } = await supabase
+      .from('master_plan_scenarios')
+      .insert({
+        project_id: projetoSelecionado,
+        name: nomeCopia.trim(),
+        status: 'draft',
+        planned_start_date: dataInicio || null,
+        planned_finish_date: dataFim || null,
+        is_baseline: false,
+        plan_data: montarPlanData()
+      })
+      .select(`
+        id,
+        project_id,
+        name,
+        status,
+        planned_start_date,
+        planned_finish_date,
+        is_baseline,
+        plan_data,
+        created_at,
+        updated_at
+      `)
+      .single();
 
-    setVersoes([...versoes, novaVersao]);
+    if (error) {
+      console.error('Master Plan - duplicate scenario:', error);
+      alert(`${t.scenarioSaveError}\n${error.message}`);
+      return;
+    }
+
+    const novaVersao = mapearRegistroVersao(data);
+
+    setVersoes((prev) => [novaVersao, ...prev]);
     setVersaoAtivaId(novaVersao.id);
+    setLinhaDeBaseCongelada(false);
+    setModoControle(false);
+
     alert(t.scenarioSaved);
   };
 
@@ -514,21 +985,24 @@ export default function MasterPlanPage() {
       if (window.confirm(t.confirmClear)) {
         salvarHistorico();
         setPacotesLancados([]);
+        setFeriados([]);
+        setDadosCelulas({});
+        setDadosRealizado({});
+        setServicosCustomizados({});
         setVersaoAtivaId(null);
+        setLinhaDeBaseCongelada(false);
+        setModoControle(false);
       }
       return;
     }
 
-    if (window.confirm(t.confirmLoad)) {
-      salvarHistorico();
-      const versao = versoes.find(v => v.id === versaoId);
-      if (versao) {
-        setPacotesLancados(versao.pacotes);
-        setFeriados(versao.feriadosSalvos);
-        setServicosCustomizados(versao.servicosCustomizadosSalvos || {});
-        setVersaoAtivaId(versao.id);
-      }
-    }
+    if (!window.confirm(t.confirmLoad)) return;
+
+    salvarHistorico();
+
+    const versao = versoes.find((item) => item.id === versaoId);
+
+    if (versao) aplicarPlanoSalvo(versao);
   };
   // ----------------------------------------------------
 
@@ -662,7 +1136,9 @@ export default function MasterPlanPage() {
               >
                 <option value="">{t.selectProject}</option>
                 {projetosLista.map(p => (
-                  <option key={p.id} value={p.id}>#{p.id} - {p.nome_projeto}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.code ? `${p.code} - ` : ''}{p.name}
+                  </option>
                 ))}
               </select>
             </div>
