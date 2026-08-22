@@ -222,17 +222,17 @@ export default function DashboardLayout({
             aria-label="RitsuFlow home"
           >
             <Image
-              src="/logo.jpg"
+              src="/logo.png"
               alt="RitsuFlow"
-              width={500}
-              height={220}
+              width={1600}
+              height={900}
               priority
               style={{
                 width: isCollapsed
                   ? '48px'
                   : '165px',
                 height: 'auto',
-                maxHeight: '54px',
+                maxHeight: '56px',
                 objectFit: 'contain',
                 objectPosition: 'center',
               }}
