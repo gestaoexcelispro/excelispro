@@ -3,10 +3,6 @@
   --navy-900: #082a4a;
   --navy-800: #0b3b66;
 
-  --sidebar-900: #466b7a;
-  --sidebar-800: #527887;
-  --sidebar-700: #5e8492;
-
   --blue-600: #1677d2;
   --blue-100: #dceeff;
 
@@ -46,15 +42,11 @@
 
   background:
     radial-gradient(
-      circle at 18% 0%,
+      circle at 20% 0%,
       rgba(8, 170, 150, 0.18),
-      transparent 19rem
+      transparent 18rem
     ),
-    linear-gradient(
-      180deg,
-      var(--sidebar-800) 0%,
-      var(--sidebar-900) 100%
-    );
+    var(--navy-950);
 
   transition:
     width 180ms ease,
@@ -71,31 +63,59 @@
   display: flex;
   align-items: center;
 
-  min-height: 82px;
+  min-height: 88px;
 
-  padding: 0 22px;
+  padding: 0 20px;
 
   border-bottom:
-    1px solid rgba(255, 255, 255, 0.16);
+    1px solid rgba(255, 255, 255, 0.1);
 }
 
 .brand {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
 
   width: 100%;
   min-width: 0;
 
-  color: var(--white);
   text-decoration: none;
 }
 
-.sidebarCollapsed .sidebarHeader {
-  padding: 0 18px;
+.brandLogo {
+  display: block;
+
+  width: 168px;
+  height: auto;
+
+  max-height: 62px;
+
+  object-fit: contain;
+  object-position: left center;
+
+  transition:
+    width 180ms ease,
+    opacity 120ms ease;
 }
 
-.sidebarCollapsed .brand {
+.sidebarCollapsed
+  .sidebarHeader {
   justify-content: center;
+
+  padding: 0 12px;
+}
+
+.sidebarCollapsed
+  .brand {
+  justify-content: center;
+}
+
+.sidebarCollapsed
+  .brandLogo {
+  width: 58px;
+  max-height: 54px;
+
+  object-position: center;
 }
 
 .navigation {
@@ -114,7 +134,7 @@
 .navigationLabel {
   margin: 0 10px 9px;
 
-  color: rgba(255, 255, 255, 0.64);
+  color: #7fa6c7;
 
   font-size: 0.64rem;
   font-weight: 800;
@@ -125,7 +145,8 @@
   white-space: nowrap;
 }
 
-.sidebarCollapsed .navigationLabel {
+.sidebarCollapsed
+  .navigationLabel {
   height: 1px;
 
   margin: 8px 10px;
@@ -144,7 +165,7 @@
   margin-bottom: 4px;
   padding: 0 12px;
 
-  color: rgba(255, 255, 255, 0.83);
+  color: #cbdbea;
 
   border: 1px solid transparent;
   border-radius: 10px;
@@ -161,17 +182,17 @@
   color: var(--white);
 
   background:
-    rgba(255, 255, 255, 0.1);
+    rgba(255, 255, 255, 0.07);
 }
 
 .navigationLinkActive {
   color: var(--white);
 
   border-color:
-    rgba(8, 170, 150, 0.42);
+    rgba(8, 170, 150, 0.28);
 
   background:
-    rgba(8, 170, 150, 0.22);
+    rgba(8, 170, 150, 0.16);
 }
 
 .navigationIcon {
@@ -184,12 +205,12 @@
   width: 30px;
   height: 30px;
 
-  color: rgba(255, 255, 255, 0.88);
+  color: #b6d2e7;
 
   border-radius: 8px;
 
   background:
-    rgba(6, 27, 47, 0.18);
+    rgba(255, 255, 255, 0.06);
 
   font-size: 0.68rem;
   font-weight: 800;
@@ -198,7 +219,9 @@
 .navigationLinkActive
   .navigationIcon {
   color: var(--white);
-  background: var(--teal-500);
+
+  background:
+    var(--teal-500);
 }
 
 .navigationText {
@@ -211,7 +234,8 @@
 
   white-space: nowrap;
 
-  transition: opacity 120ms ease;
+  transition:
+    opacity 120ms ease;
 }
 
 .sidebarCollapsed
@@ -227,7 +251,7 @@
   padding: 14px;
 
   border-top:
-    1px solid rgba(255, 255, 255, 0.16);
+    1px solid rgba(255, 255, 255, 0.1);
 }
 
 .developmentStatus {
@@ -236,12 +260,12 @@
   padding: 12px;
 
   border:
-    1px solid rgba(8, 170, 150, 0.34);
+    1px solid rgba(8, 170, 150, 0.22);
 
   border-radius: 10px;
 
   background:
-    rgba(6, 27, 47, 0.14);
+    rgba(8, 170, 150, 0.09);
 }
 
 .statusTitle {
@@ -250,7 +274,7 @@
 
   gap: 8px;
 
-  color: #e6fffb;
+  color: #d9f6f1;
 
   font-size: 0.73rem;
   font-weight: 800;
@@ -264,13 +288,14 @@
 
   border-radius: 50%;
 
-  background: var(--teal-500);
+  background:
+    var(--teal-500);
 }
 
 .statusText {
   margin: 6px 0 0;
 
-  color: rgba(255, 255, 255, 0.66);
+  color: #91aec5;
 
   font-size: 0.68rem;
 
@@ -343,7 +368,8 @@
 
   border-radius: 10px;
 
-  background: var(--white);
+  background:
+    var(--white);
 
   cursor: pointer;
 
@@ -399,7 +425,8 @@
 
   border-radius: 9px;
 
-  background: var(--white);
+  background:
+    var(--white);
 
   cursor: pointer;
 
@@ -427,7 +454,8 @@
 
   border-radius: 9px;
 
-  background: var(--slate-100);
+  background:
+    var(--slate-100);
 }
 
 .languageButton {
@@ -494,12 +522,25 @@
 
   .sidebarCollapsed
     .sidebarHeader {
-    padding: 0 22px;
+    justify-content:
+      flex-start;
+
+    padding: 0 20px;
   }
 
   .sidebarCollapsed
     .brand {
-    justify-content: flex-start;
+    justify-content:
+      flex-start;
+  }
+
+  .sidebarCollapsed
+    .brandLogo {
+    width: 168px;
+    max-height: 62px;
+
+    object-position:
+      left center;
   }
 
   .sidebarCollapsed
