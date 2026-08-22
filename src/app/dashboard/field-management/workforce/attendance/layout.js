@@ -16,6 +16,10 @@ const attendanceNavigation = [
     label: 'Exceptions',
     href: '/dashboard/field-management/workforce/attendance/exceptions',
   },
+  {
+    label: 'Audit Trail',
+    href: '/dashboard/field-management/workforce/attendance/audit',
+  },
 ]
 
 export default function AttendanceLayout({
