@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import styles from './landing.module.css'
 
 export const metadata = {
@@ -77,26 +78,62 @@ export default function HomePage() {
     <div className={styles.page}>
       <header className={styles.navigation}>
         <div className={styles.navigationInner}>
-          <a href="/" className={styles.brand} aria-label="RitsuFlow home">
-            <span className={styles.brandMark} aria-hidden="true" />
-            <span>RitsuFlow</span>
+          <a
+            href="/"
+            className={styles.brand}
+            aria-label="RitsuFlow home"
+          >
+            <Image
+              src="/logo.jpg"
+              alt="RitsuFlow"
+              width={220}
+              height={90}
+              priority
+              style={{
+                width: '150px',
+                height: 'auto',
+                objectFit: 'contain',
+              }}
+            />
           </a>
 
           <nav
             className={styles.navigationLinks}
             aria-label="Primary navigation"
           >
-            <a href="#workflow">Workflow</a>
-            <a href="#capabilities">Capabilities</a>
-            <a href="#platform">Platform</a>
+            <a href="#workflow">
+              Workflow
+            </a>
+
+            <a href="#capabilities">
+              Capabilities
+            </a>
+
+            <a href="#platform">
+              Platform
+            </a>
           </nav>
 
-          <div className={styles.navigationActions}>
-            <a href="/login" className={styles.secondaryButton}>
+          <div
+            className={
+              styles.navigationActions
+            }
+          >
+            <a
+              href="/login"
+              className={
+                styles.secondaryButton
+              }
+            >
               Sign in
             </a>
 
-            <a href="/login" className={styles.primaryButton}>
+            <a
+              href="/login"
+              className={
+                styles.primaryButton
+              }
+            >
               Private access
             </a>
           </div>
@@ -106,133 +143,313 @@ export default function HomePage() {
       <main>
         <section className={styles.hero}>
           <div>
-            <p className={styles.eyebrow}>
-              <span className={styles.eyebrowDot} />
-              Coming soon · Location-based construction planning
+            <p
+              className={styles.eyebrow}
+            >
+              <span
+                className={
+                  styles.eyebrowDot
+                }
+              />
+              Coming soon ·
+              Location-based
+              construction planning
             </p>
 
             <h1>
               Plan by location.
               <br />
-              Control by <span>flow.</span>
+              Control by{' '}
+              <span>flow.</span>
             </h1>
 
-            <p className={styles.heroDescription}>
-              RitsuFlow connects master planning, lookahead preparation,
-              weekly commitments, and production control in one integrated
+            <p
+              className={
+                styles.heroDescription
+              }
+            >
+              RitsuFlow connects
+              master planning,
+              lookahead preparation,
+              weekly commitments,
+              and production control
+              in one integrated
               construction workflow.
             </p>
 
-            <div className={styles.heroActions}>
-              <a href="#workflow" className={styles.primaryButton}>
+            <div
+              className={
+                styles.heroActions
+              }
+            >
+              <a
+                href="#workflow"
+                className={
+                  styles.primaryButton
+                }
+              >
                 Explore the workflow
               </a>
 
-              <a href="/login" className={styles.secondaryButton}>
+              <a
+                href="/login"
+                className={
+                  styles.secondaryButton
+                }
+              >
                 Private access
               </a>
             </div>
 
-            <p className={styles.heroNote}>
-              Currently in private development. Public release coming soon.
+            <p
+              className={
+                styles.heroNote
+              }
+            >
+              Currently in private
+              development. Public
+              release coming soon.
             </p>
           </div>
 
-          <div className={styles.preview} id="platform">
-            <div className={styles.previewHeader}>
-              <p className={styles.previewTitle}>
-                Production Flow Overview
+          <div
+            className={styles.preview}
+            id="platform"
+          >
+            <div
+              className={
+                styles.previewHeader
+              }
+            >
+              <p
+                className={
+                  styles.previewTitle
+                }
+              >
+                Production Flow
+                Overview
               </p>
 
-              <span className={styles.previewStatus}>
+              <span
+                className={
+                  styles.previewStatus
+                }
+              >
                 Plan synchronized
               </span>
             </div>
 
-            <div className={styles.flowPanel}>
-              <div className={styles.flowHeading}>
-                <span>Locations</span>
-                <span>Production sequence</span>
+            <div
+              className={
+                styles.flowPanel
+              }
+            >
+              <div
+                className={
+                  styles.flowHeading
+                }
+              >
+                <span>
+                  Locations
+                </span>
+
+                <span>
+                  Production sequence
+                </span>
               </div>
 
-              <div className={styles.flowGrid}>
-                <div className={styles.flowColumn}>
-                  <span className={styles.flowLocation}>ZONE 01</span>
+              <div
+                className={
+                  styles.flowGrid
+                }
+              >
+                <div
+                  className={
+                    styles.flowColumn
+                  }
+                >
+                  <span
+                    className={
+                      styles.flowLocation
+                    }
+                  >
+                    ZONE 01
+                  </span>
 
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockTeal}`}
                   />
 
-                  <div className={styles.flowBlock} />
+                  <div
+                    className={
+                      styles.flowBlock
+                    }
+                  />
 
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockLight}`}
                   />
                 </div>
 
-                <div className={styles.flowColumn}>
-                  <span className={styles.flowLocation}>ZONE 02</span>
+                <div
+                  className={
+                    styles.flowColumn
+                  }
+                >
+                  <span
+                    className={
+                      styles.flowLocation
+                    }
+                  >
+                    ZONE 02
+                  </span>
 
-                  <div className={styles.flowBlock} />
+                  <div
+                    className={
+                      styles.flowBlock
+                    }
+                  />
 
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockTeal}`}
                   />
 
-                  <div className={styles.flowBlock} />
+                  <div
+                    className={
+                      styles.flowBlock
+                    }
+                  />
                 </div>
 
-                <div className={styles.flowColumn}>
-                  <span className={styles.flowLocation}>ZONE 03</span>
+                <div
+                  className={
+                    styles.flowColumn
+                  }
+                >
+                  <span
+                    className={
+                      styles.flowLocation
+                    }
+                  >
+                    ZONE 03
+                  </span>
 
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockLight}`}
                   />
 
-                  <div className={styles.flowBlock} />
+                  <div
+                    className={
+                      styles.flowBlock
+                    }
+                  />
 
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockTeal}`}
                   />
                 </div>
 
-                <div className={styles.flowColumn}>
-                  <span className={styles.flowLocation}>ZONE 04</span>
+                <div
+                  className={
+                    styles.flowColumn
+                  }
+                >
+                  <span
+                    className={
+                      styles.flowLocation
+                    }
+                  >
+                    ZONE 04
+                  </span>
 
-                  <div className={styles.flowBlock} />
+                  <div
+                    className={
+                      styles.flowBlock
+                    }
+                  />
 
                   <div
                     className={`${styles.flowBlock} ${styles.flowBlockLight}`}
                   />
 
-                  <div className={styles.flowBlock} />
+                  <div
+                    className={
+                      styles.flowBlock
+                    }
+                  />
                 </div>
               </div>
             </div>
 
-            <div className={styles.metricGrid}>
-              <div className={styles.metric}>
-                <div className={styles.metricLabel}>
+            <div
+              className={
+                styles.metricGrid
+              }
+            >
+              <div
+                className={
+                  styles.metric
+                }
+              >
+                <div
+                  className={
+                    styles.metricLabel
+                  }
+                >
                   Plan reliability
                 </div>
 
-                <div className={styles.metricValue}>86%</div>
+                <div
+                  className={
+                    styles.metricValue
+                  }
+                >
+                  86%
+                </div>
               </div>
 
-              <div className={styles.metric}>
-                <div className={styles.metricLabel}>
+              <div
+                className={
+                  styles.metric
+                }
+              >
+                <div
+                  className={
+                    styles.metricLabel
+                  }
+                >
                   Open constraints
                 </div>
 
-                <div className={styles.metricValue}>12</div>
+                <div
+                  className={
+                    styles.metricValue
+                  }
+                >
+                  12
+                </div>
               </div>
 
-              <div className={styles.metric}>
-                <div className={styles.metricLabel}>
+              <div
+                className={
+                  styles.metric
+                }
+              >
+                <div
+                  className={
+                    styles.metricLabel
+                  }
+                >
                   Flow variance
                 </div>
 
-                <div className={styles.metricValue}>-4%</div>
+                <div
+                  className={
+                    styles.metricValue
+                  }
+                >
+                  -4%
+                </div>
               </div>
             </div>
           </div>
@@ -242,102 +459,218 @@ export default function HomePage() {
           className={`${styles.section} ${styles.sectionMuted}`}
           id="workflow"
         >
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeader}>
-              <p className={styles.eyebrow}>
-                <span className={styles.eyebrowDot} />
-                One connected planning system
+          <div
+            className={
+              styles.sectionInner
+            }
+          >
+            <div
+              className={
+                styles.sectionHeader
+              }
+            >
+              <p
+                className={
+                  styles.eyebrow
+                }
+              >
+                <span
+                  className={
+                    styles.eyebrowDot
+                  }
+                />
+                One connected planning
+                system
               </p>
 
               <h2>
-                From long-term strategy to reliable field commitments.
+                From long-term strategy
+                to reliable field
+                commitments.
               </h2>
 
               <p>
-                Each planning level prepares the conditions required by the
-                next, creating a continuous flow of information and
+                Each planning level
+                prepares the conditions
+                required by the next,
+                creating a continuous
+                flow of information and
                 production decisions.
               </p>
             </div>
 
-            <div className={styles.workflowGrid}>
-              {workflowSteps.map((step) => (
-                <article
-                  className={styles.workflowCard}
-                  key={step.number}
-                >
-                  <span className={styles.workflowNumber}>
-                    {step.number}
-                  </span>
+            <div
+              className={
+                styles.workflowGrid
+              }
+            >
+              {workflowSteps.map(
+                (step) => (
+                  <article
+                    className={
+                      styles.workflowCard
+                    }
+                    key={
+                      step.number
+                    }
+                  >
+                    <span
+                      className={
+                        styles.workflowNumber
+                      }
+                    >
+                      {step.number}
+                    </span>
 
-                  <h3>{step.title}</h3>
+                    <h3>
+                      {step.title}
+                    </h3>
 
-                  <p>{step.description}</p>
-                </article>
-              ))}
+                    <p>
+                      {
+                        step.description
+                      }
+                    </p>
+                  </article>
+                )
+              )}
             </div>
           </div>
         </section>
 
-        <section className={styles.section} id="capabilities">
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeader}>
-              <p className={styles.eyebrow}>
-                <span className={styles.eyebrowDot} />
-                Built around production flow
+        <section
+          className={styles.section}
+          id="capabilities"
+        >
+          <div
+            className={
+              styles.sectionInner
+            }
+          >
+            <div
+              className={
+                styles.sectionHeader
+              }
+            >
+              <p
+                className={
+                  styles.eyebrow
+                }
+              >
+                <span
+                  className={
+                    styles.eyebrowDot
+                  }
+                />
+                Built around production
+                flow
               </p>
 
               <h2>
-                A construction planning platform designed for execution.
+                A construction planning
+                platform designed for
+                execution.
               </h2>
 
               <p>
-                RitsuFlow brings locations, activities, constraints,
-                commitments, and performance indicators into the same
-                operational environment.
+                RitsuFlow brings
+                locations, activities,
+                constraints,
+                commitments, and
+                performance indicators
+                into the same
+                operational
+                environment.
               </p>
             </div>
 
-            <div className={styles.capabilityGrid}>
-              {capabilities.map((capability) => (
-                <article
-                  className={styles.capabilityCard}
-                  key={capability.title}
-                >
-                  <span className={styles.capabilityIcon}>
-                    {capability.icon}
-                  </span>
+            <div
+              className={
+                styles.capabilityGrid
+              }
+            >
+              {capabilities.map(
+                (capability) => (
+                  <article
+                    className={
+                      styles.capabilityCard
+                    }
+                    key={
+                      capability.title
+                    }
+                  >
+                    <span
+                      className={
+                        styles.capabilityIcon
+                      }
+                    >
+                      {
+                        capability.icon
+                      }
+                    </span>
 
-                  <h3>{capability.title}</h3>
+                    <h3>
+                      {
+                        capability.title
+                      }
+                    </h3>
 
-                  <p>{capability.description}</p>
-                </article>
-              ))}
+                    <p>
+                      {
+                        capability.description
+                      }
+                    </p>
+                  </article>
+                )
+              )}
             </div>
           </div>
         </section>
 
-        <section className={styles.closing}>
-          <h2>RitsuFlow is coming soon.</h2>
+        <section
+          className={
+            styles.closing
+          }
+        >
+          <h2>
+            RitsuFlow is coming soon.
+          </h2>
 
           <p>
-            We are building a location-based planning and flow control
-            platform to make construction production more predictable.
+            We are building a
+            location-based planning
+            and flow control platform
+            to make construction
+            production more
+            predictable.
           </p>
 
-          <a href="/login" className={styles.primaryButton}>
+          <a
+            href="/login"
+            className={
+              styles.primaryButton
+            }
+          >
             Private access
           </a>
         </section>
       </main>
 
-      <footer className={styles.footer}>
+      <footer
+        className={styles.footer}
+      >
         <span>
-          © {new Date().getFullYear()} Eduardo Fernandes de Freitas. All
-          rights reserved.
+          ©{' '}
+          {new Date().getFullYear()}{' '}
+          Eduardo Fernandes de
+          Freitas. All rights
+          reserved.
         </span>
 
-        <span>Location-based planning and flow control.</span>
+        <span>
+          Location-based planning and
+          flow control.
+        </span>
       </footer>
     </div>
   )
